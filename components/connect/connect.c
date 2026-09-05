@@ -451,7 +451,8 @@ static void event_handler(void * arg, esp_event_base_t event_base, int32_t event
             ESP_LOGI(TAG, "Wi-Fi status: %s", GLOBAL_STATE->SYSTEM_MODULE.wifi_status);
 
             // Wait a little
-            vTaskDelay(5000 / portTICK_PERIOD_MS);
+            uint32_t delay_ms = (s_retry_num < 3) ? 500 : (s_retry_num < 10 ? 2000 : 5000);
+vTaskDelay(delay_ms / portTICK_PERIOD_MS);
 
             s_retry_num++;
             ESP_LOGI(TAG, "Retrying Wi-Fi connection...");
@@ -684,7 +685,7 @@ esp_netif_t * wifi_init_sta(const char * wifi_ssid, const char * wifi_pass)
                 .threshold.authmode = authmode,
                 .btm_enabled = 1,
                 .rm_enabled = 1,
-                .scan_method = WIFI_ALL_CHANNEL_SCAN,
+                .scan_method = WIFI_FAST_SCAN,
                 .sort_method = WIFI_CONNECT_AP_BY_SIGNAL,
                 .pmf_cfg =
                     {
@@ -736,12 +737,16 @@ void wifi_init(GlobalState * GLOBAL_STATE)
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
 
-    wifi_softap_on();
-
-    /* Initialize AP */
-    wifi_init_softap(GLOBAL_STATE);
-
     GLOBAL_STATE->SYSTEM_MODULE.ssid = nvs_config_get_string(NVS_CONFIG_WIFI_SSID);
+
+    /* Only initialize and enable SoftAP if no SSID is configured */
+    if (strlen(GLOBAL_STATE->SYSTEM_MODULE.ssid) == 0) {
+        wifi_softap_on();
+        wifi_init_softap(GLOBAL_STATE);
+    } else {
+        /* Start in clean STA-only mode for immediate connection without AP coexistence */
+        esp_wifi_set_mode(WIFI_MODE_STA);
+    }
 
     /* Skip connection if SSID is null */
     if (strlen(GLOBAL_STATE->SYSTEM_MODULE.ssid) == 0) {

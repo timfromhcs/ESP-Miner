@@ -5,6 +5,23 @@ This project adheres to [Semantic Versioning](https://semver.org/) and the **Tru
 
 ---
 
+## [2.15.3-hardened] - 2026-09-06
+
+### Changed
+- **Wi-Fi Fast Scan:** Enabled `WIFI_FAST_SCAN` for known STA connections, significantly reducing scan overhead and channel dwell time during startup.
+- **Selective SoftAP Initialization:** SoftAP is initialized strictly when no SSID is configured in NVS, preventing dual STA+AP coexistence radio contention on boot.
+- **Exponential/Staged Wi-Fi Reconnect Backoff:** Replaced fixed 5s disconnect wait with staged 500ms -> 2000ms -> 5000ms retry intervals for rapid recovery from brief router drops.
+- **BLE / Wi-Fi Coexistence Hardening:** Increased BLE advertising grace period on boot to 15s when an SSID exists, preventing NimBLE 2.4 GHz radio packet collision during critical DHCP handshake (e.g. on FRITZ!Box routers).
+- **Stratum Reconnect Loop:** Reduced Wi-Fi link check delay in Stratum V1/V2 worker tasks from 10s to 1s, achieving near-instantaneous reconnection when the network recovers.
+
+### Hardware Validation
+- Physical Bitaxe Ultra (Board 201, BM1366, COM3 / 192.168.178.66):
+  - IP acquisition on FRITZ!Box: Instantaneous without radio contention.
+  - Mining: Sustained ~437-440 GH/s @ 485 MHz / 1200 mV.
+  - Stratum: Solopool.eu connected, 13+ shares accepted, 0 hardware errors.
+
+---
+
 ## [2.15.2-hardened] - 2026-09-05
 
 
