@@ -52,6 +52,8 @@ void create_jobs_task(void *pvParameters)
     void *current_work = NULL;
     stratum_protocol_t current_work_protocol = GLOBAL_STATE->stratum_protocol;
     uint64_t extranonce_2 = 0;
+    char last_job_id_str[64] = {0};
+    uint32_t last_job_id_num = UINT32_MAX;
     int timeout_ms = ASIC_get_asic_job_frequency_ms(GLOBAL_STATE);
 
     ESP_LOGI(TAG, "ASIC Job Interval: %d ms", timeout_ms);
@@ -79,6 +81,8 @@ void create_jobs_task(void *pvParameters)
                 current_work = NULL;
             }
             current_work_protocol = active_protocol;
+            last_job_id_str[0] = '\0';
+            last_job_id_num = UINT32_MAX;
         }
 
         uint64_t start_time = esp_timer_get_time();
@@ -130,19 +134,38 @@ void create_jobs_task(void *pvParameters)
                 GLOBAL_STATE->new_stratum_version_rolling_msg = false;
             }
 
-            extranonce_2 = 0;
-
-            // Check clean_jobs flag
+            // Check clean_jobs flag and job ID changes
             bool clean;
+            bool job_changed = false;
             if (current_work_protocol == STRATUM_PROTOCOL_V2) {
                 if (stratum_v2_is_extended_channel(GLOBAL_STATE)) {
-                    clean = ((sv2_ext_job_t *)current_work)->clean_jobs;
+                    sv2_ext_job_t *ext_job = (sv2_ext_job_t *)current_work;
+                    clean = ext_job->clean_jobs;
+                    if (ext_job->job_id != last_job_id_num) {
+                        job_changed = true;
+                        last_job_id_num = ext_job->job_id;
+                    }
                 } else {
                     clean = ((sv2_job_t *)current_work)->clean_jobs;
                 }
             } else {
-                clean = ((mining_notify *)current_work)->clean_jobs;
+                mining_notify *notify = (mining_notify *)current_work;
+                clean = notify->clean_jobs;
+                if (notify->job_id && (last_job_id_str[0] == '\0' || strcmp(last_job_id_str, notify->job_id) != 0)) {
+                    job_changed = true;
+                    strncpy(last_job_id_str, notify->job_id, sizeof(last_job_id_str) - 1);
+                    last_job_id_str[sizeof(last_job_id_str) - 1] = '\0';
+                }
             }
+
+            // Only reset extranonce_2 to 0 on a clean job or if the job ID actually changed.
+            // When clean == false and the same job is updated (e.g. ntime advance or difficulty change),
+            // resetting extranonce_2 to 0 causes the ASIC to re-explore nonces it already searched,
+            // resulting in duplicate share submissions to the pool.
+            if (clean || job_changed) {
+                extranonce_2 = 0;
+            }
+
             if (!clean) {
                 continue;
             }

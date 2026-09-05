@@ -237,3 +237,35 @@ TEST_CASE("Test nonce diff checking 2", "[mining test_nonce][not-on-qemu]")
     double diff = test_nonce_value(&job, nonce, rolled_version);
     TEST_ASSERT_EQUAL_INT(683, (int)diff);
 }
+
+TEST_CASE("Validate extranonce_2 uniqueness and formatting", "[mining]")
+{
+    char en2_str_0[MAX_EXTRANONCE_2_LEN * 2 + 1];
+    char en2_str_1[MAX_EXTRANONCE_2_LEN * 2 + 1];
+    char en2_str_2[MAX_EXTRANONCE_2_LEN * 2 + 1];
+
+    extranonce_2_generate(0, 4, en2_str_0);
+    extranonce_2_generate(1, 4, en2_str_1);
+    extranonce_2_generate(2, 4, en2_str_2);
+
+    TEST_ASSERT_EQUAL_STRING("00000000", en2_str_0);
+    TEST_ASSERT_EQUAL_STRING("01000000", en2_str_1);
+    TEST_ASSERT_EQUAL_STRING("02000000", en2_str_2);
+
+    // Ensure successive extranonce_2 values generate completely different coinbase hashes
+    const char *coinbase_1 = "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff20020862062f503253482f04b8864e5008";
+    const char *coinbase_2 = "072f736c7573682f000000000100f2052a010000001976a914d23fcdf86f7e756a64a7a9688ef9903327048ed988ac00000000";
+    const char *extranonce = "e9695791";
+
+    uint8_t hash0[32], hash1[32];
+    calculate_coinbase_tx_hash(coinbase_1, coinbase_2, extranonce, en2_str_0, hash0);
+    calculate_coinbase_tx_hash(coinbase_1, coinbase_2, extranonce, en2_str_1, hash1);
+
+    // Two different extranonce_2 values MUST NOT produce the same coinbase hash
+    int diff_bytes = 0;
+    for (int i = 0; i < 32; i++) {
+        if (hash0[i] != hash1[i]) diff_bytes++;
+    }
+    TEST_ASSERT_GREATER_THAN(0, diff_bytes);
+}
+
