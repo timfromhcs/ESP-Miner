@@ -379,9 +379,12 @@ static void ip_timeout_callback(TimerHandle_t xTimer)
 {
     GlobalState *GLOBAL_STATE = (GlobalState *)pvTimerGetTimerID(xTimer);
     if (!GLOBAL_STATE->SYSTEM_MODULE.is_connected) {
-        ESP_LOGI(TAG, "Timeout waiting for IP address. Disconnecting...");
-        strcpy(GLOBAL_STATE->SYSTEM_MODULE.wifi_status, "IP Acquire Timeout");
-        esp_wifi_disconnect();
+        ESP_LOGW(TAG, "DHCP lease pending, renewing DHCP discovery...");
+        esp_netif_t *esp_netif_sta = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+        if (esp_netif_sta != NULL) {
+            esp_netif_dhcpc_stop(esp_netif_sta);
+            esp_netif_dhcpc_start(esp_netif_sta);
+        }
     }
 }
 
@@ -414,8 +417,13 @@ static void event_handler(void * arg, esp_event_base_t event_base, int32_t event
             ESP_LOGI(TAG, "Acquiring IP...");
             strcpy(GLOBAL_STATE->SYSTEM_MODULE.wifi_status, "Acquiring IP...");
 
+            esp_netif_t *esp_netif_sta = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+            if (esp_netif_sta != NULL) {
+                esp_netif_dhcpc_start(esp_netif_sta);
+            }
+
             if (ip_acquire_timer == NULL) {
-                ip_acquire_timer = xTimerCreate("ip_acquire_timer", pdMS_TO_TICKS(30000), pdFALSE, (void *)GLOBAL_STATE, ip_timeout_callback);
+                ip_acquire_timer = xTimerCreate("ip_acquire_timer", pdMS_TO_TICKS(15000), pdTRUE, (void *)GLOBAL_STATE, ip_timeout_callback);
             }
             if (ip_acquire_timer != NULL) {
                 xTimerStart(ip_acquire_timer, 0);
@@ -706,10 +714,7 @@ esp_netif_t * wifi_init_sta(const char * wifi_ssid, const char * wifi_pass)
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_sta_config));
 
     // IPv6 link-local address will be created after WiFi connection
-    
-    // Start DHCP client for IPv4
-    esp_netif_dhcpc_start(esp_netif_sta);
-
+    // DHCP client for IPv4 is started when WIFI_EVENT_STA_CONNECTED fires
     ESP_LOGI(TAG, "wifi_init_sta finished.");
 
     return esp_netif_sta;

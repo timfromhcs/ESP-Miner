@@ -1,0 +1,12 @@
+I (102) boot:  7 coredump         Unknown data     01 03 00f1200I (84305) wifi:new:<4,1>, old:<4,0>, ap:<4,1>, sta:<4,0>, prof:1, snd_ch_cfg:0x0
+I (84306) wifi:state: init -> auth (0xb0)
+I (84316) wifi:state: auth -> assoc (0x0)
+I (84324) wifi:state: assoc -> run (0x10)
+I (84370) wifi:connected with AP_SSID_REDACTED, aid = 1, channel 4, BW20, bssid = BSSID_REDACTED
+I (84370) wifi:security: WPA2-PSK, phy: bgn, rssi: -55, cipher(pairwise:0x3, group:0x3), pmf:0
+I (84373) wifi:pm start, type: 0
+I (84373) wifi:set rx beacon pti, rx_bcn_pti: 14, bcn_timeout: 25000, mt_pti: 14, mt_time: 10000
+E (84374) wifi:sta is connecting, cannot set config
+[0;32mI (84375) connect: Acquiring IP...[0m
+I (84520) wifi:AP's beacon interval = 102400 us, DTIM period = 1
+W (86503) wifi:Error! Should use default active scan time parameter for WiFi scan when Bluetooth is enabled!!!!!!

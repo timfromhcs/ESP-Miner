@@ -1,0 +1,36 @@
+{
+  "firmware_version": "v2.15.2rc0",
+  "build_date": "Aug 29 2026 21:06:39",
+  "elf_sha256": "b797c9fc5...",
+  "target_hardware": {
+    "board": "201 (Bitaxe Ultra)",
+    "soc": "ESP32-S3 (QFN56) v0.2",
+    "flash_size_mb": 16,
+    "psram_size_mb": 8,
+    "asic": "BM1366",
+    "cores": 112,
+    "mac": "74:4d:bd:77:dd:3c"
+  },
+  "configured_settings": {
+    "frequency_mhz": 485,
+    "voltage_mv": 1200,
+    "expected_hashrate_mhs": 433.59,
+    "fanspeed_percent": 100,
+    "autofanspeed": 1,
+    "hostname": "timsminer",
+    "pool_url": "public-pool.io",
+    "pool_port": 3333,
+    "fallback_pool_url": "solo.ckpool.org",
+    "fallback_pool_port": 3333
+  },
+  "measured_hardware_status": {
+    "emc2101_init": true,
+    "temp_offset_c": 5,
+    "fan_controller_startup_speed": 70.0,
+    "vcore_set_v": 1.2,
+    "wifi_bssid": "2c:3a:fd:49:d3:95",
+    "wifi_channel": 4,
+    "wifi_rssi_dbm": -55,
+    "wifi_dhcp_issue_observed": "Station connection established (WIFI_EVENT_STA_CONNECTED), but DHCP client timeout occurs in factory v2.15.2rc0 without successful IP lease within 30s timeout"
+  }
+}

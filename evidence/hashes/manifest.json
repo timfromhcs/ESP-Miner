@@ -1,0 +1,28 @@
+{
+  "firmware_binary": {
+    "path": "build/esp-miner.bin",
+    "sha256": "1E21353C314F10B1A6BAB628F2BCB62FF68759558E3947078B2B66CC7A475FB5"
+  },
+  "target_hardware": {
+    "model": "Bitaxe Ultra",
+    "board_version": "201",
+    "asic": "BM1366 (112 cores)",
+    "soc": "ESP32-S3 (rev v0.2)",
+    "flash": "16MB (GD GD25Q128E)",
+    "psram": "8MB Octal (AP 64Mbit)",
+    "mac_sta": "74:4d:bd:77:dd:3c"
+  },
+  "measured_validation": {
+    "frequency_mhz": 485,
+    "core_voltage_mv": 1200,
+    "temperature_c": 46.0,
+    "fan_output_pct": 27.3,
+    "shares_accepted": "PROVEN (multiple shares accepted by solopool.eu)",
+    "stratum_response_ms": [
+      17.0,
+      20.7,
+      39.2
+    ],
+    "version_rolling_asicboost": "PROVEN (ver fields: 20142202, 201B8202, 200CA202, 2017C202 via reg 0xA4)"
+  }
+}
