@@ -15,10 +15,16 @@ This project adheres to [Semantic Versioning](https://semver.org/) and the **Tru
 - **Stratum Reconnect Loop:** Reduced Wi-Fi link check delay in Stratum V1/V2 worker tasks from 10s to 1s, achieving near-instantaneous reconnection when the network recovers.
 
 ### Hardware Validation
-- Physical Bitaxe Ultra (Board 201, BM1366, COM3 / 192.168.178.66):
-  - IP acquisition on FRITZ!Box: Instantaneous without radio contention.
-  - Mining: Sustained ~437-440 GH/s @ 485 MHz / 1200 mV.
-  - Stratum: Solopool.eu connected, 13+ shares accepted, 0 hardware errors.
+- **Device A (192.168.178.66 / USB COM3):**
+  - IP acquisition on FRITZ!Box: Instantaneous without radio contention (1,654 ms).
+  - Mining: Sustained 435.81 GH/s mean @ 485 MHz / 1.206 V VCore (12.40 W, 28.45 J/TH).
+  - Stratum: 66 shares accepted, 0 rejects (0.00%), 0 duplicate nonces.
+- **Device B (192.168.178.61 / Network OTA):**
+  - Upgraded via safe OTA from v2.14.0 to v2.15.3-hardened.
+  - Complete pre-upgrade NVS backup and 100% parameter restoration verified.
+  - Mining: Sustained 434.22 GH/s mean @ 485 MHz / 1.200 V (12.31 W, 28.35 J/TH).
+  - Stratum: 37 shares accepted, 0 rejects (0.00%), completely eliminated 253 "Invalid job id" rejections from v2.14.0.
+  - Recovery: Pause / Resume verified without reboot or stale work.
 
 ---
 

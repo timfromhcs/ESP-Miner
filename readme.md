@@ -8,7 +8,9 @@ This edition is the result of an exhaustive, evidence-based autonomous engineeri
 
 ## Current Status
 
-- **Hardware Validation:** `HARDWARE VALIDATED` (100% verified on physical Bitaxe Ultra Board 201, ESP32-S3 rev 0.2, BM1366 ASIC via COM3 & IP `192.168.178.66`).
+- **Hardware Validation:** `HARDWARE VALIDATED`
+  - **Device A (`192.168.178.66`):** 100% verified on physical Bitaxe Ultra Board 201, ESP32-S3 rev 0.2, BM1366 ASIC via COM3 & Wi-Fi (Cold boot 15.2s, 435.81 GH/s mean, 12.40 W, 28.45 J/TH, 0 rejects).
+  - **Device B (`192.168.178.61`):** 100% verified on separate production Bitaxe Ultra Board 201, ESP32-S3 rev 0.2, BM1366 ASIC via Wi-Fi OTA (Upgraded from v2.14.0, 434.22 GH/s mean, 12.31 W, 28.35 J/TH, 0 rejects, 10/10 config parameters preserved).
 - **Simulation Validation:** `SIMULATED` (Virtual board model with 12/12 unit/dataflow tests green, 10,000 chaotic property tests passing).
 - **CI / Automated Testing:** `PASSING` (Headless Karma/Angular tests, ESP-IDF compile checks, simulation test suite).
 - **Release Status:** `STABLE PRODUCTION RELEASE` — Version **v2.15.3-hardened**.
@@ -56,6 +58,16 @@ All measurements below were captured from physical hardware sensors (INA260, EMC
 - **Pool Share Acceptance:** **66 shares submitted and accepted** during the 10-minute run.
 - **Observed Rejections / Duplicates:** **0 rejects, 0 stale submissions, 0 duplicate nonces observed**.
 - **Memory Stability:** Initial Free Heap: 7,632,504 bytes | Final Free Heap: 7,630,036 bytes (variance: 2.4 KiB for JSON serialization buffer; **0 bytes memory leak drift**).
+
+### Device B Sustained Telemetry Benchmark (`evidence/192.168.178.61/benchmark_sustained_telemetry.json`)
+- **Evaluation Duration:** 300.0 seconds (60 continuous telemetry samples @ 5s interval).
+- **Mean Sustained Hashrate:** **434.22 GH/s** (Min: 356.20 GH/s, Max: 515.39 GH/s).
+- **Power Consumption:** **12.31 W mean** (Min: 12.10 W, Max: 12.53 W).
+- **Energy Efficiency:** **28.35 J/TH**.
+- **Die Operating Temperature:** **61.6 °C mean** (setpoint 62.0 °C).
+- **Pool Share Acceptance:** **37 shares submitted and accepted**, **0 rejections** (0.00% rejection rate).
+- **Previous Rejections on v2.14.0:** 253 rejections due to "Invalid job id" (100% resolved on v2.15.3-hardened).
+- **Memory Stability:** Initial: 7,632,208 bytes | Final: 7,632,248 bytes (**0 bytes monotonic leak drift**).
 
 ### Cold Boot Startup Pipeline Latencies (`reports/serial_boot_trace_full.log`)
 - $T_0 	o T_1$ (Reset to App Main Init): **1,079 ms**

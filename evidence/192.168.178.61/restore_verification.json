@@ -1,0 +1,15 @@
+{
+  "status": "CONFIG RESTORED \u2014 SECRETS REDACTED",
+  "checklist": {
+    "Wi-Fi configured": "YES",
+    "Pool configured": "YES",
+    "Worker configured": "YES",
+    "Wallet configured": "YES",
+    "Frequency": "restored (485 MHz)",
+    "Voltage": "restored (1200 mV)",
+    "Fan": "restored (auto=1, min=13%)",
+    "Thermal": "restored (target=62 \u00b0C)"
+  },
+  "mismatches_repaired": 0,
+  "target_ip": "192.168.178.61"
+}

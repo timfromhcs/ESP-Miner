@@ -6,6 +6,7 @@ cmake_minimum_required(VERSION 3.16)
 # This example uses an extra component for common functions such as Wi-Fi and Ethernet connection.
 # set(EXTRA_COMPONENT_DIRS $ENV{IDF_PATH}/examples/common_components/protocol_examples_common)
 
+set(PROJECT_VER "v2.15.3-hardened")
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 
 

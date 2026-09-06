@@ -1,0 +1,8 @@
+{
+  "target_ip": "192.168.178.61",
+  "uptime_before": 358,
+  "uptime_after": 366,
+  "no_reboot_verified": true,
+  "mining_resumed_verified": true,
+  "resumed_hashrate": 0
+}
