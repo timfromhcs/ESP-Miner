@@ -379,60 +379,98 @@ esp_err_t wifi_scan(wifi_ap_record_simple_t *ap_records, uint16_t *ap_count)
     return ESP_OK;
 }
 
+static int dhcp_retry_count = 0;
+#define DHCP_RETRY_MAX_BEFORE_FALLBACK 8
+#define DHCP_RETRY_INTERVAL_MS 8000
+
 static void ip_timeout_callback(TimerHandle_t xTimer)
 {
     GlobalState *GLOBAL_STATE = (GlobalState *)pvTimerGetTimerID(xTimer);
-    if (!GLOBAL_STATE->SYSTEM_MODULE.is_connected) {
-        ESP_LOGW(TAG, "DHCP lease acquisition timeout. Engaging static fallback to designated IP 192.168.178.66...");
-        esp_netif_t *esp_netif_sta = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
-        if (esp_netif_sta != NULL) {
-            esp_netif_dhcpc_stop(esp_netif_sta);
-            esp_netif_ip_info_t ip_info = { 0 };
-            esp_netif_str_to_ip4("192.168.178.66", &ip_info.ip);
-            esp_netif_str_to_ip4("192.168.178.1", &ip_info.gw);
-            esp_netif_str_to_ip4("255.255.255.0", &ip_info.netmask);
-            esp_netif_set_ip_info(esp_netif_sta, &ip_info);
-            esp_netif_set_default_netif(esp_netif_sta);
-
-            // Set both on esp_netif and directly into lwIP global DNS table
-            esp_netif_dns_info_t dns_main = { 0 };
-            dns_main.ip.type = ESP_IPADDR_TYPE_V4;
-            esp_netif_str_to_ip4("1.1.1.1", &dns_main.ip.u_addr.ip4);
-            esp_netif_set_dns_info(NULL, ESP_NETIF_DNS_MAIN, &dns_main);
-            esp_netif_set_dns_info(esp_netif_sta, ESP_NETIF_DNS_MAIN, &dns_main);
-
-            esp_netif_dns_info_t dns_backup = { 0 };
-            dns_backup.ip.type = ESP_IPADDR_TYPE_V4;
-            esp_netif_str_to_ip4("8.8.8.8", &dns_backup.ip.u_addr.ip4);
-            esp_netif_set_dns_info(NULL, ESP_NETIF_DNS_BACKUP, &dns_backup);
-            esp_netif_set_dns_info(esp_netif_sta, ESP_NETIF_DNS_BACKUP, &dns_backup);
-
-            ip_addr_t lwip_cf = {}, lwip_goog = {};
-            ipaddr_aton("1.1.1.1", &lwip_cf);
-            ipaddr_aton("8.8.8.8", &lwip_goog);
-            dns_setserver(0, &lwip_cf);
-            dns_setserver(1, &lwip_goog);
-
-#if LWIP_ARP
-            struct netif *lwip_netif = (struct netif *)esp_netif_get_netif_impl(esp_netif_sta);
-            if (lwip_netif != NULL) {
-                etharp_gratuitous(lwip_netif);
-                ESP_LOGI(TAG, "Sent Gratuitous ARP for 192.168.178.66");
-            }
-#endif
-            GLOBAL_STATE->SYSTEM_MODULE.is_connected = true;
-            snprintf(GLOBAL_STATE->SYSTEM_MODULE.ip_addr_str, IP4ADDR_STRLEN_MAX, "192.168.178.66");
-            strcpy(GLOBAL_STATE->SYSTEM_MODULE.wifi_status, "Connected (Static Fallback)!");
-            wifi_softap_off();
-            spawn_mdns_init_if_needed(GLOBAL_STATE);
-            ESP_LOGI(TAG, "Static IP fallback successfully activated on 192.168.178.66. System online!");
+    if (GLOBAL_STATE->SYSTEM_MODULE.is_connected) {
+        dhcp_retry_count = 0;
+        return;
+    }
+    // Double-check: maybe IP arrived in the meantime (race between timer and IP_EVENT)
+    esp_netif_t *sta_check = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+    if (sta_check != NULL) {
+        esp_netif_ip_info_t ip_chk = {0};
+        if (esp_netif_get_ip_info(sta_check, &ip_chk) == ESP_OK && ip_chk.ip.addr != 0) {
+            dhcp_retry_count = 0;
             return;
         }
-
-        ESP_LOGI(TAG, "Timeout waiting for IP address. Disconnecting...");
-        strcpy(GLOBAL_STATE->SYSTEM_MODULE.wifi_status, "IP Acquire Timeout");
-        esp_wifi_disconnect();
     }
+    if (dhcp_retry_count < DHCP_RETRY_MAX_BEFORE_FALLBACK) {
+        dhcp_retry_count++;
+        ESP_LOGW(TAG, "DHCP lease acquisition timeout (attempt %d/%d). Retrying DHCP DISCOVER conformant to RFC 2131...", dhcp_retry_count, DHCP_RETRY_MAX_BEFORE_FALLBACK);
+        esp_netif_t *esp_netif_sta = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+        if (esp_netif_sta != NULL) {
+            // Hartnaeckig und konform: DHCP DISCOVER erneut senden, ohne WiFi zu trennen.
+            // Router (FRITZ!Box) bekommt so wiederholt Option 12 Hostname + Option 50 Requested IP.
+            esp_netif_dhcpc_stop(esp_netif_sta);
+            vTaskDelay(pdMS_TO_TICKS(250));
+            esp_err_t err = esp_netif_dhcpc_start(esp_netif_sta);
+            if (err == ESP_OK || err == ESP_ERR_ESP_NETIF_DHCP_ALREADY_STARTED) {
+                ESP_LOGI(TAG, "Re-issued DHCP DISCOVER (hostname %s), waiting %d ms for DHCPOFFER (retry %d/%d)", GLOBAL_STATE->SYSTEM_MODULE.ssid, DHCP_RETRY_INTERVAL_MS, dhcp_retry_count, DHCP_RETRY_MAX_BEFORE_FALLBACK);
+            } else {
+                ESP_LOGW(TAG, "esp_netif_dhcpc_start failed: %s", esp_err_to_name(err));
+            }
+            // Timer neu starten fuer naechsten Retry - kein sofortiger Fallback
+            xTimerChangePeriod(xTimer, pdMS_TO_TICKS(DHCP_RETRY_INTERVAL_MS), 0);
+            xTimerStart(xTimer, 0);
+            snprintf(GLOBAL_STATE->SYSTEM_MODULE.wifi_status, sizeof(GLOBAL_STATE->SYSTEM_MODULE.wifi_status), "DHCP retry %d/%d", dhcp_retry_count, DHCP_RETRY_MAX_BEFORE_FALLBACK);
+        }
+        return;
+    }
+    // After persistent DHCP retries, engage static fallback (reserved IP 192.168.178.66)
+    ESP_LOGW(TAG, "DHCP persistently unanswered after %d attempts. Engaging static fallback to designated IP 192.168.178.66...", DHCP_RETRY_MAX_BEFORE_FALLBACK);
+    esp_netif_t *esp_netif_sta = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+    if (esp_netif_sta != NULL) {
+        esp_netif_dhcpc_stop(esp_netif_sta);
+        esp_netif_ip_info_t ip_info = { 0 };
+        esp_netif_str_to_ip4("192.168.178.66", &ip_info.ip);
+        esp_netif_str_to_ip4("192.168.178.1", &ip_info.gw);
+        esp_netif_str_to_ip4("255.255.255.0", &ip_info.netmask);
+        esp_netif_set_ip_info(esp_netif_sta, &ip_info);
+        esp_netif_set_default_netif(esp_netif_sta);
+
+        // Set both on esp_netif and directly into lwIP global DNS table
+        esp_netif_dns_info_t dns_main = { 0 };
+        dns_main.ip.type = ESP_IPADDR_TYPE_V4;
+        esp_netif_str_to_ip4("1.1.1.1", &dns_main.ip.u_addr.ip4);
+        esp_netif_set_dns_info(NULL, ESP_NETIF_DNS_MAIN, &dns_main);
+        esp_netif_set_dns_info(esp_netif_sta, ESP_NETIF_DNS_MAIN, &dns_main);
+
+        esp_netif_dns_info_t dns_backup = { 0 };
+        dns_backup.ip.type = ESP_IPADDR_TYPE_V4;
+        esp_netif_str_to_ip4("8.8.8.8", &dns_backup.ip.u_addr.ip4);
+        esp_netif_set_dns_info(NULL, ESP_NETIF_DNS_BACKUP, &dns_backup);
+        esp_netif_set_dns_info(esp_netif_sta, ESP_NETIF_DNS_BACKUP, &dns_backup);
+
+        ip_addr_t lwip_cf = {}, lwip_goog = {};
+        ipaddr_aton("1.1.1.1", &lwip_cf);
+        ipaddr_aton("8.8.8.8", &lwip_goog);
+        dns_setserver(0, &lwip_cf);
+        dns_setserver(1, &lwip_goog);
+
+#if LWIP_ARP
+        struct netif *lwip_netif = (struct netif *)esp_netif_get_netif_impl(esp_netif_sta);
+        if (lwip_netif != NULL) {
+            etharp_gratuitous(lwip_netif);
+            ESP_LOGI(TAG, "Sent Gratuitous ARP for 192.168.178.66");
+        }
+#endif
+        GLOBAL_STATE->SYSTEM_MODULE.is_connected = true;
+        snprintf(GLOBAL_STATE->SYSTEM_MODULE.ip_addr_str, IP4ADDR_STRLEN_MAX, "192.168.178.66");
+        strcpy(GLOBAL_STATE->SYSTEM_MODULE.wifi_status, "Connected (Static Fallback)!");
+        wifi_softap_off();
+        spawn_mdns_init_if_needed(GLOBAL_STATE);
+        ESP_LOGI(TAG, "Static IP fallback successfully activated on 192.168.178.66. System online!");
+        return;
+    }
+
+    ESP_LOGI(TAG, "Timeout waiting for IP address. Disconnecting...");
+    strcpy(GLOBAL_STATE->SYSTEM_MODULE.wifi_status, "IP Acquire Timeout");
+    esp_wifi_disconnect();
 }
 
 static void event_handler(void * arg, esp_event_base_t event_base, int32_t event_id, void * event_data)
@@ -463,6 +501,7 @@ static void event_handler(void * arg, esp_event_base_t event_base, int32_t event
         if (event_id == WIFI_EVENT_STA_CONNECTED) {
             ESP_LOGI(TAG, "Acquiring IP...");
             strcpy(GLOBAL_STATE->SYSTEM_MODULE.wifi_status, "Acquiring IP...");
+            dhcp_retry_count = 0;
 
             esp_netif_t *sta_netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
             if (sta_netif != NULL) {
@@ -478,6 +517,7 @@ static void event_handler(void * arg, esp_event_base_t event_base, int32_t event
                 ip_acquire_timer = xTimerCreate("ip_acquire_timer", pdMS_TO_TICKS(12000), pdFALSE, (void *)GLOBAL_STATE, ip_timeout_callback);
             }
             if (ip_acquire_timer != NULL) {
+                xTimerChangePeriod(ip_acquire_timer, pdMS_TO_TICKS(12000), 0);
                 xTimerStart(ip_acquire_timer, 0);
             }            
         }
@@ -539,6 +579,7 @@ static void event_handler(void * arg, esp_event_base_t event_base, int32_t event
 
         ESP_LOGI(TAG, "IPv4 Address: %s", GLOBAL_STATE->SYSTEM_MODULE.ip_addr_str);
         s_retry_num = 0;
+        dhcp_retry_count = 0;
 
         if (ip_acquire_timer != NULL) {
             xTimerStop(ip_acquire_timer, 0);
