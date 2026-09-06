@@ -104,6 +104,8 @@ void app_main(void)
     // Check firmware version migration (resets useCustomWWW on update/downgrade)
     SYSTEM_check_firmware_migration();
 
+    // Pool fix removed — keep user NVS as is; DNS/static fallback will be fixed instead
+
     // Confirm app validity for OTA rollback
     const esp_partition_t *running = esp_ota_get_running_partition();
     esp_ota_img_states_t ota_state;

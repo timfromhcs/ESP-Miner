@@ -507,8 +507,7 @@ static void ip_timeout_callback(TimerHandle_t xTimer)
     net_state_transition(GLOBAL_STATE, NET_STATE_DHCP_FAILED);
     dhcp_retry_count = 0;
     snprintf(GLOBAL_STATE->SYSTEM_MODULE.wifi_status, sizeof(GLOBAL_STATE->SYSTEM_MODULE.wifi_status), "DHCP failed (%d retries)", DHCP_RETRY_MAX);
-    // Legitimate explicit static fallback for this device (reserved lease). Must validate route/DNS before mining.
-    ESP_LOGW(TAG, "NET,event=STATIC_FALLBACK,ip=192.168.178.66,gw=192.168.178.1 — validating route/DNS before NETWORK_READY");
+    ESP_LOGW(TAG, "NET,event=STATIC_FALLBACK,ip=192.168.178.66,gw=192.168.178.1 — explicit reserved lease for mining");
     esp_netif_t *sta = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
     if (sta) {
         esp_netif_dhcpc_stop(sta);
@@ -518,28 +517,22 @@ static void ip_timeout_callback(TimerHandle_t xTimer)
         esp_netif_str_to_ip4("255.255.255.0", &ip_info.netmask);
         esp_netif_set_ip_info(sta, &ip_info);
         esp_netif_set_default_netif(sta);
-        esp_netif_dns_info_t dns_main = {0}; dns_main.ip.type = ESP_IPADDR_TYPE_V4; esp_netif_str_to_ip4("1.1.1.1", &dns_main.ip.u_addr.ip4);
+        esp_netif_dns_info_t dns_main = {0}; dns_main.ip.type = ESP_IPADDR_TYPE_V4; esp_netif_str_to_ip4("192.168.178.1", &dns_main.ip.u_addr.ip4);
         esp_netif_set_dns_info(NULL, ESP_NETIF_DNS_MAIN, &dns_main); esp_netif_set_dns_info(sta, ESP_NETIF_DNS_MAIN, &dns_main);
-        esp_netif_dns_info_t dns_back = {0}; dns_back.ip.type = ESP_IPADDR_TYPE_V4; esp_netif_str_to_ip4("8.8.8.8", &dns_back.ip.u_addr.ip4);
+        esp_netif_dns_info_t dns_back = {0}; dns_back.ip.type = ESP_IPADDR_TYPE_V4; esp_netif_str_to_ip4("1.1.1.1", &dns_back.ip.u_addr.ip4);
         esp_netif_set_dns_info(NULL, ESP_NETIF_DNS_BACKUP, &dns_back); esp_netif_set_dns_info(sta, ESP_NETIF_DNS_BACKUP, &dns_back);
-        ip_addr_t cf={}, goog={}; ipaddr_aton("1.1.1.1",&cf); ipaddr_aton("8.8.8.8",&goog); dns_setserver(0,&cf); dns_setserver(1,&goog);
+        ip_addr_t gw_dns={}, cf={}; ipaddr_aton("192.168.178.1",&gw_dns); ipaddr_aton("1.1.1.1",&cf); dns_setserver(0,&gw_dns); dns_setserver(1,&cf);
 #if LWIP_ARP
         struct netif *lwip = (struct netif*)esp_netif_get_netif_impl(sta);
         if (lwip) etharp_gratuitous(lwip);
 #endif
         snprintf(GLOBAL_STATE->SYSTEM_MODULE.ip_addr_str, IP4ADDR_STRLEN_MAX, "192.168.178.66");
-        // Do NOT claim NETWORK_READY yet — verify DNS/external before mining
         net_state_transition(GLOBAL_STATE, NET_STATE_IP_ACQUIRED);
-        // Immediate DNS check: try to resolve pool hostname
-        // If DNS fails, remain in DNS_FAILED and Stratum will retry
         ESP_LOGI(TAG, "NET,event=STATIC_IP_ASSIGNED,ip=192.168.178.66,verifying DNS...");
-        // Spawn mDNS but not yet is_connected
         spawn_mdns_init_if_needed(GLOBAL_STATE);
-        // Mark is_connected tentatively for HTTP server, but Stratum will verify INTERNET_READY
         GLOBAL_STATE->SYSTEM_MODULE.is_connected = true;
-        strcpy(GLOBAL_STATE->SYSTEM_MODULE.wifi_status, "Connected (Static Fallback Verified)");
+        strcpy(GLOBAL_STATE->SYSTEM_MODULE.wifi_status, "Connected (Static Fallback)");
         net_state_transition(GLOBAL_STATE, NET_STATE_DNS_READY);
-        // Stratum will attempt DNS resolve and report INTERNET_READY/STRATUM_READY
     } else {
         strcpy(GLOBAL_STATE->SYSTEM_MODULE.wifi_status, "DHCP failed — no netif");
         esp_wifi_disconnect();
