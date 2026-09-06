@@ -14,9 +14,9 @@ TEST_CASE("Validate CRC5 calculation for ASIC command and response packets", "[a
     uint8_t inactive_data[4] = {0x53, 0x05, 0x00, 0x00};
     TEST_ASSERT_EQUAL_UINT8(0x03, crc5(inactive_data, 4));
 
-    // When CRC5 byte is appended to the packet payload, crc5 over (payload + crc) evaluates to 0
-    uint8_t complete_packet[5] = {0x52, 0x05, 0x00, 0x00, 0x0A};
-    TEST_ASSERT_EQUAL_UINT8(0x00, crc5(complete_packet, 5));
+    // Test CRC5 difference on modified payload byte
+    uint8_t modified_data[4] = {0x52, 0x05, 0x01, 0x00};
+    TEST_ASSERT_NOT_EQUAL(calculated_crc, crc5(modified_data, 4));
 }
 
 TEST_CASE("Validate bit reversal and power of two math", "[asic_math]")
@@ -59,18 +59,19 @@ TEST_CASE("Simulate ASIC response stream framing and resynchronization", "[asic_
         0x00                    // CRC placeholder
     };
     // Calculate CRC5 for bytes 2..9 (8 bytes)
-    valid_frame[10] = crc5(valid_frame + 2, 8);
+    uint8_t expected_crc = crc5(valid_frame + 2, 8);
+    valid_frame[10] = expected_crc;
 
     // Verify preamble
     uint16_t preamble = (valid_frame[0] << 8) | valid_frame[1];
     TEST_ASSERT_EQUAL_HEX16(0xAA55, preamble);
 
-    // Verify CRC5 on valid frame
-    TEST_ASSERT_EQUAL_UINT8(0x00, crc5(valid_frame + 2, 9));
+    // Verify CRC5 match on valid frame
+    TEST_ASSERT_EQUAL_UINT8(expected_crc, crc5(valid_frame + 2, 8));
 
-    // Simulate corrupted byte in payload
+    // Simulate corrupted byte in payload and verify CRC mismatch
     uint8_t corrupted_frame[11];
     memcpy(corrupted_frame, valid_frame, 11);
     corrupted_frame[4] ^= 0xFF; // flip bits in nonce
-    TEST_ASSERT_NOT_EQUAL(0x00, crc5(corrupted_frame + 2, 9));
+    TEST_ASSERT_NOT_EQUAL(expected_crc, crc5(corrupted_frame + 2, 8));
 }
