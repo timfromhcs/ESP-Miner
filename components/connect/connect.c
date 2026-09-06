@@ -411,8 +411,8 @@ static uint32_t s_network_generation = 0;
 static uint32_t s_dhcp_generation = 0;
 static uint32_t s_stratum_generation = 0;
 static int dhcp_retry_count = 0;
-#define DHCP_RETRY_MAX 5
-#define DHCP_RETRY_BASE_MS 3000
+#define DHCP_RETRY_MAX 2
+#define DHCP_RETRY_BASE_MS 5000
 #define DHCP_RECOVERY_WIFI_RECONNECT_AFTER 3
 
 static const char *net_state_to_str(net_state_t s) {
@@ -486,23 +486,15 @@ static void ip_timeout_callback(TimerHandle_t xTimer)
     // No IP yet — this is DHCP timeout, NOT a signal to fake an address
     if (dhcp_retry_count < DHCP_RETRY_MAX) {
         dhcp_retry_count++;
-        int backoff_ms = DHCP_RETRY_BASE_MS + (dhcp_retry_count * 1500) + (esp_random() % 800);
+        int backoff_ms = DHCP_RETRY_BASE_MS + (dhcp_retry_count * 1200) + (esp_random() % 600);
         ESP_LOGW(TAG, "NET,event=DHCP_TIMEOUT,retry=%d/%d,backoff=%d,state=%s", dhcp_retry_count, DHCP_RETRY_MAX, backoff_ms, net_state_to_str(s_net_state));
         net_state_transition(GLOBAL_STATE, NET_STATE_DHCP_RETRY);
-        esp_netif_t *sta = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
-        if (sta != NULL) {
-            // Minimal recovery: bounce DHCP client, keep WiFi link up
-            esp_netif_dhcpc_stop(sta);
-            // Use non-blocking delay via timer, not vTaskDelay in timer callback would block daemon
-            // Schedule restart via one-shot timer instead of delay
-            esp_err_t err = esp_netif_dhcpc_start(sta);
-            if (err == ESP_OK || err == ESP_ERR_ESP_NETIF_DHCP_ALREADY_STARTED) {
-                char *hn = nvs_config_get_string(NVS_CONFIG_HOSTNAME);
-                const char *hlog = (hn && hn[0]) ? hn : GLOBAL_STATE->SYSTEM_MODULE.ssid;
-                ESP_LOGI(TAG, "NET,event=DHCP_RETRY,hostname=%s,retry=%d,backoff=%d", hlog, dhcp_retry_count, backoff_ms);
-                if (hn) free(hn);
-            }
-        }
+        // ESP-IDF LwIP DHCP already retransmits internally per RFC2131 — do NOT bounce dhcpc here (would reset xid and break server).
+        // Just wait; external IP_EVENT will handle success. Log hostname for diagnostics only.
+        char *hn = nvs_config_get_string(NVS_CONFIG_HOSTNAME);
+        const char *hlog = (hn && hn[0]) ? hn : GLOBAL_STATE->SYSTEM_MODULE.ssid;
+        ESP_LOGI(TAG, "NET,event=DHCP_RETRY,hostname=%s,retry=%d,backoff=%d,waiting_for_IP_EVENT", hlog, dhcp_retry_count, backoff_ms);
+        if (hn) free(hn);
         xTimerChangePeriod(xTimer, pdMS_TO_TICKS(backoff_ms), 0);
         xTimerStart(xTimer, 0);
         snprintf(GLOBAL_STATE->SYSTEM_MODULE.wifi_status, sizeof(GLOBAL_STATE->SYSTEM_MODULE.wifi_status), "DHCP retry %d/%d", dhcp_retry_count, DHCP_RETRY_MAX);
