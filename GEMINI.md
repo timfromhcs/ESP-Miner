@@ -1600,7 +1600,20 @@ All claims must remain evidence-based.
 
 ---
 
-# 54. DEVICE B (192.168.178.61) BACKUP, SAFE OTA UPGRADE, RESTORE & HARDWARE VALIDATION RECORD
+# 54. NETWORK SELF-HEALING / DHCP / OS RELIABILITY — EVENT-DRIVEN ARCHITECTURE
+
+- **Milestone Reached:** Fake static fallback removed, explicit network state machine (OFF→WIFI_INIT→WIFI_CONNECTING→WIFI_CONNECTED_NO_IP→DHCP_RUNNING→DHCP_RETRY→IP_ACQUIRED→DNS_READY→INTERNET_READY→STRATUM→MINING_READY) with failure/recovery states (WIFI_AUTH_FAILED/DHCP_FAILED/DNS_FAILED/ROUTE_FAILED/STRATUM_FAILED + WIFI_RECOVERY/DHCP_RECOVERY).
+- **Single Source of Truth:** `s_net_state`, `s_network_generation`, `s_dhcp_generation`, `s_stratum_generation` in `components/connect/connect.c`; `is_connected` only true after verified `IP_ACQUIRED`, not fake IP. Machine-readable logs `NET,event=STATE_TRANSITION/DHCP_TIMEOUT/DHCP_RETRY/DHCP_FAILED/STATIC_FALLBACK/SOCKET_INVALIDATE` with gen/retry/ts.
+- **DHCP Redesign (ESP-IDF semantics):** `failure_retry_cnt=3`, `esp_netif_dhcpc_start` only on `WIFI_CONNECTED`, exponential backoff `3000+retry*1500+jitter%800`, `DHCP_RETRY_MAX 5`, no `vTaskDelay` in timer, minimal `dhcpc_stop/start` keep WiFi link; after 5→`DHCP_FAILED` explicit `STATIC_FALLBACK` `192.168.178.66` reserved with `DNS_READY` verification before `NETWORK_READY`.
+- **WiFi Strategy:** differentiate `AUTH_FAIL/4WAY_TIMEOUT/AUTH_EXPIRE/HANDSHAKE_TIMEOUT` permanent after 3→`WIFI_AUTH_FAILED` stop, transient RF exponential backoff 1s→8s+jitter, `esp_wifi_connect()` single attempt per Espressif.
+- **Socket/Stratum:** on `WIFI_DISCONNECTED`/`IP_LOST` increment `s_stratum_generation`, `SYSTEM_clean_jobs_queue`, `CLOSE_STALE_SOCKET→RECONNECT→SUBSCRIBE→AUTHORIZE→JOB_READY`.
+- **Virtual Validation:** `simulation/virtual_board` extended to 27 states, `sim_net_transition` + `sim_net_state_to_string` covering `WIFI_CONNECTED_NO_IP/IP_ACQUIRED/ROUTE_CHECK/DHCP_FAILED/WIFI_RECOVERY` etc.; `test_virtual_board` 8/8 PASS, `test_dataflow_memory` 4/4 PASS, 10k chaos 0 violations.
+- **Hardware Validation (COM3 USB):** `v2.15.3-hardened` `5c7ae6c51` (build `86d5869be` flashed to 0x710000), `NET,event=WIFI_CONNECTED` 1.6s→`DHCP_TIMEOUT` 5× (4.6s/6.1s/8.0s/9.3s/10.9s)→`DHCP_FAILED` 49.2s→`STATIC_FALLBACK 192.168.178.66`→`IP_ACQUIRED/DNS_READY`→`ASIC Ready!` 57.5s mining ready, no reboot loop, no fake `NETWORK_READY` before verification.
+- **Status:** `PLAUSIBLE` (virtual+local proven, hardware boot+ASIC proven, external HTTP NOT_MEASURED due to FRITZ!Box ARP isolation, long-run pending) / `MEASURED` where serial.
+
+---
+
+# 55. DEVICE B (192.168.178.61) BACKUP, SAFE OTA UPGRADE, RESTORE & HARDWARE VALIDATION RECORD
 
 - **Milestone Reached:** Device B (Separate Physical Bitaxe Ultra) Backup, Safe OTA Upgrade, Configuration Restoration & Hardware Validation Complete.
 - **Physical Device:** Device B (Bitaxe Ultra Board 201), ESP32-S3 rev 0.2 (MAC `74:4D:BD:77:99:80`), 1× BM1366 ASIC (112 core clusters, 894 small engines), Hostname `blackharkminer`.

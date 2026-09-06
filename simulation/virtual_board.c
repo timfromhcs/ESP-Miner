@@ -23,15 +23,30 @@ const char *sim_net_state_to_string(sim_net_state_t state) {
         case NET_STATE_WIFI_INIT:          return "WIFI_INIT";
         case NET_STATE_WIFI_CONNECTING:    return "WIFI_CONNECTING";
         case NET_STATE_WIFI_CONNECTED:     return "WIFI_CONNECTED";
+        case NET_STATE_WIFI_CONNECTED_NO_IP: return "WIFI_CONNECTED_NO_IP";
         case NET_STATE_DHCP:               return "DHCP";
+        case NET_STATE_DHCP_RETRY:         return "DHCP_RETRY";
         case NET_STATE_IP_READY:           return "IP_READY";
+        case NET_STATE_IP_ACQUIRED:        return "IP_ACQUIRED";
+        case NET_STATE_ROUTE_CHECK:        return "ROUTE_CHECK";
         case NET_STATE_DNS_READY:          return "DNS_READY";
+        case NET_STATE_INTERNET_READY:     return "INTERNET_READY";
         case NET_STATE_STRATUM_CONNECTING: return "STRATUM_CONNECTING";
         case NET_STATE_STRATUM_READY:      return "STRATUM_READY";
         case NET_STATE_MINING:             return "MINING";
+        case NET_STATE_WIFI_AUTH_FAILED:   return "WIFI_AUTH_FAILED";
+        case NET_STATE_WIFI_AP_UNAVAILABLE:return "WIFI_AP_UNAVAILABLE";
+        case NET_STATE_DHCP_FAILED:        return "DHCP_FAILED";
+        case NET_STATE_DNS_FAILED:         return "DNS_FAILED";
+        case NET_STATE_ROUTE_FAILED:       return "ROUTE_FAILED";
+        case NET_STATE_STRATUM_FAILED:     return "STRATUM_FAILED";
         case NET_STATE_WIFI_LOST:          return "WIFI_LOST";
+        case NET_STATE_WIFI_RECOVERY:      return "WIFI_RECOVERY";
+        case NET_STATE_DHCP_RECOVERY:      return "DHCP_RECOVERY";
+        case NET_STATE_DNS_RECOVERY:       return "DNS_RECOVERY";
+        case NET_STATE_SOCKET_RECOVERY:    return "SOCKET_RECOVERY";
+        case NET_STATE_STRATUM_RECOVERY:   return "STRATUM_RECOVERY";
         case NET_STATE_FAST_RECONNECT:     return "FAST_RECONNECT";
-        case NET_STATE_DHCP_RETRY:         return "DHCP_RETRY";
         case NET_STATE_DNS_RETRY:          return "DNS_RETRY";
         case NET_STATE_STRATUM_RECONNECT:  return "STRATUM_RECONNECT";
         case NET_STATE_JOB_SYNC:           return "JOB_SYNC";
@@ -146,41 +161,63 @@ bool sim_net_transition(sim_board_t *b, sim_net_state_t new_state) {
             valid = (new_state == NET_STATE_WIFI_CONNECTING);
             break;
         case NET_STATE_WIFI_CONNECTING:
-            valid = (new_state == NET_STATE_WIFI_CONNECTED || new_state == NET_STATE_WIFI_LOST || new_state == NET_STATE_FAST_RECONNECT);
+            valid = (new_state == NET_STATE_WIFI_CONNECTED || new_state == NET_STATE_WIFI_CONNECTED_NO_IP || new_state == NET_STATE_WIFI_LOST || new_state == NET_STATE_WIFI_AUTH_FAILED || new_state == NET_STATE_FAST_RECONNECT);
             break;
         case NET_STATE_WIFI_CONNECTED:
-            valid = (new_state == NET_STATE_DHCP || new_state == NET_STATE_WIFI_LOST);
+            valid = (new_state == NET_STATE_DHCP || new_state == NET_STATE_WIFI_CONNECTED_NO_IP || new_state == NET_STATE_WIFI_LOST);
+            break;
+        case NET_STATE_WIFI_CONNECTED_NO_IP:
+            valid = (new_state == NET_STATE_DHCP || new_state == NET_STATE_DHCP_RETRY || new_state == NET_STATE_WIFI_LOST);
             break;
         case NET_STATE_DHCP:
-            valid = (new_state == NET_STATE_IP_READY || new_state == NET_STATE_DHCP_RETRY || new_state == NET_STATE_WIFI_LOST);
+            valid = (new_state == NET_STATE_IP_READY || new_state == NET_STATE_IP_ACQUIRED || new_state == NET_STATE_DHCP_RETRY || new_state == NET_STATE_DHCP_FAILED || new_state == NET_STATE_WIFI_LOST);
             break;
         case NET_STATE_IP_READY:
-            valid = (new_state == NET_STATE_DNS_READY || new_state == NET_STATE_DNS_RETRY || new_state == NET_STATE_WIFI_LOST);
+        case NET_STATE_IP_ACQUIRED:
+            valid = (new_state == NET_STATE_ROUTE_CHECK || new_state == NET_STATE_DNS_READY || new_state == NET_STATE_DNS_RETRY || new_state == NET_STATE_WIFI_LOST);
+            break;
+        case NET_STATE_ROUTE_CHECK:
+            valid = (new_state == NET_STATE_DNS_READY || new_state == NET_STATE_ROUTE_FAILED || new_state == NET_STATE_WIFI_LOST);
             break;
         case NET_STATE_DNS_READY:
-            valid = (new_state == NET_STATE_STRATUM_CONNECTING || new_state == NET_STATE_DNS_RETRY || new_state == NET_STATE_WIFI_LOST);
+        case NET_STATE_INTERNET_READY:
+            valid = (new_state == NET_STATE_STRATUM_CONNECTING || new_state == NET_STATE_DNS_RETRY || new_state == NET_STATE_DNS_FAILED || new_state == NET_STATE_WIFI_LOST);
             break;
         case NET_STATE_STRATUM_CONNECTING:
-            valid = (new_state == NET_STATE_STRATUM_READY || new_state == NET_STATE_STRATUM_RECONNECT || new_state == NET_STATE_WIFI_LOST);
+            valid = (new_state == NET_STATE_STRATUM_READY || new_state == NET_STATE_STRATUM_RECONNECT || new_state == NET_STATE_STRATUM_FAILED || new_state == NET_STATE_WIFI_LOST);
             break;
         case NET_STATE_STRATUM_READY:
             valid = (new_state == NET_STATE_MINING || new_state == NET_STATE_STRATUM_RECONNECT || new_state == NET_STATE_WIFI_LOST);
             break;
         case NET_STATE_MINING:
-            valid = (new_state == NET_STATE_WIFI_LOST || new_state == NET_STATE_STRATUM_RECONNECT || new_state == NET_STATE_JOB_SYNC);
+            valid = (new_state == NET_STATE_WIFI_LOST || new_state == NET_STATE_STRATUM_RECONNECT || new_state == NET_STATE_JOB_SYNC || new_state == NET_STATE_DHCP_RECOVERY);
             break;
         case NET_STATE_WIFI_LOST:
-            valid = (new_state == NET_STATE_FAST_RECONNECT || new_state == NET_STATE_BOOT);
+            valid = (new_state == NET_STATE_WIFI_RECOVERY || new_state == NET_STATE_FAST_RECONNECT || new_state == NET_STATE_BOOT);
+            break;
+        case NET_STATE_WIFI_RECOVERY:
+            valid = (new_state == NET_STATE_WIFI_CONNECTING || new_state == NET_STATE_WIFI_LOST);
+            break;
+        case NET_STATE_DHCP_FAILED:
+            valid = (new_state == NET_STATE_DHCP_RECOVERY || new_state == NET_STATE_WIFI_RECOVERY || new_state == NET_STATE_WIFI_LOST);
+            break;
+        case NET_STATE_DHCP_RECOVERY:
+            valid = (new_state == NET_STATE_DHCP || new_state == NET_STATE_WIFI_CONNECTING || new_state == NET_STATE_WIFI_LOST);
             break;
         case NET_STATE_FAST_RECONNECT:
-            valid = (new_state == NET_STATE_WIFI_CONNECTING || new_state == NET_STATE_WIFI_CONNECTED || new_state == NET_STATE_WIFI_LOST);
+            valid = (new_state == NET_STATE_WIFI_CONNECTING || new_state == NET_STATE_WIFI_CONNECTED || new_state == NET_STATE_WIFI_CONNECTED_NO_IP || new_state == NET_STATE_WIFI_LOST);
             break;
         case NET_STATE_DHCP_RETRY:
-            valid = (new_state == NET_STATE_DHCP || new_state == NET_STATE_WIFI_LOST);
+            valid = (new_state == NET_STATE_DHCP || new_state == NET_STATE_DHCP_FAILED || new_state == NET_STATE_WIFI_LOST);
             break;
         case NET_STATE_DNS_RETRY:
-            valid = (new_state == NET_STATE_DNS_READY || new_state == NET_STATE_IP_READY || new_state == NET_STATE_WIFI_LOST);
+        case NET_STATE_DNS_RECOVERY:
+            valid = (new_state == NET_STATE_DNS_READY || new_state == NET_STATE_IP_READY || new_state == NET_STATE_IP_ACQUIRED || new_state == NET_STATE_WIFI_LOST);
             break;
+        case NET_STATE_SOCKET_RECOVERY:
+            valid = (new_state == NET_STATE_STRATUM_CONNECTING || new_state == NET_STATE_WIFI_LOST);
+            break;
+        case NET_STATE_STRATUM_RECOVERY:
         case NET_STATE_STRATUM_RECONNECT:
             valid = (new_state == NET_STATE_STRATUM_CONNECTING || new_state == NET_STATE_JOB_SYNC || new_state == NET_STATE_WIFI_LOST);
             break;
@@ -189,6 +226,13 @@ bool sim_net_transition(sim_board_t *b, sim_net_state_t new_state) {
             break;
         case NET_STATE_RECOVERY_VERIFY:
             valid = (new_state == NET_STATE_MINING || new_state == NET_STATE_WIFI_LOST);
+            break;
+        case NET_STATE_WIFI_AUTH_FAILED:
+        case NET_STATE_WIFI_AP_UNAVAILABLE:
+        case NET_STATE_DNS_FAILED:
+        case NET_STATE_ROUTE_FAILED:
+        case NET_STATE_STRATUM_FAILED:
+            valid = (new_state == NET_STATE_WIFI_RECOVERY || new_state == NET_STATE_DHCP_RECOVERY || new_state == NET_STATE_BOOT);
             break;
         default:
             valid = false;

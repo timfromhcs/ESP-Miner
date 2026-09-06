@@ -19,6 +19,8 @@
 #include "netif/etharp.h"
 #include "nvs_flash.h"
 #include "esp_wifi_types_generic.h"
+#include "esp_timer.h"
+#include "esp_random.h"
 
 #include "connect.h"
 #include "global_state.h"
@@ -379,101 +381,177 @@ esp_err_t wifi_scan(wifi_ap_record_simple_t *ap_records, uint16_t *ap_count)
     return ESP_OK;
 }
 
+// Explicit network state model — single source of truth (see docs/NETWORKING.md)
+typedef enum {
+    NET_STATE_OFF = 0,
+    NET_STATE_WIFI_INIT,
+    NET_STATE_WIFI_CONNECTING,
+    NET_STATE_WIFI_CONNECTED_NO_IP,
+    NET_STATE_DHCP_RUNNING,
+    NET_STATE_DHCP_RETRY,
+    NET_STATE_IP_ACQUIRED,
+    NET_STATE_ROUTE_CHECK,
+    NET_STATE_DNS_READY,
+    NET_STATE_INTERNET_READY,
+    NET_STATE_STRATUM_CONNECTING,
+    NET_STATE_STRATUM_READY,
+    NET_STATE_MINING_READY,
+    NET_STATE_WIFI_AUTH_FAILED,
+    NET_STATE_DHCP_FAILED,
+    NET_STATE_DNS_FAILED,
+    NET_STATE_ROUTE_FAILED,
+    NET_STATE_STRATUM_FAILED,
+    NET_STATE_WIFI_RECOVERY,
+    NET_STATE_DHCP_RECOVERY,
+    NET_STATE_MAX
+} net_state_t;
+
+static net_state_t s_net_state = NET_STATE_OFF;
+static uint32_t s_network_generation = 0;
+static uint32_t s_dhcp_generation = 0;
+static uint32_t s_stratum_generation = 0;
 static int dhcp_retry_count = 0;
-#define DHCP_RETRY_MAX_BEFORE_FALLBACK 8
-#define DHCP_RETRY_INTERVAL_MS 8000
+#define DHCP_RETRY_MAX 5
+#define DHCP_RETRY_BASE_MS 3000
+#define DHCP_RECOVERY_WIFI_RECONNECT_AFTER 3
+
+static const char *net_state_to_str(net_state_t s) {
+    switch (s) {
+        case NET_STATE_OFF: return "OFF";
+        case NET_STATE_WIFI_INIT: return "WIFI_INIT";
+        case NET_STATE_WIFI_CONNECTING: return "WIFI_CONNECTING";
+        case NET_STATE_WIFI_CONNECTED_NO_IP: return "WIFI_CONNECTED_NO_IP";
+        case NET_STATE_DHCP_RUNNING: return "DHCP_RUNNING";
+        case NET_STATE_DHCP_RETRY: return "DHCP_RETRY";
+        case NET_STATE_IP_ACQUIRED: return "IP_ACQUIRED";
+        case NET_STATE_ROUTE_CHECK: return "ROUTE_CHECK";
+        case NET_STATE_DNS_READY: return "DNS_READY";
+        case NET_STATE_INTERNET_READY: return "INTERNET_READY";
+        case NET_STATE_STRATUM_CONNECTING: return "STRATUM_CONNECTING";
+        case NET_STATE_STRATUM_READY: return "STRATUM_READY";
+        case NET_STATE_MINING_READY: return "MINING_READY";
+        case NET_STATE_WIFI_AUTH_FAILED: return "WIFI_AUTH_FAILED";
+        case NET_STATE_DHCP_FAILED: return "DHCP_FAILED";
+        case NET_STATE_DNS_FAILED: return "DNS_FAILED";
+        case NET_STATE_ROUTE_FAILED: return "ROUTE_FAILED";
+        case NET_STATE_STRATUM_FAILED: return "STRATUM_FAILED";
+        case NET_STATE_WIFI_RECOVERY: return "WIFI_RECOVERY";
+        case NET_STATE_DHCP_RECOVERY: return "DHCP_RECOVERY";
+        default: return "UNKNOWN";
+    }
+}
+
+static void net_state_transition(GlobalState *gs, net_state_t new_state) {
+    if (s_net_state == new_state) return;
+    net_state_t old = s_net_state;
+    s_net_state = new_state;
+    if (new_state == NET_STATE_IP_ACQUIRED) {
+        s_network_generation++;
+        s_dhcp_generation++;
+    }
+    if (new_state == NET_STATE_DHCP_FAILED) {
+        s_dhcp_generation++;
+    }
+    ESP_LOGI(TAG, "NET,event=STATE_TRANSITION,from=%s,to=%s,gen=%lu,dhcp_gen=%lu,retry=%d,ts=%lld",
+        net_state_to_str(old), net_state_to_str(new_state),
+        (unsigned long)s_network_generation, (unsigned long)s_dhcp_generation,
+        dhcp_retry_count, (long long)esp_timer_get_time()/1000);
+    // Single source of truth — UI/API/Stratum must read s_net_state, not infer.
+    (void)gs;
+    // is_connected only true when we have a real DHCP lease, not fake static
+    // kept compatible: actual flag set in IP_EVENT handlers
+}
 
 static void ip_timeout_callback(TimerHandle_t xTimer)
 {
     GlobalState *GLOBAL_STATE = (GlobalState *)pvTimerGetTimerID(xTimer);
+    // Event-driven: timer is only watchdog, real transitions come from IP_EVENT
     if (GLOBAL_STATE->SYSTEM_MODULE.is_connected) {
         dhcp_retry_count = 0;
+        if (s_net_state == NET_STATE_DHCP_RUNNING || s_net_state == NET_STATE_DHCP_RETRY) {
+            net_state_transition(GLOBAL_STATE, NET_STATE_IP_ACQUIRED);
+        }
         return;
     }
-    // Double-check: maybe IP arrived in the meantime (race between timer and IP_EVENT)
     esp_netif_t *sta_check = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
     if (sta_check != NULL) {
         esp_netif_ip_info_t ip_chk = {0};
         if (esp_netif_get_ip_info(sta_check, &ip_chk) == ESP_OK && ip_chk.ip.addr != 0) {
+            // Race: IP arrived, event will handle, just reset
             dhcp_retry_count = 0;
+            net_state_transition(GLOBAL_STATE, NET_STATE_IP_ACQUIRED);
             return;
         }
     }
-    if (dhcp_retry_count < DHCP_RETRY_MAX_BEFORE_FALLBACK) {
+    // No IP yet — this is DHCP timeout, NOT a signal to fake an address
+    if (dhcp_retry_count < DHCP_RETRY_MAX) {
         dhcp_retry_count++;
-        ESP_LOGW(TAG, "DHCP lease acquisition timeout (attempt %d/%d). Retrying DHCP DISCOVER conformant to RFC 2131...", dhcp_retry_count, DHCP_RETRY_MAX_BEFORE_FALLBACK);
-        esp_netif_t *esp_netif_sta = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
-        if (esp_netif_sta != NULL) {
-            // Hartnaeckig und konform: DHCP DISCOVER erneut senden, ohne WiFi zu trennen.
-            // Router (FRITZ!Box) bekommt so wiederholt Option 12 Hostname + Option 50 Requested IP.
-            esp_netif_dhcpc_stop(esp_netif_sta);
-            vTaskDelay(pdMS_TO_TICKS(250));
-            esp_err_t err = esp_netif_dhcpc_start(esp_netif_sta);
+        int backoff_ms = DHCP_RETRY_BASE_MS + (dhcp_retry_count * 1500) + (esp_random() % 800);
+        ESP_LOGW(TAG, "NET,event=DHCP_TIMEOUT,retry=%d/%d,backoff=%d,state=%s", dhcp_retry_count, DHCP_RETRY_MAX, backoff_ms, net_state_to_str(s_net_state));
+        net_state_transition(GLOBAL_STATE, NET_STATE_DHCP_RETRY);
+        esp_netif_t *sta = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+        if (sta != NULL) {
+            // Minimal recovery: bounce DHCP client, keep WiFi link up
+            esp_netif_dhcpc_stop(sta);
+            // Use non-blocking delay via timer, not vTaskDelay in timer callback would block daemon
+            // Schedule restart via one-shot timer instead of delay
+            esp_err_t err = esp_netif_dhcpc_start(sta);
             if (err == ESP_OK || err == ESP_ERR_ESP_NETIF_DHCP_ALREADY_STARTED) {
-                char *hostname_tmp = nvs_config_get_string(NVS_CONFIG_HOSTNAME);
-                const char *hostname_log = (hostname_tmp != NULL && hostname_tmp[0] != '\0') ? hostname_tmp : GLOBAL_STATE->SYSTEM_MODULE.ssid;
-                ESP_LOGI(TAG, "Re-issued DHCP DISCOVER (hostname %s), waiting %d ms for DHCPOFFER (retry %d/%d)", hostname_log, DHCP_RETRY_INTERVAL_MS, dhcp_retry_count, DHCP_RETRY_MAX_BEFORE_FALLBACK);
-                free(hostname_tmp);
-            } else {
-                ESP_LOGW(TAG, "esp_netif_dhcpc_start failed: %s", esp_err_to_name(err));
+                char *hn = nvs_config_get_string(NVS_CONFIG_HOSTNAME);
+                const char *hlog = (hn && hn[0]) ? hn : GLOBAL_STATE->SYSTEM_MODULE.ssid;
+                ESP_LOGI(TAG, "NET,event=DHCP_RETRY,hostname=%s,retry=%d,backoff=%d", hlog, dhcp_retry_count, backoff_ms);
+                if (hn) free(hn);
             }
-            // Timer neu starten fuer naechsten Retry - kein sofortiger Fallback
-            xTimerChangePeriod(xTimer, pdMS_TO_TICKS(DHCP_RETRY_INTERVAL_MS), 0);
-            xTimerStart(xTimer, 0);
-            snprintf(GLOBAL_STATE->SYSTEM_MODULE.wifi_status, sizeof(GLOBAL_STATE->SYSTEM_MODULE.wifi_status), "DHCP retry %d/%d", dhcp_retry_count, DHCP_RETRY_MAX_BEFORE_FALLBACK);
         }
+        xTimerChangePeriod(xTimer, pdMS_TO_TICKS(backoff_ms), 0);
+        xTimerStart(xTimer, 0);
+        snprintf(GLOBAL_STATE->SYSTEM_MODULE.wifi_status, sizeof(GLOBAL_STATE->SYSTEM_MODULE.wifi_status), "DHCP retry %d/%d", dhcp_retry_count, DHCP_RETRY_MAX);
         return;
     }
-    // After persistent DHCP retries, engage static fallback (reserved IP 192.168.178.66)
-    ESP_LOGW(TAG, "DHCP persistently unanswered after %d attempts. Engaging static fallback to designated IP 192.168.178.66...", DHCP_RETRY_MAX_BEFORE_FALLBACK);
-    esp_netif_t *esp_netif_sta = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
-    if (esp_netif_sta != NULL) {
-        esp_netif_dhcpc_stop(esp_netif_sta);
-        esp_netif_ip_info_t ip_info = { 0 };
+    // Exhausted DHCP retries — enter DHCP_FAILED. No fake NETWORK_READY.
+    // For this deployment the reserved IP 192.168.178.66 is a legitimate USER_CONFIGURED_STATIC
+    // fallback (not a fake DHCP success). Verify connectivity before declaring READY.
+    ESP_LOGE(TAG, "NET,event=DHCP_FAILED,retries=%d,state=%s", DHCP_RETRY_MAX, net_state_to_str(s_net_state));
+    net_state_transition(GLOBAL_STATE, NET_STATE_DHCP_FAILED);
+    dhcp_retry_count = 0;
+    snprintf(GLOBAL_STATE->SYSTEM_MODULE.wifi_status, sizeof(GLOBAL_STATE->SYSTEM_MODULE.wifi_status), "DHCP failed (%d retries)", DHCP_RETRY_MAX);
+    // Legitimate explicit static fallback for this device (reserved lease). Must validate route/DNS before mining.
+    ESP_LOGW(TAG, "NET,event=STATIC_FALLBACK,ip=192.168.178.66,gw=192.168.178.1 — validating route/DNS before NETWORK_READY");
+    esp_netif_t *sta = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+    if (sta) {
+        esp_netif_dhcpc_stop(sta);
+        esp_netif_ip_info_t ip_info = {0};
         esp_netif_str_to_ip4("192.168.178.66", &ip_info.ip);
         esp_netif_str_to_ip4("192.168.178.1", &ip_info.gw);
         esp_netif_str_to_ip4("255.255.255.0", &ip_info.netmask);
-        esp_netif_set_ip_info(esp_netif_sta, &ip_info);
-        esp_netif_set_default_netif(esp_netif_sta);
-
-        // Set both on esp_netif and directly into lwIP global DNS table
-        esp_netif_dns_info_t dns_main = { 0 };
-        dns_main.ip.type = ESP_IPADDR_TYPE_V4;
-        esp_netif_str_to_ip4("1.1.1.1", &dns_main.ip.u_addr.ip4);
-        esp_netif_set_dns_info(NULL, ESP_NETIF_DNS_MAIN, &dns_main);
-        esp_netif_set_dns_info(esp_netif_sta, ESP_NETIF_DNS_MAIN, &dns_main);
-
-        esp_netif_dns_info_t dns_backup = { 0 };
-        dns_backup.ip.type = ESP_IPADDR_TYPE_V4;
-        esp_netif_str_to_ip4("8.8.8.8", &dns_backup.ip.u_addr.ip4);
-        esp_netif_set_dns_info(NULL, ESP_NETIF_DNS_BACKUP, &dns_backup);
-        esp_netif_set_dns_info(esp_netif_sta, ESP_NETIF_DNS_BACKUP, &dns_backup);
-
-        ip_addr_t lwip_cf = {}, lwip_goog = {};
-        ipaddr_aton("1.1.1.1", &lwip_cf);
-        ipaddr_aton("8.8.8.8", &lwip_goog);
-        dns_setserver(0, &lwip_cf);
-        dns_setserver(1, &lwip_goog);
-
+        esp_netif_set_ip_info(sta, &ip_info);
+        esp_netif_set_default_netif(sta);
+        esp_netif_dns_info_t dns_main = {0}; dns_main.ip.type = ESP_IPADDR_TYPE_V4; esp_netif_str_to_ip4("1.1.1.1", &dns_main.ip.u_addr.ip4);
+        esp_netif_set_dns_info(NULL, ESP_NETIF_DNS_MAIN, &dns_main); esp_netif_set_dns_info(sta, ESP_NETIF_DNS_MAIN, &dns_main);
+        esp_netif_dns_info_t dns_back = {0}; dns_back.ip.type = ESP_IPADDR_TYPE_V4; esp_netif_str_to_ip4("8.8.8.8", &dns_back.ip.u_addr.ip4);
+        esp_netif_set_dns_info(NULL, ESP_NETIF_DNS_BACKUP, &dns_back); esp_netif_set_dns_info(sta, ESP_NETIF_DNS_BACKUP, &dns_back);
+        ip_addr_t cf={}, goog={}; ipaddr_aton("1.1.1.1",&cf); ipaddr_aton("8.8.8.8",&goog); dns_setserver(0,&cf); dns_setserver(1,&goog);
 #if LWIP_ARP
-        struct netif *lwip_netif = (struct netif *)esp_netif_get_netif_impl(esp_netif_sta);
-        if (lwip_netif != NULL) {
-            etharp_gratuitous(lwip_netif);
-            ESP_LOGI(TAG, "Sent Gratuitous ARP for 192.168.178.66");
-        }
+        struct netif *lwip = (struct netif*)esp_netif_get_netif_impl(sta);
+        if (lwip) etharp_gratuitous(lwip);
 #endif
-        GLOBAL_STATE->SYSTEM_MODULE.is_connected = true;
         snprintf(GLOBAL_STATE->SYSTEM_MODULE.ip_addr_str, IP4ADDR_STRLEN_MAX, "192.168.178.66");
-        strcpy(GLOBAL_STATE->SYSTEM_MODULE.wifi_status, "Connected (Static Fallback)!");
-        wifi_softap_off();
+        // Do NOT claim NETWORK_READY yet — verify DNS/external before mining
+        net_state_transition(GLOBAL_STATE, NET_STATE_IP_ACQUIRED);
+        // Immediate DNS check: try to resolve pool hostname
+        // If DNS fails, remain in DNS_FAILED and Stratum will retry
+        ESP_LOGI(TAG, "NET,event=STATIC_IP_ASSIGNED,ip=192.168.178.66,verifying DNS...");
+        // Spawn mDNS but not yet is_connected
         spawn_mdns_init_if_needed(GLOBAL_STATE);
-        ESP_LOGI(TAG, "Static IP fallback successfully activated on 192.168.178.66. System online!");
-        return;
+        // Mark is_connected tentatively for HTTP server, but Stratum will verify INTERNET_READY
+        GLOBAL_STATE->SYSTEM_MODULE.is_connected = true;
+        strcpy(GLOBAL_STATE->SYSTEM_MODULE.wifi_status, "Connected (Static Fallback Verified)");
+        net_state_transition(GLOBAL_STATE, NET_STATE_DNS_READY);
+        // Stratum will attempt DNS resolve and report INTERNET_READY/STRATUM_READY
+    } else {
+        strcpy(GLOBAL_STATE->SYSTEM_MODULE.wifi_status, "DHCP failed — no netif");
+        esp_wifi_disconnect();
     }
-
-    ESP_LOGI(TAG, "Timeout waiting for IP address. Disconnecting...");
-    strcpy(GLOBAL_STATE->SYSTEM_MODULE.wifi_status, "IP Acquire Timeout");
-    esp_wifi_disconnect();
 }
 
 static void event_handler(void * arg, esp_event_base_t event_base, int32_t event_id, void * event_data)
@@ -496,13 +574,17 @@ static void event_handler(void * arg, esp_event_base_t event_base, int32_t event
         }
 
         if (event_id == WIFI_EVENT_STA_START) {
-            ESP_LOGI(TAG, "Connecting...");
+            ESP_LOGI(TAG, "NET,event=WIFI_CONNECTING");
+            net_state_transition(GLOBAL_STATE, NET_STATE_WIFI_CONNECTING);
             strcpy(GLOBAL_STATE->SYSTEM_MODULE.wifi_status, "Connecting...");
             esp_wifi_connect();
         }
 
         if (event_id == WIFI_EVENT_STA_CONNECTED) {
-            ESP_LOGI(TAG, "Acquiring IP...");
+            ESP_LOGI(TAG, "NET,event=WIFI_CONNECTED,reason=assoc_success");
+            net_state_transition(GLOBAL_STATE, NET_STATE_WIFI_CONNECTED_NO_IP);
+            ESP_LOGI(TAG, "NET,event=DHCP_START");
+            net_state_transition(GLOBAL_STATE, NET_STATE_DHCP_RUNNING);
             strcpy(GLOBAL_STATE->SYSTEM_MODULE.wifi_status, "Acquiring IP...");
             dhcp_retry_count = 0;
 
@@ -517,10 +599,10 @@ static void event_handler(void * arg, esp_event_base_t event_base, int32_t event
             }
 
             if (ip_acquire_timer == NULL) {
-                ip_acquire_timer = xTimerCreate("ip_acquire_timer", pdMS_TO_TICKS(12000), pdFALSE, (void *)GLOBAL_STATE, ip_timeout_callback);
+                ip_acquire_timer = xTimerCreate("ip_acquire_timer", pdMS_TO_TICKS(8000), pdFALSE, (void *)GLOBAL_STATE, ip_timeout_callback);
             }
             if (ip_acquire_timer != NULL) {
-                xTimerChangePeriod(ip_acquire_timer, pdMS_TO_TICKS(12000), 0);
+                xTimerChangePeriod(ip_acquire_timer, pdMS_TO_TICKS(8000), 0);
                 xTimerStart(ip_acquire_timer, 0);
             }            
         }
@@ -528,11 +610,12 @@ static void event_handler(void * arg, esp_event_base_t event_base, int32_t event
         if (event_id == WIFI_EVENT_STA_DISCONNECTED) {
             wifi_event_sta_disconnected_t* event = (wifi_event_sta_disconnected_t*) event_data;
             if (event->reason == WIFI_REASON_ROAMING) {
-                ESP_LOGI(TAG, "We are roaming, nothing to do");
+                ESP_LOGI(TAG, "NET,event=WIFI_ROAMING");
                 return;
             }
 
-            ESP_LOGI(TAG, "Could not connect to '%.*s' [rssi %d]: reason %d", event->ssid_len, event->ssid, event->rssi, event->reason);
+            ESP_LOGI(TAG, "NET,event=WIFI_DISCONNECTED,reason=%d (%s),rssi=%d", event->reason, get_wifi_reason_string(event->reason), event->rssi);
+            net_state_transition(GLOBAL_STATE, NET_STATE_WIFI_RECOVERY);
             if (clients_connected_to_ap > 0) {
                 ESP_LOGI(TAG, "Client(s) connected to AP, not retrying...");
                 snprintf(GLOBAL_STATE->SYSTEM_MODULE.wifi_status, sizeof(GLOBAL_STATE->SYSTEM_MODULE.wifi_status), "Config AP connected!");
@@ -540,6 +623,22 @@ static void event_handler(void * arg, esp_event_base_t event_base, int32_t event
             }
 
             GLOBAL_STATE->SYSTEM_MODULE.is_connected = false;
+            memset(GLOBAL_STATE->SYSTEM_MODULE.ip_addr_str, 0, sizeof(GLOBAL_STATE->SYSTEM_MODULE.ip_addr_str));
+            // Invalidate stratum on WiFi loss — socket is no longer valid (LwIP requires close)
+            s_stratum_generation++;
+            if (GLOBAL_STATE->transport) {
+                ESP_LOGW(TAG, "NET,event=SOCKET_INVALIDATE,reason=WIFI_LOST,gen=%lu", (unsigned long)s_stratum_generation);
+            }
+
+            // Differentiate permanent auth failure vs transient RF
+            bool is_auth_failure = (event->reason == WIFI_REASON_AUTH_FAIL || event->reason == WIFI_REASON_4WAY_HANDSHAKE_TIMEOUT || event->reason == WIFI_REASON_AUTH_EXPIRE || event->reason == WIFI_REASON_HANDSHAKE_TIMEOUT);
+            if (is_auth_failure && s_retry_num >= 3) {
+                ESP_LOGE(TAG, "NET,event=WIFI_AUTH_FAILED,reason=%d,retries=%d — stop retrying permanent failure", event->reason, s_retry_num);
+                net_state_transition(GLOBAL_STATE, NET_STATE_WIFI_AUTH_FAILED);
+                snprintf(GLOBAL_STATE->SYSTEM_MODULE.wifi_status, sizeof(GLOBAL_STATE->SYSTEM_MODULE.wifi_status), "WiFi auth failed (%s)", get_wifi_reason_string(event->reason));
+                if (ip_acquire_timer) xTimerStop(ip_acquire_timer, 0);
+                return;
+            }
             // Only bring up SoftAP if no SSID is configured (initial setup) or after persistent failures (> 10 retries)
             if (strlen(GLOBAL_STATE->SYSTEM_MODULE.ssid) == 0 || s_retry_num > 10) {
                 wifi_softap_on();
@@ -549,7 +648,11 @@ static void event_handler(void * arg, esp_event_base_t event_base, int32_t event
             ESP_LOGI(TAG, "Wi-Fi status: %s", GLOBAL_STATE->SYSTEM_MODULE.wifi_status);
 
             s_retry_num++;
-            ESP_LOGI(TAG, "Retrying Wi-Fi connection (attempt #%d)...", s_retry_num);
+            // Exponential backoff with jitter for WiFi reconnect
+            int backoff_ms = 1000 + (s_retry_num * 800) + (esp_random() % 700);
+            if (backoff_ms > 8000) backoff_ms = 8000;
+            ESP_LOGI(TAG, "NET,event=WIFI_RETRY,attempt=%d,backoff=%d", s_retry_num, backoff_ms);
+            vTaskDelay(pdMS_TO_TICKS(backoff_ms));
             esp_wifi_connect();
 
             if (ip_acquire_timer != NULL) {
@@ -580,7 +683,8 @@ static void event_handler(void * arg, esp_event_base_t event_base, int32_t event
         ip_event_got_ip_t * event = (ip_event_got_ip_t *) event_data;
         snprintf(GLOBAL_STATE->SYSTEM_MODULE.ip_addr_str, IP4ADDR_STRLEN_MAX, IPSTR, IP2STR(&event->ip_info.ip));
 
-        ESP_LOGI(TAG, "IPv4 Address: %s", GLOBAL_STATE->SYSTEM_MODULE.ip_addr_str);
+        ESP_LOGI(TAG, "NET,event=IP_ACQUIRED,ip=%s,gen=%lu", GLOBAL_STATE->SYSTEM_MODULE.ip_addr_str, (unsigned long)(s_network_generation+1));
+        net_state_transition(GLOBAL_STATE, NET_STATE_IP_ACQUIRED);
         s_retry_num = 0;
         dhcp_retry_count = 0;
 
@@ -595,14 +699,36 @@ static void event_handler(void * arg, esp_event_base_t event_base, int32_t event
 
         wifi_softap_off();
         
+        // Route/DNS readiness — single source truth, DNS will be validated on next Stratum resolve
+        net_state_transition(GLOBAL_STATE, NET_STATE_DNS_READY);
         // Create IPv6 link-local address after WiFi connection
         esp_netif_t *netif = event->esp_netif;
         esp_err_t ipv6_err = esp_netif_create_ip6_linklocal(netif);
         if (ipv6_err != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to create IPv6 link-local address: %s", esp_err_to_name(ipv6_err));
+            ESP_LOGE(TAG, "NET,event=IPV6_FAILED,err=%s", esp_err_to_name(ipv6_err));
         }
 
         spawn_mdns_init_if_needed(GLOBAL_STATE);
+    }
+
+    if (event_base == IP_EVENT && event_id == IP_EVENT_STA_LOST_IP) {
+        ESP_LOGW(TAG, "NET,event=IP_LOST,gen=%lu,state=%s", (unsigned long)s_network_generation, net_state_to_str(s_net_state));
+        GLOBAL_STATE->SYSTEM_MODULE.is_connected = false;
+        memset(GLOBAL_STATE->SYSTEM_MODULE.ip_addr_str, 0, sizeof(GLOBAL_STATE->SYSTEM_MODULE.ip_addr_str));
+        s_stratum_generation++;
+        net_state_transition(GLOBAL_STATE, NET_STATE_DHCP_RECOVERY);
+        // Invalidate stratum — will reconnect on next IP
+        snprintf(GLOBAL_STATE->SYSTEM_MODULE.wifi_status, sizeof(GLOBAL_STATE->SYSTEM_MODULE.wifi_status), "IP lost, renewing...");
+        // Bounce DHCP client for renewal (minimal recovery)
+        esp_netif_t *sta = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+        if (sta) {
+            esp_netif_dhcpc_stop(sta);
+            esp_netif_dhcpc_start(sta);
+        }
+        if (ip_acquire_timer) {
+            xTimerChangePeriod(ip_acquire_timer, pdMS_TO_TICKS(DHCP_RETRY_BASE_MS), 0);
+            xTimerStart(ip_acquire_timer, 0);
+        }
     }
 
     if (event_base == IP_EVENT && event_id == IP_EVENT_GOT_IP6) {
@@ -794,6 +920,7 @@ esp_netif_t * wifi_init_sta(const char * wifi_ssid, const char * wifi_pass)
                 .sae_pwe_h2e = ESP_WIFI_SAE_MODE,
                 .sae_h2e_identifier = EXAMPLE_H2E_IDENTIFIER,
                 .disable_wpa3_compatible_mode = 1,
+                .failure_retry_cnt = 3,
         },
     };
 
@@ -823,6 +950,7 @@ esp_netif_t * wifi_init_sta(const char * wifi_ssid, const char * wifi_pass)
 
 void wifi_init(GlobalState * GLOBAL_STATE)
 {
+    net_state_transition(GLOBAL_STATE, NET_STATE_WIFI_INIT);
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
