@@ -410,7 +410,10 @@ static void ip_timeout_callback(TimerHandle_t xTimer)
             vTaskDelay(pdMS_TO_TICKS(250));
             esp_err_t err = esp_netif_dhcpc_start(esp_netif_sta);
             if (err == ESP_OK || err == ESP_ERR_ESP_NETIF_DHCP_ALREADY_STARTED) {
-                ESP_LOGI(TAG, "Re-issued DHCP DISCOVER (hostname %s), waiting %d ms for DHCPOFFER (retry %d/%d)", GLOBAL_STATE->SYSTEM_MODULE.ssid, DHCP_RETRY_INTERVAL_MS, dhcp_retry_count, DHCP_RETRY_MAX_BEFORE_FALLBACK);
+                char *hostname_tmp = nvs_config_get_string(NVS_CONFIG_HOSTNAME);
+                const char *hostname_log = (hostname_tmp != NULL && hostname_tmp[0] != '\0') ? hostname_tmp : GLOBAL_STATE->SYSTEM_MODULE.ssid;
+                ESP_LOGI(TAG, "Re-issued DHCP DISCOVER (hostname %s), waiting %d ms for DHCPOFFER (retry %d/%d)", hostname_log, DHCP_RETRY_INTERVAL_MS, dhcp_retry_count, DHCP_RETRY_MAX_BEFORE_FALLBACK);
+                free(hostname_tmp);
             } else {
                 ESP_LOGW(TAG, "esp_netif_dhcpc_start failed: %s", esp_err_to_name(err));
             }
