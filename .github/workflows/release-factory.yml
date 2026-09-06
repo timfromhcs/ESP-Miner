@@ -3,6 +3,7 @@ name: Build & Release Factory Images [Release]
 on:
   release:
     types: [released]
+  workflow_dispatch:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
