@@ -411,8 +411,8 @@ static uint32_t s_network_generation = 0;
 static uint32_t s_dhcp_generation = 0;
 static uint32_t s_stratum_generation = 0;
 static int dhcp_retry_count = 0;
-#define DHCP_RETRY_MAX 2
-#define DHCP_RETRY_BASE_MS 5000
+#define DHCP_RETRY_MAX 5
+#define DHCP_RETRY_BASE_MS 4000
 #define DHCP_RECOVERY_WIFI_RECONNECT_AFTER 3
 
 static const char *net_state_to_str(net_state_t s) {
