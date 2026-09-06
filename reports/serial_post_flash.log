@@ -1,0 +1,183 @@
+I (102) boot:  7 coredump         Unknown data     01 03 00f1200[0;33mW (27132) connect: DHCP lease acquisition timeout. Engaging static fallback to designated IP 192.168.178.66...[0m
+[0;32mI (27133) connect: IPv4 Address: 192.168.178.66[0m
+[0;32mI (27133) connect: Connected to SSID: FRITZ!Box 7590 MP-2,4GhZ[0m
+[0;32mI (27133) esp_netif_handlers: sta ip: 192.168.178.66, mask: 255.255.255.0, gw: 192.168.178.1[0m
+[0;32mI (27135) mdns_mem: mDNS task will be created from internal RAM[0m
+[0;32mI (27136) connect: mDNS/Avahi initialized successfully - device discoverable on network[0m
+[0;32mI (27136) connect: Sent Gratuitous ARP for 192.168.178.66[0m
+[0;32mI (27226) asic_init: Starting ASIC initialization (cold boot mode)[0m
+[0;32mI (27428) asic_init: Performing full UART initialization[0m
+[0;32mI (27428) serial: Initializing serial[0m
+[0;32mI (27454) asic_init: Detecting ASIC chips... attempt 1/1[0m
+[0;32mI (27454) asic: Initializing 1x BM1366[0m
+[0;32mI (27463) common: Chip 0 detected: CORE_NUM: 0x00 ADDR: 0x00[0m
+[0;32mI (28236) connect: mDNS hostname set to: timsminer.local[0m
+[0;32mI (28236) connect: Access device at: http://timsminer.local[0m
+[0;32mI (28237) connect: mDNS HTTP service registered: _http._tcp port 80[0m
+[0;32mI (28237) connect: Discover with: avahi-browse _http._tcp[0m
+[0;32mI (28237) connect: mDNS instance: Bitaxe Ultra 201 (DD3C)[0m
+[0;32mI (28237) connect: mDNS AxeOS subtype registered: _axeos._sub._http._tcp[0m
+[0;32mI (28237) connect: Discover AxeOS devices with: avahi-browse _axeos._sub._http._tcp[0m
+[0;32mI (28238) connect: mDNS TXT records added: board=201, family=Ultra, asic=BM1366, asic_count=1, fw_version=v2.15.2-hardened-3-g2e19cd8-dir[0m
+[0;32mI (28238) connect: mDNS/Avahi setup complete - device ready for network discovery[0m
+[0;32mI (28463) bm1366: Set chip address: 0x00[0m
+[0;32mI (28464) frequency_transition: Ramping up frequency from 50 MHz to 485 MHz[0m
+[0;32mI (28464) pll: Frequency: 56.25 MHz (fb_divider: 189, refdiv: 2, postdiv1: 7, postdiv2: 6)[0m
+[0;32mI (28464) bm1366: Setting Frequency to 56.25 MHz (56.25)[0m
+[0;32mI (28488) connect: IPv6 Address: FE80::764D:BDFF:FE77:DD3C[0m
+[0;32mI (28565) pll: Frequency: 62.5 MHz (fb_divider: 150, refdiv: 2, postdiv1: 6, postdiv2: 5)[0m
+[0;32mI (28566) bm1366: Setting Frequency to 62.5 MHz (62.5)[0m
+[0;32mI (28666) pll: Frequency: 68.75 MHz (fb_divider: 154, refdiv: 2, postdiv1: 7, postdiv2: 4)[0m
+[0;32mI (28667) bm1366: Setting Frequency to 68.75 MHz (68.75)[0m
+[0;32mI (28767) pll: Frequency: 75 MHz (fb_divider: 144, refdiv: 2, postdiv1: 6, postdiv2: 4)[0m
+[0;32mI (28768) bm1366: Setting Frequency to 75 MHz (75)[0m
+[0;32mI (28868) pll: Frequency: 81.25 MHz (fb_divider: 156, refdiv: 2, postdiv1: 6, postdiv2: 4)[0m
+[0;32mI (28869) bm1366: Setting Frequency to 81.25 MHz (81.25)[0m
+[0;32mI (28970) pll: Frequency: 87.5 MHz (fb_divider: 147, refdiv: 2, postdiv1: 7, postdiv2: 3)[0m
+[0;32mI (28971) bm1366: Setting Frequency to 87.5 MHz (87.5)[0m
+[0;32mI (29072) pll: Frequency: 93.75 MHz (fb_divider: 150, refdiv: 2, postdiv1: 5, postdiv2: 4)[0m
+[0;32mI (29073) bm1366: Setting Frequency to 93.75 MHz (93.75)[0m
+[0;32mI (29190) pll: Frequency: 100 MHz (fb_divider: 144, refdiv: 2, postdiv1: 6, postdiv2: 3)[0m
+[0;32mI (29191) bm1366: Setting Frequency to 100 MHz (100)[0m
+[0;32mI (29293) pll: Frequency: 106.25 MHz (fb_divider: 153, refdiv: 2, postdiv1: 6, postdiv2: 3)[0m
+[0;32mI (29294) bm1366: Setting Frequency to 106.25 MHz (106.25)[0m
+[0;32mI (29394) pll: Frequency: 112.5 MHz (fb_divider: 162, refdiv: 2, postdiv1: 6, postdiv2: 3)[0m
+[0;32mI (29396) bm1366: Setting Frequency to 112.5 MHz (112.5)[0m
+[0;32mI (29500) pll: Frequency: 118.75 MHz (fb_divider: 171, refdiv: 2, postdiv1: 6, postdiv2: 3)[0m
+[0;32mI (29501) bm1366: Setting Frequency to 118.75 MHz (118.75)[0m
+[0;32mI (29601) pll: Frequency: 125 MHz (fb_divider: 150, refdiv: 2, postdiv1: 5, postdiv2: 3)[0m
+[0;32mI (29602) bm1366: Setting Frequency to 125 MHz (125)[0m
+[0;32mI (29705) pll: Frequency: 131.25 MHz (fb_divider: 147, refdiv: 2, postdiv1: 7, postdiv2: 2)[0m
+[0;32mI (29708) bm1366: Setting Frequency to 131.25 MHz (131.25)[0m
+[0;32mI (29809) pll: Frequency: 137.5 MHz (fb_divider: 154, refdiv: 2, postdiv1: 7, postdiv2: 2)[0m
+[0;32mI (29809) bm1366: Setting Frequency to 137.5 MHz (137.5)[0m
+[0;32mI (29910) pll: Frequency: 143.75 MHz (fb_divider: 161, refdiv: 2, postdiv1: 7, postdiv2: 2)[0m
+[0;32mI (29911) bm1366: Setting Frequency to 143.75 MHz (143.75)[0m
+[0;32mI (30011) pll: Frequency: 150 MHz (fb_divider: 144, refdiv: 2, postdiv1: 6, postdiv2: 2)[0m
+[0;32mI (30012) bm1366: Setting Frequency to 150 MHz (150)[0m
+[0;32mI (30112) pll: Frequency: 156.25 MHz (fb_divider: 150, refdiv: 2, postdiv1: 6, postdiv2: 2)[0m
+[0;32mI (30113) bm1366: Setting Frequency to 156.25 MHz (156.25)[0m
+[0;32mI (30213) pll: Frequency: 162.5 MHz (fb_divider: 156, refdiv: 2, postdiv1: 6, postdiv2: 2)[0m
+[0;32mI (30214) bm1366: Setting Frequency to 162.5 MHz (162.5)[0m
+[0;32mI (30314) pll: Frequency: 168.75 MHz (fb_divider: 162, refdiv: 2, postdiv1: 6, postdiv2: 2)[0m
+[0;32mI (30314) bm1366: Setting Frequency to 168.75 MHz (168.75)[0m
+[0;32mI (30415) pll: Frequency: 175 MHz (fb_divider: 168, refdiv: 2, postdiv1: 6, postdiv2: 2)[0m
+[0;32mI (30415) bm1366: Setting Frequency to 175 MHz (175)[0m
+[0;32mI (30516) pll: Frequency: 181.25 MHz (fb_divider: 145, refdiv: 2, postdiv1: 5, postdiv2: 2)[0m
+[0;32mI (30517) bm1366: Setting Frequency to 181.25 MHz (181.25)[0m
+[0;32mI (30617) pll: Frequency: 187.5 MHz (fb_divider: 150, refdiv: 2, postdiv1: 5, postdiv2: 2)[0m
+[0;32mI (30618) bm1366: Setting Frequency to 187.5 MHz (187.5)[0m
+[0;32mI (30718) pll: Frequency: 193.75 MHz (fb_divider: 155, refdiv: 2, postdiv1: 5, postdiv2: 2)[0m
+[0;32mI (30719) bm1366: Setting Frequency to 193.75 MHz (193.75)[0m
+[0;32mI (30819) pll: Frequency: 200 MHz (fb_divider: 160, refdiv: 2, postdiv1: 5, postdiv2: 2)[0m
+[0;32mI (30820) bm1366: Setting Frequency to 200 MHz (200)[0m
+[0;32mI (30920) pll: Frequency: 206.25 MHz (fb_divider: 165, refdiv: 2, postdiv1: 5, postdiv2: 2)[0m
+[0;32mI (30921) bm1366: Setting Frequency to 206.25 MHz (206.25)[0m
+[0;32mI (31021) pll: Frequency: 212.5 MHz (fb_divider: 170, refdiv: 2, postdiv1: 5, postdiv2: 2)[0m
+[0;32mI (31022) bm1366: Setting Frequency to 212.5 MHz (212.5)[0m
+[0;32mI (31122) pll: Frequency: 218.75 MHz (fb_divider: 175, refdiv: 2, postdiv1: 5, postdiv2: 2)[0m
+[0;32mI (31122) bm1366: Setting Frequency to 218.75 MHz (218.75)[0m
+[0;32mI (31223) pll: Frequency: 225 MHz (fb_divider: 144, refdiv: 2, postdiv1: 4, postdiv2: 2)[0m
+[0;32mI (31224) bm1366: Setting Frequency to 225 MHz (225)[0m
+[0;32mI (31324) pll: Frequency: 231.25 MHz (fb_divider: 148, refdiv: 2, postdiv1: 4, postdiv2: 2)[0m
+[0;32mI (31325) bm1366: Setting Frequency to 231.25 MHz (231.25)[0m
+[0;32mI (31425) pll: Frequency: 237.5 MHz (fb_divider: 152, refdiv: 2, postdiv1: 4, postdiv2: 2)[0m
+[0;32mI (31426) bm1366: Setting Frequency to 237.5 MHz (237.5)[0m
+[0;32mI (31526) pll: Frequency: 243.75 MHz (fb_divider: 156, refdiv: 2, postdiv1: 4, postdiv2: 2)[0m
+[0;32mI (31527) bm1366: Setting Frequency to 243.75 MHz (243.75)[0m
+[0;32mI (31627) pll: Frequency: 250 MHz (fb_divider: 160, refdiv: 2, postdiv1: 4, postdiv2: 2)[0m
+[0;32mI (31627) bm1366: Setting Frequency to 250 MHz (250)[0m
+[0;32mI (31728) pll: Frequency: 256.25 MHz (fb_divider: 164, refdiv: 2, postdiv1: 4, postdiv2: 2)[0m
+[0;32mI (31729) bm1366: Setting Frequency to 256.25 MHz (256.25)[0m
+[0;32mI (31829) pll: Frequency: 262.5 MHz (fb_divider: 147, refdiv: 2, postdiv1: 7, postdiv2: 1)[0m
+[0;32mI (31830) bm1366: Setting Frequency to 262.5 MHz (262.5)[0m
+[0;32mI (31930) pll: Frequency: 268.75 MHz (fb_divider: 172, refdiv: 2, postdiv1: 4, postdiv2: 2)[0m
+[0;32mI (31931) bm1366: Setting Frequency to 268.75 MHz (268.75)[0m
+[0;32mI (32031) pll: Frequency: 275 MHz (fb_divider: 154, refdiv: 2, postdiv1: 7, postdiv2: 1)[0m
+[0;32mI (32032) bm1366: Setting Frequency to 275 MHz (275)[0m
+[0;32mI (32132) pll: Frequency: 281.25 MHz (fb_divider: 180, refdiv: 2, postdiv1: 4, postdiv2: 2)[0m
+[0;32mI (32132) bm1366: Setting Frequency to 281.25 MHz (281.25)[0m
+[0;32mI (32233) pll: Frequency: 287.5 MHz (fb_divider: 161, refdiv: 2, postdiv1: 7, postdiv2: 1)[0m
+[0;32mI (32234) bm1366: Setting Frequency to 287.5 MHz (287.5)[0m
+[0;32mI (32334) pll: Frequency: 293.75 MHz (fb_divider: 188, refdiv: 2, postdiv1: 4, postdiv2: 2)[0m
+[0;32mI (32335) bm1366: Setting Frequency to 293.75 MHz (293.75)[0m
+[0;32mI (32435) pll: Frequency: 300 MHz (fb_divider: 144, refdiv: 2, postdiv1: 6, postdiv2: 1)[0m
+[0;32mI (32436) bm1366: Setting Frequency to 300 MHz (300)[0m
+[0;32mI (32536) pll: Frequency: 306.25 MHz (fb_divider: 147, refdiv: 2, postdiv1: 6, postdiv2: 1)[0m
+[0;32mI (32537) bm1366: Setting Frequency to 306.25 MHz (306.25)[0m
+[0;32mI (32637) pll: Frequency: 312.5 MHz (fb_divider: 150, refdiv: 2, postdiv1: 6, postdiv2: 1)[0m
+[0;32mI (32638) bm1366: Setting Frequency to 312.5 MHz (312.5)[0m
+[0;32mI (32739) pll: Frequency: 318.75 MHz (fb_divider: 153, refdiv: 2, postdiv1: 6, postdiv2: 1)[0m
+[0;32mI (32740) bm1366: Setting Frequency to 318.75 MHz (318.75)[0m
+[0;32mI (32843) pll: Frequency: 325 MHz (fb_divider: 156, refdiv: 2, postdiv1: 6, postdiv2: 1)[0m
+[0;32mI (32844) bm1366: Setting Frequency to 325 MHz (325)[0m
+[0;32mI (32948) pll: Frequency: 331.25 MHz (fb_divider: 159, refdiv: 2, postdiv1: 6, postdiv2: 1)[0m
+[0;32mI (32949) bm1366: Setting Frequency to 331.25 MHz (331.25)[0m
+[0;32mI (33056) pll: Frequency: 337.5 MHz (fb_divider: 162, refdiv: 2, postdiv1: 6, postdiv2: 1)[0m
+[0;32mI (33057) bm1366: Setting Frequency to 337.5 MHz (337.5)[0m
+[0;32mI (33157) pll: Frequency: 343.75 MHz (fb_divider: 165, refdiv: 2, postdiv1: 6, postdiv2: 1)[0m
+[0;32mI (33158) bm1366: Setting Frequency to 343.75 MHz (343.75)[0m
+[0;32mI (33258) pll: Frequency: 350 MHz (fb_divider: 168, refdiv: 2, postdiv1: 6, postdiv2: 1)[0m
+[0;32mI (33259) bm1366: Setting Frequency to 350 MHz (350)[0m
+[0;32mI (33359) pll: Frequency: 356.25 MHz (fb_divider: 171, refdiv: 2, postdiv1: 6, postdiv2: 1)[0m
+[0;32mI (33360) bm1366: Setting Frequency to 356.25 MHz (356.25)[0m
+[0;32mI (33460) pll: Frequency: 362.5 MHz (fb_divider: 145, refdiv: 2, postdiv1: 5, postdiv2: 1)[0m
+[0;32mI (33461) bm1366: Setting Frequency to 362.5 MHz (362.5)[0m
+[0;32mI (33561) pll: Frequency: 368.75 MHz (fb_divider: 177, refdiv: 2, postdiv1: 6, postdiv2: 1)[0m
+[0;32mI (33562) bm1366: Setting Frequency to 368.75 MHz (368.75)[0m
+[0;32mI (33662) pll: Frequency: 375 MHz (fb_divider: 150, refdiv: 2, postdiv1: 5, postdiv2: 1)[0m
+[0;32mI (33663) bm1366: Setting Frequency to 375 MHz (375)[0m
+[0;32mI (33763) pll: Frequency: 381.25 MHz (fb_divider: 183, refdiv: 2, postdiv1: 6, postdiv2: 1)[0m
+[0;32mI (33764) bm1366: Setting Frequency to 381.25 MHz (381.25)[0m
+[0;32mI (33864) pll: Frequency: 387.5 MHz (fb_divider: 155, refdiv: 2, postdiv1: 5, postdiv2: 1)[0m
+[0;32mI (33865) bm1366: Setting Frequency to 387.5 MHz (387.5)[0m
+[0;32mI (33965) pll: Frequency: 393.75 MHz (fb_divider: 189, refdiv: 2, postdiv1: 6, postdiv2: 1)[0m
+[0;32mI (33966) bm1366: Setting Frequency to 393.75 MHz (393.75)[0m
+[0;32mI (34066) pll: Frequency: 400 MHz (fb_divider: 160, refdiv: 2, postdiv1: 5, postdiv2: 1)[0m
+[0;32mI (34067) bm1366: Setting Frequency to 400 MHz (400)[0m
+[0;32mI (34167) pll: Frequency: 406.25 MHz (fb_divider: 195, refdiv: 2, postdiv1: 6, postdiv2: 1)[0m
+[0;32mI (34168) bm1366: Setting Frequency to 406.25 MHz (406.25)[0m
+[0;32mI (34268) pll: Frequency: 412.5 MHz (fb_divider: 165, refdiv: 2, postdiv1: 5, postdiv2: 1)[0m
+[0;32mI (34269) bm1366: Setting Frequency to 412.5 MHz (412.5)[0m
+[0;32mI (34369) pll: Frequency: 418.75 MHz (fb_divider: 201, refdiv: 2, postdiv1: 6, postdiv2: 1)[0m
+[0;32mI (34370) bm1366: Setting Frequency to 418.75 MHz (418.75)[0m
+[0;32mI (34470) pll: Frequency: 425 MHz (fb_divider: 170, refdiv: 2, postdiv1: 5, postdiv2: 1)[0m
+[0;32mI (34471) bm1366: Setting Frequency to 425 MHz (425)[0m
+[0;32mI (34571) pll: Frequency: 431.25 MHz (fb_divider: 207, refdiv: 2, postdiv1: 6, postdiv2: 1)[0m
+[0;32mI (34572) bm1366: Setting Frequency to 431.25 MHz (431.25)[0m
+[0;32mI (34674) pll: Frequency: 437.5 MHz (fb_divider: 175, refdiv: 2, postdiv1: 5, postdiv2: 1)[0m
+[0;32mI (34674) bm1366: Setting Frequency to 437.5 MHz (437.5)[0m
+[0;32mI (34775) pll: Frequency: 443.75 MHz (fb_divider: 213, refdiv: 2, postdiv1: 6, postdiv2: 1)[0m
+[0;32mI (34776) bm1366: Setting Frequency to 443.75 MHz (443.75)[0m
+[0;32mI (34876) pll: Frequency: 450 MHz (fb_divider: 144, refdiv: 2, postdiv1: 4, postdiv2: 1)[0m
+[0;32mI (34877) bm1366: Setting Frequency to 450 MHz (450)[0m
+[0;32mI (34977) pll: Frequency: 456.25 MHz (fb_divider: 146, refdiv: 2, postdiv1: 4, postdiv2: 1)[0m
+[0;32mI (34978) bm1366: Setting Frequency to 456.25 MHz (456.25)[0m
+[0;32mI (35078) pll: Frequency: 462.5 MHz (fb_divider: 148, refdiv: 2, postdiv1: 4, postdiv2: 1)[0m
+[0;32mI (35079) bm1366: Setting Frequency to 462.5 MHz (462.5)[0m
+[0;32mI (35179) pll: Frequency: 468.75 MHz (fb_divider: 150, refdiv: 2, postdiv1: 4, postdiv2: 1)[0m
+[0;32mI (35180) bm1366: Setting Frequency to 468.75 MHz (468.75)[0m
+[0;32mI (35280) pll: Frequency: 475 MHz (fb_divider: 152, refdiv: 2, postdiv1: 4, postdiv2: 1)[0m
+[0;32mI (35281) bm1366: Setting Frequency to 475 MHz (475)[0m
+[0;32mI (35381) pll: Frequency: 481.25 MHz (fb_divider: 154, refdiv: 2, postdiv1: 4, postdiv2: 1)[0m
+[0;32mI (35382) bm1366: Setting Frequency to 481.25 MHz (481.25)[0m
+[0;32mI (35482) pll: Frequency: 485 MHz (fb_divider: 194, refdiv: 2, postdiv1: 5, postdiv2: 1)[0m
+[0;32mI (35483) bm1366: Setting Frequency to 485 MHz (485)[0m
+[0;32mI (35483) frequency_transition: Successfully transitioned to 485 MHz[0m
+[0;32mI (35483) bm1366: Setting max baud of 1000000[0m
+[0;32mI (35483) serial: Changing UART baud to 1000000[0m
+[0;32mI (35486) asic_init: ASIC initialized successfully with 1 chip(s) (cold boot mode)[0m
+[0;32mI (35487) create_jobs_task: ASIC Job Interval: 2000 ms[0m
+[0;32mI (35487) create_jobs_task: ASIC Ready![0m
+[0;32mI (35488) statistics_task: Starting[0m
+[0;32mI (35491) protocol_coordinator: Protocol coordinator started (primary: SV1, fallback: SV1, state: 1)[0m
+[0;32mI (35491) main_task: Returned from app_main()[0m
+[0;32mI (35492) stratum_v1_task: Opening connection to pool: dgb.solopool.eu:3335[0m
+[0;32mI (35589) fan_controller: PID initialized at 44.0°C (P:5.0 I:0.1 D:2.0[0m
+[0;32mI (35589) fan_controller: Set to Auto mode, fan speed: 25.0%[0m
+[0;32mI (37489) fan_controller: Temp: 45.0°C, SetPoint: 60.0°C, Output: 25.0%[0m
+[0;32mI (39489) fan_controller: Temp: 46.1°C, SetPoint: 60.0°C, Output: 27.7%[0m
+[0;32mI (41489) fan_controller: Temp: 46.9°C, SetPoint: 60.0°C, Output: 30.1%[0m
+[0;32mI (43489) connect: IPv6 Address: 2A02:3100:62AB:7F00:764D:BDFF:FE77:DD3C[0m
+[0;32mI (43489) connect: IPv6 Address: FD1B:422:BBF5:0:764D:BDFF:FE77:DD3C[0m
+[0;32mI (43490) fan_controller: Temp: 47.3°C, SetPoint: 60.0°C, Output: 32.5%[0m

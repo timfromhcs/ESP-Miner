@@ -296,8 +296,15 @@ static bool self_test_should_run()
         return true;
     }
 
-    // Optionally start self-test when boot button is pressed
-    return gpio_get_level(CONFIG_GPIO_BUTTON_BOOT) == 0; // LOW when pressed
+    // Optionally start self-test when boot button is pressed (debounced to avoid USB reset glitch)
+    if (gpio_get_level(CONFIG_GPIO_BUTTON_BOOT) == 0) {
+        vTaskDelay(100 / portTICK_PERIOD_MS);
+        if (gpio_get_level(CONFIG_GPIO_BUTTON_BOOT) == 0) {
+            ESP_LOGI(TAG, "Boot button held low, starting self-test");
+            return true;
+        }
+    }
+    return false;
 }
 
 esp_err_t self_test_init(GlobalState * GLOBAL_STATE)

@@ -1,0 +1,46 @@
+[0;33mW (11743) connect: DHCP lease pending (attempt 1)...[0m
+[0;33mW (21743) connect: DHCP lease pending (attempt 2)...[0m
+[0;33mW (31743) connect: DHCP lease pending (attempt 3)...[0m
+[0;33mW (31743) connect: DHCP lease stalled after multiple renewals, forcing clean Wi-Fi re-association...[0m
+I (31743) wifi:state: run -> init (0x0)
+I (31746) wifi:pm stop, total sleep time: 0 us / 30004077 us
+
+[0;32mI (31748) connect: Could not connect to 'FRITZ!Box 7590 MP-2,4GhZ' [rssi -55]: reason 8[0m
+I (31749) wifi:mode : sta (74:4d:bd:77:dd:3c) + softAP (74:4d:bd:77:dd:3d)
+I (31750) wifi:Total power save buffer number: 8
+I (31750) wifi:Init max length of beacon: 752/752
+I (31751) wifi:Init max length of beacon: 752/752
+[0;32mI (31753) connect: Wi-Fi status: Deassociated due to leaving (Error 8, retry #0)[0m
+[0;32mI (32253) connect: Retrying Wi-Fi connection...[0m
+[0;32mI (32257) connect: Configuration Access Point enabled[0m
+I (32267) wifi:ap channel adjust o:1,1 n:4,1
+I (32268) wifi:new:<4,0>, old:<1,1>, ap:<4,1>, sta:<4,0>, prof:1, snd_ch_cfg:0x0
+I (32269) wifi:state: init -> auth (0xb0)
+[0;32mI (32290) BLE_INIT: BT controller compile version [51d9dfd][0m
+[0;32mI (32290) BLE_INIT: Using main XTAL as clock source[0m
+[0;32mI (32294) BLE_INIT: Feature Config, ADV:1, BLE_50:1, DTM:1, SCAN:1, CCA:0, SMP:1, CONNECT:1[0m
+[0;32mI (32295) BLE_INIT: Bluetooth MAC: 74:4d:bd:77:dd:3e[0m
+I (32297) wifi:Coexist!!! Wi-Fi station would only keep waked when available
+
+[0;32mI (32304) NimBLE: GAP procedure initiated: stop advertising.
+[0m
+[0;32mI (32306) NimBLE: GAP procedure initiated: advertise; [0m
+[0;32mI (32307) NimBLE: disc_mode=2[0m
+[0;32mI (32307) NimBLE:  adv_channel_map=0 own_addr_type=0 adv_filter_policy=0 adv_itvl_min=0 adv_itvl_max=0[0m
+[0;32mI (32307) NimBLE:
+[0m
+[0;32mI (32309) setup_ble: Setup BLE started as Bitaxe-DD3D[0m
+I (32321) wifi:state: auth -> assoc (0x0)
+I (32342) wifi:state: assoc -> run (0x10)
+I (32463) wifi:connected with FRITZ!Box 7590 MP-2,4GhZ, aid = 1, channel 4, BW20, bssid = 2c:3a:fd:49:d3:95
+I (32464) wifi:security: WPA2-PSK, phy: bgn, rssi: -54, cipher(pairwise:0x3, group:0x3), pmf:0
+I (32468) wifi:pm start, type: 0
+
+I (32469) wifi:set rx beacon pti, rx_bcn_pti: 14, bcn_timeout: 25000, mt_pti: 14, mt_time: 10000
+E (32470) wifi:sta is connecting, cannot set config
+[0;32mI (32471) connect: Acquiring IP...[0m
+I (32514) wifi:AP's beacon interval = 102400 us, DTIM period = 1
+W (33049) wifi:Error! Should use default active scan time parameter for WiFi scan when Bluetooth is enabled!!!!!!
+
+[0;33mW (42473) connect: DHCP lease pending (attempt 1)...[0m
+W (44009) wifi:Error! Should use default active scan time parameter for WiFi scan when Bluetooth is enabled!!!!!!

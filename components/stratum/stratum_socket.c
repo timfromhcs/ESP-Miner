@@ -27,18 +27,19 @@ esp_err_t stratum_socket_resolve(const char *hostname, uint16_t port, stratum_co
     ESP_LOGD(TAG, "Resolving address for %s:%u", hostname, port);
 
     struct addrinfo hints = {
-        .ai_family   = AF_UNSPEC,
+        .ai_family   = AF_INET,
         .ai_socktype = SOCK_STREAM,
         .ai_protocol = IPPROTO_TCP,
         .ai_flags    = AI_NUMERICSERV
     };
 
-    // getaddrinfo() maps to esp_getaddrinfo() when CONFIG_LWIP_USE_ESP_GETADDRINFO
-    // is enabled (as it is in the firmware), which resolves AF_UNSPEC into both
-    // IPv4 and IPv6. Using the standard name keeps this component buildable under
-    // the default lwip config too (e.g. the unit-test build).
     struct addrinfo *res = NULL;
     int gai_err = getaddrinfo(hostname, port_str, &hints, &res);
+    if (gai_err != 0 || res == NULL) {
+        // Fall back to AF_UNSPEC if IPv4-specific lookup returned error
+        hints.ai_family = AF_UNSPEC;
+        gai_err = getaddrinfo(hostname, port_str, &hints, &res);
+    }
     if (gai_err != 0 || res == NULL) {
         ESP_LOGE(TAG, "DNS resolution failed for %s:%u (error: %d)", hostname, port, gai_err);
         return ESP_ERR_NOT_FOUND;

@@ -146,7 +146,12 @@ void create_jobs_task(void *pvParameters)
                         last_job_id_num = ext_job->job_id;
                     }
                 } else {
-                    clean = ((sv2_job_t *)current_work)->clean_jobs;
+                    sv2_job_t *sv2_job = (sv2_job_t *)current_work;
+                    clean = sv2_job->clean_jobs;
+                    if (sv2_job->job_id != last_job_id_num) {
+                        job_changed = true;
+                        last_job_id_num = sv2_job->job_id;
+                    }
                 }
             } else {
                 mining_notify *notify = (mining_notify *)current_work;

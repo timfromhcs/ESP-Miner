@@ -189,16 +189,13 @@ void app_main(void)
         // Continue anyway, as BAP is not critical for core functionality
     }
 
-    // While the device is still in setup mode (config AP up but no WiFi
-    // connection), expose the BLE provisioning service so the miner can be
-    // configured over Bluetooth. A grace period avoids spinning up BLE on
-    // a normal boot that connects within a few seconds. If an SSID is configured,
-    // we give Wi-Fi ample time (15s) to establish before enabling BLE advertising,
-    // avoiding Bluetooth/Wi-Fi coexistence interference during initial DHCP negotiation.
+    // Only expose BLE provisioning when NO Wi-Fi SSID is configured (initial out-of-box setup).
+    // When an SSID is configured, running BLE advertising causes 2.4 GHz radio coexistence collisions
+    // that degrade DHCP / ARP packet exchange with the router.
+    bool allow_ble_setup = (strlen(GLOBAL_STATE.SYSTEM_MODULE.ssid) == 0);
     int setup_ble_grace_ms = 0;
-    int ble_start_threshold_ms = (strlen(GLOBAL_STATE.SYSTEM_MODULE.ssid) > 0) ? 15000 : 5000;
     while (!GLOBAL_STATE.SYSTEM_MODULE.is_connected) {
-        if (GLOBAL_STATE.SYSTEM_MODULE.ap_enabled && setup_ble_grace_ms >= ble_start_threshold_ms) {
+        if (allow_ble_setup && GLOBAL_STATE.SYSTEM_MODULE.ap_enabled && setup_ble_grace_ms >= 5000) {
             setup_ble_start(&GLOBAL_STATE);
         }
         setup_ble_grace_ms += 100;

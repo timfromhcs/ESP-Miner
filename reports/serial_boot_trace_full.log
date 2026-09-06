@@ -1,0 +1,173 @@
+[0;33mW (16662) connect: DHCP lease pending, renewing DHCP discESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x15 (USB_UART_CHIP_RESET),boot:0x28 (SPI_FAST_FLASH_BOOT)
+Saved PC:0x40381382
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fce2820,len:0x15b8
+load:0x403c8700,len:0xe28
+load:0x403cb700,len:0x33d8
+entry 0x403c8988
+I (24) boot: ESP-IDF v6.0.2 2nd stage bootloader
+I (24) boot: compile time Aug 29 2026 21:05:59
+I (25) boot: Multicore bootloader
+I (25) boot: chip revision: v0.2
+I (28) boot: efuse block revision: v1.3
+I (31) boot.esp32s3: Boot SPI Speed : 80MHz
+I (35) boot.esp32s3: SPI Mode       : DIO
+I (39) boot.esp32s3: SPI Flash Size : 16MB
+I (43) boot: Enabling RNG early entropy source...
+I (47) boot: Partition Table:
+I (50) boot: ## Label            Usage          Type ST Offset   Length
+I (56) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (63) boot:  1 phy_init         RF data          01 01 0000f000 00001000
+I (69) boot:  2 factory          factory app      00 00 00010000 00400000
+I (76) boot:  3 www              Unknown data     01 82 00410000 00300000
+I (82) boot:  4 ota_0            OTA app          00 10 00710000 00400000
+I (89) boot:  5 ota_1            OTA app          00 11 00b10000 00400000
+I (95) boot:  6 otadata          OTA data         01 00 00f10000 00002000
+I (102) boot:  7 coredump         Unknown data     01 03 00f12000 00010000
+I (108) boot: End of partition table
+I (112) esp_image: segment 0: paddr=00710020 vaddr=3c160020 size=119e5ch (1154652) map
+I (312) esp_image: segment 1: paddr=00829e84 vaddr=3fc9f600 size=06194h ( 24980) load
+I (317) esp_image: segment 2: paddr=00830020 vaddr=42000020 size=159e28h (1416744) map
+I (554) esp_image: segment 3: paddr=00989e50 vaddr=3fca5794 size=0098ch (  2444) load
+I (555) esp_image: segment 4: paddr=0098a7e4 vaddr=40374000 size=1b5b8h (112056) load
+I (579) esp_image: segment 5: paddr=009a5da4 vaddr=50000000 size=00024h (    36) load
+I (590) boot: Loaded app from partition at offset 0x710000
+I (591) boot: Disabling RNG early entropy source...
+[0;32mI (601) octal_psram: vendor id    : 0x0d (AP)[0m
+[0;32mI (601) octal_psram: dev id       : 0x02 (generation 3)[0m
+[0;32mI (601) octal_psram: density      : 0x03 (64 Mbit)[0m
+[0;32mI (606) octal_psram: good-die     : 0x01 (Pass)[0m
+[0;32mI (611) octal_psram: Latency      : 0x01 (Fixed)[0m
+[0;32mI (617) octal_psram: VCC          : 0x01 (3V)[0m
+[0;32mI (622) octal_psram: SRF          : 0x01 (Fast Refresh)[0m
+[0;32mI (627) octal_psram: BurstType    : 0x01 (Hybrid Wrap)[0m
+[0;32mI (633) octal_psram: BurstLen     : 0x01 (32 Byte)[0m
+[0;32mI (639) octal_psram: Readlatency  : 0x02 (10 cycles@Fixed)[0m
+[0;32mI (645) octal_psram: DriveStrength: 0x00 (1/1)[0m
+[0;32mI (650) MSPI Timing: Enter psram timing tuning[0m
+[0;32mI (656) esp_psram: Found 8MB PSRAM device[0m
+[0;32mI (660) esp_psram: Speed: 80MHz[0m
+[0;32mI (664) cpu_start: Multicore app[0m
+[0;32mI (1063) esp_psram: SPI SRAM memory test OK[0m
+[0;32mI (1071) cpu_start: GPIO 44 and 43 are used as console UART I/O pins[0m
+[0;32mI (1072) cpu_start: Pro cpu start user code[0m
+[0;32mI (1072) cpu_start: cpu freq: 240000000 Hz[0m
+[0;32mI (1077) app_init: Application information:[0m
+[0;32mI (1082) app_init: Project name:     esp-miner[0m
+[0;32mI (1087) app_init: App version:      v2.15.2-hardened-3-g2e19cd8-dir[0m
+[0;32mI (1094) app_init: Compile time:     Sep  6 2026 10:30:47[0m
+[0;32mI (1100) app_init: ELF file SHA256:  47f22b78b...[0m
+[0;32mI (1105) app_init: ESP-IDF:          v6.0.2[0m
+[0;32mI (1110) efuse_init: Min chip rev:     v0.0[0m
+[0;32mI (1115) efuse_init: Max chip rev:     v0.99 [0m
+[0;32mI (1120) efuse_init: Chip rev:         v0.2[0m
+[0;32mI (1125) heap_init: Initializing. RAM available for dynamic allocation:[0m
+[0;32mI (1132) heap_init: At 3FCB03C0 len 00039350 (228 KiB): RAM[0m
+[0;32mI (1138) heap_init: At 3FCE9710 len 00005724 (21 KiB): RAM[0m
+[0;32mI (1145) heap_init: At 3FCF0000 len 00008000 (32 KiB): DRAM[0m
+[0;32mI (1151) heap_init: At 600FE000 len 00001FE8 (7 KiB): RTCRAM[0m
+[0;32mI (1157) esp_psram: Adding pool of 7664K of PSRAM memory to heap allocator[0m
+[0;32mI (1165) spi_flash: detected chip: gd[0m
+[0;32mI (1169) spi_flash: flash io: dio[0m
+[0;32mI (1174) sleep_gpio: Configure to isolate all GPIO pins in sleep state[0m
+[0;32mI (1181) sleep_gpio: Enable automatic switching of GPIO sleep configuration[0m
+[0;32mI (1199) main_task: Started on CPU0[0m
+[0;32mI (1203) esp_psram: Reserving pool of 32K of internal memory for DMA/internal allocations[0m
+[0;32mI (1212) main_task: Calling app_main()[0m
+[0;32mI (1216) log_buffer: Soft reboot detected, 10674052 bytes of logs preserved[0m
+[0;32mI (1224) bitaxe: Welcome to the bitaxe - FOSS || GTFO![0m
+[0;32mI (1224) bitaxe: RST pin initialized to low[0m
+[0;32mI (1324) adc: calibration scheme version is Curve Fitting[0m
+[0;32mI (1324) adc: Calibration Success[0m
+[0;32mI (1359) nvs_config: Used entries: 330[0m
+[0;32mI (1359) nvs_config: Free entries: 426[0m
+[0;32mI (1359) nvs_config: Available entries: 300[0m
+[0;32mI (1359) nvs_config: Total entries: 756[0m
+[0;32mI (1377) device_config: Device Model: Ultra[0m
+[0;32mI (1377) device_config: Board Version: 201[0m
+[0;32mI (1377) device_config: ASIC: 1x BM1366 (112 cores)[0m
+[0;32mI (1378) i2c_bitaxe: Initializing I2C bus on SDA=47 SCL=48[0m
+[0;32mI (1378) bitaxe: I2C initialized successfully[0m
+[0;32mI (1480) system: Initial overheat_mode value: 0[0m
+[0;32mI (1484) pp: pp rom version: e7ae62f[0m
+[0;32mI (1485) net80211: net80211 rom version: e7ae62f[0m
+I (1487) wifi:wifi driver task: 3fcc2b60, prio:23, stack:6656, core=0
+I (1498) wifi:wifi firmware version: 00ad238
+I (1498) wifi:wifi certification version: v7.0
+I (1498) wifi:config NVS flash: enabled
+I (1498) wifi:config nano formatting: disabled
+I (1499) wifi:Init data frame dynamic rx buffer num: 32
+I (1499) wifi:Init static rx mgmt buffer num: 5
+I (1499) wifi:Init management short buffer num: 32
+I (1499) wifi:Init static tx buffer num: 16
+I (1500) wifi:Init tx cache buffer num: 32
+I (1500) wifi:Init static tx FG buffer num: 2
+I (1500) wifi:Init static rx buffer size: 1600
+I (1500) wifi:Init static rx buffer num: 16
+I (1500) wifi:Init dynamic rx buffer num: 32
+[0;32mI (1502) wifi_init: rx ba win: 16[0m
+[0;32mI (1502) wifi_init: accept mbox: 6[0m
+[0;32mI (1502) wifi_init: tcpip mbox: 32[0m
+[0;32mI (1502) wifi_init: udp mbox: 6[0m
+[0;32mI (1502) wifi_init: tcp mbox: 6[0m
+[0;32mI (1502) wifi_init: tcp tx win: 5760[0m
+[0;32mI (1502) wifi_init: tcp rx win: 5760[0m
+[0;32mI (1502) wifi_init: tcp mss: 1440[0m
+[0;32mI (1502) wifi_init: WiFi/LWIP prefer SPIRAM[0m
+[0;32mI (1502) wifi_init: WiFi IRAM OP enabled[0m
+[0;32mI (1502) wifi_init: WiFi RX IRAM OP enabled[0m
+[0;32mI (1503) connect: ESP_WIFI_MODE_STA[0m
+[0;32mI (1504) connect: Wi-Fi Password provided, using WPA2[0m
+[0;32mI (1504) connect: wifi_init_sta finished.[0m
+I (1504) wifi:Set ps type: 0, coexist: 0
+
+[0;32mI (1505) connect: ESP_WIFI setting hostname to: timsminer[0m
+[0;32mI (1505) phy_init: phy_version 712,87e8c20e,Apr 13 2026,18:51:10[0m
+I (1545) wifi:mode : sta (74:4d:bd:77:dd:3c)
+I (1546) wifi:enable tsf
+[0;32mI (1546) connect: Connecting...[0m
+[0;32mI (1549) connect: wifi_init_sta finished.[0m
+[0;32mI (1550) display: SSD1306 (128x32)[0m
+[0;32mI (1550) display: Install panel IO[0m
+[0;32mI (1550) display: Install panel driver[0m
+[0;32mI (1552) display: Initialize LVGL[0m
+[0;32mI (1553) LVGL: Starting LVGL task[0m
+I (1572) wifi:new:<4,0>, old:<1,0>, ap:<255,255>, sta:<4,0>, prof:1, snd_ch_cfg:0x0
+I (1573) wifi:state: init -> auth (0xb0)
+[0;32mI (1575) display: Rotation: 0[0m
+I (1612) wifi:state: auth -> assoc (0x0)
+I (1638) wifi:state: assoc -> run (0x10)
+I (1675) wifi:connected with FRITZ!Box 7590 MP-2,4GhZ, aid = 1, channel 4, BW20, bssid = 2c:3a:fd:49:d3:95
+I (1675) wifi:security: WPA2-PSK, phy: bgn, rssi: -58, cipher(pairwise:0x3, group:0x3), pmf:0
+I (1678) wifi:pm start, type: 0
+
+I (1678) wifi:dp: 1, bi: 102400, li: 3, scale listen interval from 307200 us to 307200 us
+I (1678) wifi:set rx beacon pti, rx_bcn_pti: 14, bcn_timeout: 25000, mt_pti: 14, mt_time: 10000
+E (1678) wifi:sta is connecting, cannot set config
+[0;32mI (1679) connect: Acquiring IP...[0m
+[0;32mI (1680) display: Display init success![0m
+[0;32mI (1680) input: Install button driver[0m
+[0;32mI (1761) system: Existing overheat_mode value: 0[0m
+[0;32mI (1762) system: Custom WWW disabled; skipping SPIFFS filesystem initialization[0m
+[0;32mI (1782) EMC2101: Initializing EMC2101 (Temperature offset: 5° C)[0m
+[0;32mI (1783) power_management: Starting[0m
+[0;32mI (1783) power_management: ASIC Frequency: 485 MHz, Expected hashrate: 433.59MH/s[0m
+[0;32mI (1784) fan_controller: Starting[0m
+[0;32mI (1784) fan_controller: Set to Startup mode, fan speed: 70.0%[0m
+[0;32mI (1785) system: Firmware Version: v2.15.2-hardened-3-g2e19cd8-dir[0m
+[0;32mI (1785) system: AxeOS Version: Unified[0m
+[0;32mI (1785) http_server: Starting HTTP Server[0m
+[0;32mI (1789) websocket_log: websocket_log_task starting[0m
+[0;32mI (1789) websocket_api: websocket_api_task starting[0m
+[0;32mI (1790) dns_server: Socket created[0m
+[0;32mI (1790) dns_server: Socket bound, port 53[0m
+[0;32mI (1790) dns_server: Waiting for data[0m
+[0;32mI (1792) BAP: Initializing BAP system[0m
+[0;32mI (1795) BAP: BAP system initialized successfully[0m
+I (2149) wifi:AP's beacon interval = 102400 us, DTIM period = 1
+[0;32mI (2284) power_management: setting new vcore voltage to 1200mV[0m
+[0;32mI (2284) vcore: Set ASIC voltage = 1.200V[0m
+[0;33mW (16680) connect: DHCP lease pending, renewing DHCP discovery...[0m

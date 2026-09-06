@@ -2075,9 +2075,11 @@ esp_err_t start_rest_server(GlobalState * global_state)
         ESP_LOGE(TAG, "Error creating ws api task");
     }
 
-    // Start the DNS server that will redirect all queries to the softAP IP
-    dns_server_config_t dns_config = DNS_SERVER_CONFIG_SINGLE("*" /* all A queries */, "WIFI_AP_DEF" /* softAP netif ID */);
-    start_dns_server(&dns_config);
+    // Start the DNS server only when softAP is active to avoid port 53 contention in station mode
+    if (GLOBAL_STATE->SYSTEM_MODULE.ap_enabled) {
+        dns_server_config_t dns_config = DNS_SERVER_CONFIG_SINGLE("*" /* all A queries */, "WIFI_AP_DEF" /* softAP netif ID */);
+        start_dns_server(&dns_config);
+    }
 
     return ESP_OK;
 err_start:

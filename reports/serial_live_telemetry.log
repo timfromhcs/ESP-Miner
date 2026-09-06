@@ -1,0 +1,30 @@
+[0;33mW (16772) connect: DHCP lease acquisition timeout. Engaging static fallback to designated IP 192.168.178.66...[0m
+[0;32mI (16773) connect: IPv4 Address: 192.168.178.66[0m
+[0;32mI (16773) connect: Connected to SSID: FRITZ!Box 7590 MP-2,4GhZ[0m
+[0;32mI (16774) esp_netif_handlers: sta ip: 192.168.178.66, mask: 255.255.255.0, gw: 192.168.178.1[0m
+[0;32mI (16777) mdns_mem: mDNS task will be created from internal RAM[0m
+[0;32mI (16778) connect: mDNS/Avahi initialized successfully - device discoverable on network[0m
+[0;32mI (16785) connect: IPv4 Address: 192.168.178.66[0m
+[0;32mI (16786) connect: Connected to SSID: FRITZ!Box 7590 MP-2,4GhZ[0m
+[0;32mI (16800) asic_init: Starting ASIC initialization (cold boot mode)[0m
+[0;32mI (17000) asic_init: Performing full UART initialization[0m
+[0;32mI (17000) serial: Initializing serial[0m
+[0;32mI (17028) asic_init: Detecting ASIC chips... attempt 1/1[0m
+[0;32mI (17029) asic: Initializing 1x BM1366[0m
+[0;32mI (17035) common: Chip 0 detected: CORE_NUM: 0x00 ADDR: 0x00[0m
+[0;32mI (17878) connect: mDNS hostname set to: timsminer.local[0m
+[0;32mI (17878) connect: Access device at: http://timsminer.local[0m
+[0;32mI (17878) connect: mDNS HTTP service registered: _http._tcp port 80[0m
+[0;32mI (17878) connect: Discover with: avahi-browse _http._tcp[0m
+[0;32mI (17878) connect: mDNS instance: Bitaxe Ultra 201 (DD3C)[0m
+[0;32mI (17879) connect: mDNS AxeOS subtype registered: _axeos._sub._http._tcp[0m
+[0;32mI (17879) connect: Discover AxeOS devices with: avahi-browse _axeos._sub._http._tcp[0m
+[0;32mI (17879) connect: mDNS TXT records added: board=201, family=Ultra, asic=BM1366, asic_count=1, fw_version=v2.15.2-hardened-3-g2e19cd8-dir[0m
+[0;32mI (17880) connect: mDNS/Avahi setup complete - device ready for network discovery[0m
+[0;32mI (18039) bm1366: Set chip address: 0x00[0m
+[0;32mI (18041) frequency_transition: Ramping up frequency from 50 MHz to 485 MHz[0m
+[0;32mI (18043) pll: Frequency: 56.25 MHz (fb_divider: 189, refdiv: 2, postdiv1: 7, postdiv2: 6)[0m
+[0;32mI (18043) bm1366: Setting Frequency to 56.25 MHz (56.25)[0m
+[0;32mI (18144) pll: Frequency: 62.5 MHz (fb_divider: 150, refdiv: 2, postdiv1: 6, postdiv2: 5)[0m
+[0;32mI (18145) bm1366: Setting Frequency to 62.5 MHz (62.5)[0m
+[0;32mI (18246) pll: Frequency: 68.75 MHz (fb_divider: 154, refdiv: 2, postdiv1: 7, postdiv2: 4)[0m

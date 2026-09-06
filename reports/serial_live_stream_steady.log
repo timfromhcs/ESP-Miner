@@ -1,0 +1,42 @@
+[0;32mI (41197) fan_controller: Temp: 50.9°C, SetPoint: 60.0°C, Output: 29.4%[0m
+[0;32mI (43197) fan_controller: Temp: 51.0°C, SetPoint: 60.0°C, Output: 29.4%[0m
+[0;32mI (43732) asic_result: ID: 6a68c3410004c856, ASIC nr: 0, Core: 87/4, ver: 200B8202 Nonce 9F4C2FAE diff 285.2 of 1000.[0m
+[0;32mI (45197) fan_controller: Temp: 51.0°C, SetPoint: 60.0°C, Output: 27.6%[0m
+[0;32mI (45779) stratum_api: tx: {"id":6,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.tim","6a68c3410004c856","0200000000000000","6a9d43e5","62e76a05","000b4000"]}[0m
+[0;32mI (45779) asic_result: Processing time: 2.4 ms[0m
+[0;32mI (45779) asic_result: ID: 6a68c3410004c856, ASIC nr: 0, Core: 2/2, ver: 200B4202 Nonce 62E76A05 diff 13045.3 of 1000.[0m
+[0;32mI (46000) stratum_api: rx: {"result":true,"error":null,"id":6}[0m
+[0;32mI (46001) stratum_api: Result success[0m
+[0;32mI (46001) stratum_v1_task: message result accepted[0m
+[0;32mI (46001) stratum_v1_task: Stratum response time: 221.5 ms[0m
+[0;32mI (47197) fan_controller: Temp: 51.1°C, SetPoint: 60.0°C, Output: 25.8%[0m
+[0;32mI (49197) fan_controller: Temp: 51.3°C, SetPoint: 60.0°C, Output: 25.0%[0m
+[0;32mI (49200) stratum_api: tx: {"id":7,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.tim","6a68c3410004c856","0400000000000000","6a9d43e5","1d4197c4","00036000"]}[0m
+[0;32mI (49201) asic_result: Processing time: 2.4 ms[0m
+[0;32mI (49201) asic_result: ID: 6a68c3410004c856, ASIC nr: 0, Core: 98/3, ver: 20036202 Nonce 1D4197C4 diff 8442.8 of 1000.[0m
+[0;32mI (49375) stratum_api: rx: {"result":true,"error":null,"id":7}[0m
+[0;32mI (49375) stratum_api: Result success[0m
+[0;32mI (49376) stratum_v1_task: message result accepted[0m
+[0;32mI (49376) stratum_v1_task: Stratum response time: 174.1 ms[0m
+[0;32mI (51197) fan_controller: Temp: 51.9°C, SetPoint: 60.0°C, Output: 29.4%[0m
+[0;32mI (51702) asic_result: ID: 6a68c3410004c856, ASIC nr: 0, Core: 80/0, ver: 200A0202 Nonce EF3E17A1 diff 408.7 of 1000.[0m
+[0;32mI (53197) fan_controller: Temp: 51.9°C, SetPoint: 60.0°C, Output: 29.5%[0m
+[0;32mI (53424) asic_result: ID: 6a68c3410004c856, ASIC nr: 0, Core: 71/6, ver: 2006C202 Nonce 2EC7FB8E diff 281.6 of 1000.[0m
+[0;32mI (54243) asic_result: ID: 6a68c3410004c856, ASIC nr: 0, Core: 80/2, ver: 20124202 Nonce 97B3ACA0 diff 351.8 of 1000.[0m
+[0;32mI (54654) asic_result: ID: 6a68c3410004c856, ASIC nr: 0, Core: 70/3, ver: 20186202 Nonce 4B9A8C8C diff 681.0 of 1000.[0m
+[0;32mI (55197) fan_controller: Temp: 52.0°C, SetPoint: 60.0°C, Output: 27.9%[0m
+[0;32mI (55761) stratum_api: rx: {"params":["6a68c3410004c857","e7657ac77e505132de18cac433e347a434c622cbb46344eacf5bd25ae8b6404b","01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff3204bfb370010004f5439d6a04137e25230c","0a636b706f6f6c0d2f736f6c6f706f6f6c2e65752fffffffff04c26f37d805000000160014b9414a8f557c34c2ce51f08d0ff50a42b6b039b420011d0f00000000160014698c3b34d5d947ebfc1dd436e13bae4e674d4e6d0000000000000000266a24aa21a9edc194f52b0d27b77f6139d5a93076c7149b488b12d452f03c4f1a18de729075480000000000000000606abf01034c5a0502480b0400b1370900f613000000000000e2419d6a00000000507b097cab9e5d8712100f2622e75806e5be08836f13b7ee8467b45c1aabfc2aebc627bb1bed65e10ca2f4bfde4dc3c6e9ef7be555f3d32abd2040f752353fd800000000",["f4e851675f03d21e2ef8bdcf2e382d068e73de9b4bb9d13db94d6b8476c11fc6"],"20000202","19057516","6a9d43f5",true],"id":null,"method":"mining.notify"}[0m
+[0;32mI (55762) create_jobs_task: New Work Dequeued 6a68c3410004c857[0m
+[0;32mI (55763) stratum_v1_task: Block height 24163263[0m
+[0;32mI (55763) stratum_v1_task: Scriptsig: ...C.j..~%#..ckpool./solopool.eu/[0m
+[0;32mI (55763) stratum_v1_task: Coinbase outputs: 4, total value: 25355907298 sats[0m
+[0;32mI (57197) fan_controller: Temp: 52.0°C, SetPoint: 60.0°C, Output: 26.3%[0m
+[0;32mI (57769) asic_result: ID: 6a68c3410004c857, ASIC nr: 0, Core: 97/7, ver: 2000E202 Nonce 53590CC2 diff 547.7 of 1000.[0m
+[0;32mI (59197) fan_controller: Temp: 52.3°C, SetPoint: 60.0°C, Output: 29.9%[0m
+[0;32mI (61197) fan_controller: Temp: 52.3°C, SetPoint: 60.0°C, Output: 25.0%[0m
+[0;32mI (61547) asic_result: ID: 6a68c3410004c857, ASIC nr: 0, Core: 5/2, ver: 20194202 Nonce 62F6620B diff 271.2 of 1000.[0m
+[0;32mI (63197) fan_controller: Temp: 52.7°C, SetPoint: 60.0°C, Output: 25.0%[0m
+[0;32mI (64591) asic_result: ID: 6a68c3410004c857, ASIC nr: 0, Core: 28/0, ver: 200B0202 Nonce CF57A639 diff 700.1 of 1000.[0m
+[0;32mI (64915) asic_result: ID: 6a68c3410004c857, ASIC nr: 0, Core: 80/0, ver: 20100202 Nonce 71EAFCA0 diff 425.5 of 1000.[0m
+[0;32mI (65206) fan_controller: Temp: 52.9°C, SetPoint: 60.0°C, Output: 29.8%[0m
+[0;32mI (65486) asic_result: ID: 6a68c3410004c857, ASIC nr: 0, Core: 105/4, ver: 20188202 Nonce C69882D3 diff 889.8 of 1000.[0m

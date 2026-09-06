@@ -40,3 +40,14 @@ debug.log
 
 # Device list file for tools/upload2device.py
 devices.txt
+
+backup_*.json
+*.private
+private/
+
+
+telemetry_*.json
+baseline_telemetry.json
+current_telemetry.json
+build_wsl/
+build*/

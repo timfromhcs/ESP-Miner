@@ -1,0 +1,52 @@
+[
+  {
+    "boot_index": 1,
+    "t0_reset_wall": 1788691491.9721704,
+    "t1_app_main_ms": null,
+    "t2_wifi_connected_ms": null,
+    "t3_ip_acquired_ms": null,
+    "t4_stratum_connected_ms": null,
+    "t5_first_job_ms": null,
+    "t6_first_share_ms": null
+  },
+  {
+    "boot_index": 2,
+    "t0_reset_wall": 1788691529.1902823,
+    "t1_app_main_ms": null,
+    "t2_wifi_connected_ms": null,
+    "t3_ip_acquired_ms": null,
+    "t4_stratum_connected_ms": null,
+    "t5_first_job_ms": null,
+    "t6_first_share_ms": null
+  },
+  {
+    "boot_index": 3,
+    "t0_reset_wall": 1788691566.3262005,
+    "t1_app_main_ms": null,
+    "t2_wifi_connected_ms": null,
+    "t3_ip_acquired_ms": null,
+    "t4_stratum_connected_ms": null,
+    "t5_first_job_ms": null,
+    "t6_first_share_ms": null
+  },
+  {
+    "boot_index": 4,
+    "t0_reset_wall": 1788691603.517189,
+    "t1_app_main_ms": null,
+    "t2_wifi_connected_ms": null,
+    "t3_ip_acquired_ms": null,
+    "t4_stratum_connected_ms": null,
+    "t5_first_job_ms": null,
+    "t6_first_share_ms": null
+  },
+  {
+    "boot_index": 5,
+    "t0_reset_wall": 1788691640.6521666,
+    "t1_app_main_ms": null,
+    "t2_wifi_connected_ms": null,
+    "t3_ip_acquired_ms": null,
+    "t4_stratum_connected_ms": null,
+    "t5_first_job_ms": null,
+    "t6_first_share_ms": null
+  }
+]
