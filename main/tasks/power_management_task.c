@@ -14,6 +14,7 @@
 #include "atm_policy.h"
 #include "vf_tuner.h"
 #include "power_target.h"
+#include "math.h"
 #include "driver/uart.h"
 
 #define POLL_RATE 100
