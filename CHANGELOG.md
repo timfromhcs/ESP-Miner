@@ -56,30 +56,65 @@ Driven by a 41-minute ring-buffer capture from the production Bitaxe Ultra at
 - **ATM/VR threshold comment was inverted** and the VR emergency cutoff was
   duplicated with the legacy backstop at the same value.
 
+### Removed
+- **The hardcoded static-IP fallback.** The firmware-level constant is gone: it was
+  baked into every unit on every network and claimed an address it could not prove
+  free. See "Added" for the per-device replacement.
+
 ### Added
-- **`components/stratum/notify_validate.{c,h}`** — dependency-free
-  `mining.notify` field validator (job id, prev-block, both coinbase halves,
-  every merkle branch, version/nbits/ntime) with an `nBits` plausibility
-  heuristic. Tested on the host and under QEMU Unity.
-- **`main/thermal/atm_policy.{c,h}`** — proactive thermal management: hysteresis
+- **Per-device static IPv4 fallback** (`useStaticFallback`, `staticIp`,
+  `staticGateway`, `staticSubnet`, `staticDns`), off unless configured for a
+  router-reserved address, editable in AxeOS, and applied only after DHCP has
+  genuinely failed and the retry/recovery cycles are exhausted. Supersedes the
+  removed hardcoded fallback.
+- **components/stratum/notify_validate.{h,c}** — dependency-free `mining.notify`
+  field validator (job id, prev-block, both coinbase halves, every merkle branch,
+  version/nbits/ntime) with an `nBits` plausibility heuristic. Tested on the host
+  and under QEMU Unity.
+- **main/thermal/atm_policy.{h,c}** — proactive thermal management: hysteresis
   buffer, frequency and voltage moving together, regulator-floor clamp,
   anti-hunting "DPS memory", minimum dwell, and a fan-relief path that lets a
   materially better duty cycle substitute for the extra temperature margin.
-- **`main/power/vf_tuner.{c,h}`** — opt-in closed-loop voltage minimiser that
+- **main/power/vf_tuner.{h,c}** — opt-in closed-loop voltage minimiser that
   holds frequency and reverts to the last proven-stable voltage on failure.
 - **API/UI:** `notifyReceived`, `notifyDropped`, `sharesRejectedStale`,
   `sharesRejectedOther`, `asicFastUart`, `autotuneVoltage`. The home view now
   separates the unavoidable stale-share race from real defects.
 - **`host-tests` CI job** running four dependency-free host binaries in seconds,
   without waiting for the QEMU job.
-- **`docs/PLAN_BITAXE_BM1366_OPTIMIZATION.md`** — the design and rationale
+- **DHCP client diagnostics** — `esp_netif_dhcpc_start()`'s return value, the
+  live client state and link state on every retry. This is what distinguishes
+  "server never answers" from "client never started", which look identical from
+  outside the device.
+- **docs/PLAN_BITAXE_BM1366_OPTIMIZATION.md** — the design and rationale
   document, plus `evidence/192.168.178.66/` device captures.
 
-### Removed
-- **The static-IP fallback.** It is gone from the code; the documentation that
-  still described it as a proven, measured feature has been corrected. A
-  hardcoded address cannot be verified as free, so binding it reintroduced the
-  very conflicts the state machine exists to prevent.
+### Fixed (found on hardware, v2.16.0)
+- **The DHCP client was never started on a cold boot.** Narrowing the start
+  condition to `ESP_NETIF_DHCP_STOPPED` dropped `ESP_NETIF_DHCP_INIT` — the state
+  a freshly booted client sits in — so no lease was ever requested.
+- **The static fallback bound an address that never reached LwIP.**
+  `esp_netif_set_ip_info()` only pushes into the TCP/IP stack *"if the interface
+  is up"*, and `esp_netif_dhcpc_stop()` leaves the netif administratively down, so
+  the address landed only in esp-netif's copy. LwIP kept `ip_addr == 0` and never
+  answered ARP — the same "unreachable from its own subnet, no ARP entry" symptom
+  the original hardcoded fallback had. Order is now
+  `dhcpc_stop → netif_set_up → set_ip_info`, and success is asserted with
+  `esp_netif_get_ip_info()` plus `esp_netif_is_netif_up()`.
+
+### Hardware validation (`192.168.178.66`)
+| Metric | v2.15.3 | v2.16.0 |
+|---|---|---|
+| DHCP lease | not obtained; static fallback used | **2 966 ms, real lease** |
+| Hashrate (1 h avg) | 433.0 TH/s | 429.7 – 430.2 TH/s |
+| Shares rejected | 222 / 88 425 (0.250 %) | 1 / 80, and `stale=1, other=0` |
+| Vcore | 1188 – 1239 mV flapping | 1192 mV |
+| Free PSRAM | 7 558 508 B | 7 571 680 B |
+
+NVS was preserved across every flash (app-only OTA plus USB `esptool` writes);
+pool addresses, Wi-Fi credentials, wallet and hostname were untouched. The UART
+fix is visible on-device as
+`Setting chip UART BT8D=2 -> 1041666 baud (host programmed to match)`.
 
 ### Known limitations
 - Stricter `nBits` plausibility is deferred: `1900c185` implies difficulty ~8.7e4
@@ -87,7 +122,8 @@ Driven by a 41-minute ring-buffer capture from the production Bitaxe Ultra at
   validation risks dropping valid jobs.
 - Domain imbalance (36 % spread) and Vcore flapping (1188–1239 mV around a
   1200 mV set point) are recorded but not yet acted on; both need longer
-  captures before any code change is justified.
+  captures before any code change is justified. Vcore flapping is improved
+  (1192 mV steady in the post-flash capture); the domain spread is not.
 - On Windows, `npm run test:ci` prints `TOTAL: n SUCCESS` but exits `1` because
   Karma's browser teardown raises an uncaught `ECONNRESET`. Windows-only; CI on
   Linux is green, so the Karma config is intentionally left unchanged.

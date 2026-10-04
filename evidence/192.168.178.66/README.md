@@ -21,10 +21,11 @@ Stratum-Passphrase sind vom Gerät bereits als `*****` maskiert.
 
 | Verzeichnis | Inhalt |
 |---|---|
-| `snapshots/20261004-003232/` | `GET /api/system/info`, `/api/system/statistics`, `/api/system/scoreboard`, `/api/system/asic`, `/api/system/logs` |
+| `snapshots/20261004-003232/` | **Baseline** `v2.15.3-hardened`: `GET /api/system/info`, `/api/system/statistics`, `/api/system/scoreboard`, `/api/system/asic`, `/api/system/logs` |
 | `snapshots/20261004-003232/bitaxe-logs.raw-ansi.txt` | Rohes Log (512-KB-Ringpuffer, ANSI-farbcodes) |
 | `snapshots/20261004-003232/bitaxe-logs.clean.txt` | dasselbe Log, ANSI-stripped, 4 909 Zeilen — die Arbeitskopie |
 | `telemetry-short.csv` | 6 API-Samples im 5-s-Abstand (`/api/system/info`) |
+| `snapshots/20261004-v2.16.0-postflash/` | **Nach dem Update** `v2.16.0-hardened`, im Betrieb — mit eigenem README, Telemetrie und Log |
 
 Der Log-Ringpuffer fasst 512 KB und umfasst zum Abrufzeitpunkt ca. 41 Minuten
 Betriebszeit (`t=2 348 958 789` … `2 351 474 779`).

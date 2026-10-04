@@ -1,9 +1,10 @@
 # Plan: Bitaxe Ultra (BM1366) Optimization — v2.16.0
 
-Status: **implemented**, pending hardware re-validation on `192.168.178.66`.
+Status: **implemented and hardware-validated** on `192.168.178.66`.
 Baseline firmware: `v2.15.3-hardened`.
 Evidence: [`evidence/192.168.178.66/`](../evidence/192.168.178.66/README.md)
-(snapshot `20261004-003232`, ~41 min of ring-buffer log, 4 909 lines).
+— baseline `snapshots/20261004-003232/` (~41 min, 4 909 lines) and post-change
+`snapshots/20261004-v2.16.0-postflash/`.
 
 This is the design document referenced by
 `components/stratum/include/notify_validate.h`,
@@ -251,6 +252,50 @@ Also corrected in the same area:
   conflict check, which is the wrong trade for a device whose address is already
   reserved.
 
+#### 3.6a Static-IP fallback: capability restored, correctly
+
+Removing the fallback outright turned out to be the wrong call, and hardware
+proved it. With no fallback the unit associated fine (`rssi -52`) but never got a
+lease, while the router demonstrably still served DHCP — the PC renewed its own
+lease at the same moment. The miner was simply offline rather than degraded.
+
+So the capability is back, with the two things that made the original hardcoded
+version wrong removed:
+
+* **per-device configuration in NVS** (`useStaticFallback`, `staticIp`,
+  `staticGateway`, `staticSubnet`, `staticDns`), not a constant compiled into
+  every unit on every network;
+* **consulted only after DHCP has genuinely failed** and the retry/recovery cycles
+  are exhausted — when the router answers, the real lease always wins.
+
+And the original is corrected rather than resurrected:
+
+* `esp_netif_dhcpc_stop()` before `esp_netif_set_ip_info()`, which ESP-IDF requires;
+* **ordering**: `dhcpc_stop → netif_set_up() → set_ip_info()`. This was the real
+  bug. `esp_netif_set_ip_info()` only pushes the address into the TCP/IP stack
+  *"if the interface is up"*, and `dhcpc_stop()` leaves the netif administratively
+  down — so the address landed solely in esp-netif's own copy, LwIP kept
+  `ip_addr == 0`, and the stack never answered ARP. The symptom was identical to
+  the original: host unreachable from its own subnet, `DestinationHostUnreachable`,
+  no ARP entry. It is why the old fallback "succeeded" and then could not be pinged.
+* success is asserted with `esp_netif_get_ip_info()` **and** `esp_netif_is_netif_up()`,
+  so a silently ignored setter can never be logged as a recovery;
+* DNS via `esp_netif_set_dns_info()` (including `ESP_NETIF_DNS_FALLBACK`, which
+  lwIP never fills from a lease) rather than poking LwIP's global table;
+* RFC 5227 gratuitous ARP, mDNS re-registration, `is_connected`, and the net state
+  machine all advanced, so stratum and the web UI actually come up.
+
+For the `192.168.178.x` fleet the reserved values ship as NVS defaults (the
+address is reserved on the router, and DHCP still wins whenever the router
+answers). They are ordinary NVS entries, editable and disableable in AxeOS.
+**On any other network, clear `useStaticFallback`** — enabling it where the
+address is not reserved is exactly what creates duplicate-IP conflicts.
+
+The diagnostic that made this tractable without packet capture:
+`DHCP_CLIENT_START err=ESP_OK` plus `status=1 link_up=1` on every retry proves the
+client is running and the link is up, which distinguishes "server never answers"
+from "client never started" — two problems that look identical from outside.
+
 ---
 
 ## 4. Deliberately **not** done
@@ -261,6 +306,7 @@ Also corrected in the same area:
 | Domain-imbalance (P1-2) remediation | The 36 % spread needs a per-domain job-rotation investigation with hardware correlation; no code change is justified from a single snapshot. |
 | Vcore flapping (P1-3) | 1188–1239 mV around a 1200 mV set point is within regulator tolerance for this board. Needs a longer capture before acting. |
 | `CONFIG_LWIP_DHCP_RESTORE_LAST_IP` | Bypasses the conflict check; see above. |
+| Domain-imbalance (P1-2) remediation | The 36 % spread needs a per-domain job-rotation investigation with hardware correlation; no code change is justified from a single snapshot. Measured again post-change at 79.5 / 120.3 / 141.7 / 111.6 TH/s — unchanged, so still open. |
 | Disabling IPv6 | Would save ~39 KB flash / ~7 KB RAM, but the device currently holds a valid IPv6 link-local and the win is not worth the regression risk in this release. |
 
 ---
@@ -273,7 +319,32 @@ Also corrected in the same area:
 | Host — ATM + V/F | `simulation/test_power_policy.c` | 77 checks |
 | Firmware — Unity/QEMU | `components/stratum/test/test_notify_validate.c` via `idf.py build test` | CI |
 | Frontend | `npm run test:ci` | 60 specs |
-| Hardware | OTA to `192.168.178.66`, NVS preserved | see `evidence/192.168.178.66/` |
+| Hardware | OTA + USB re-flash, NVS preserved | see `evidence/192.168.178.66/` |
+
+### On-device results (v2.16.0, 192.168.178.66)
+
+| Metric | Baseline v2.15.3 | v2.16.0 |
+|---|---|---|
+| Hashrate (1 h avg) | 433.0 TH/s | 429.7 – 430.2 TH/s, steady |
+| Shares rejected | 222 / 88 425 (0.250 %) | 1 / 80 — and `stale=1, other=0`, i.e. no real defect |
+| Vcore | 1188 – 1239 mV (flapping) | 1192 mV |
+| DHCP lease | not obtained; static fallback used | **2 966 ms, real lease** |
+| Free PSRAM | 7 558 508 B | 7 571 680 B |
+
+The P0 fix is directly observable on the device:
+
+```
+W (28196) stratum_v1_task: Dropping undecodable job c17d (dropped=1 received=5), keeping ASIC on current work
+W (67248) stratum_v1_task: Dropping undecodable job c1cf (dropped=2 received=8), keeping ASIC on current work
+```
+
+`keeping ASIC on current work` is the behaviour that was missing: each such job
+previously cost a full job interval (2 000 ms here, ~6.7 s in the baseline run)
+of hashrate on work that could only produce stale shares.
+
+**Still open:** the 36 % domain imbalance (P1-2) is unchanged
+(79.5 / 120.3 / 141.7 / 111.6 TH/s) and was deliberately not addressed in this
+release.
 
 The host suites are dependency-free C11 and run under
 `-Wall -Wextra -Werror -O2`; they execute in the `host-tests` CI job in seconds,
