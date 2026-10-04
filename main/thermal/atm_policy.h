@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stddef.h>   /* NULL — <stdint.h> does not provide it on glibc/newlib */
 
 #ifdef __cplusplus
 extern "C" {
