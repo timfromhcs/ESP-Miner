@@ -12,7 +12,23 @@ void websocket_set_log_task_handle(TaskHandle_t task_handle);
 
 #define MESSAGE_QUEUE_SIZE (128)
 #define MAX_WEBSOCKET_CLIENTS (10)
-#define LOG_BUFFER_SIZE  (512 * 1024)  /* 512 KB */
+/*
+ * Ringpuffer fuer die Boot- und Laufzeitlogs, damit Logs einen Reset
+ * ueberleben und ueber den WebSocket scrollbar bleiben.
+ *
+ * 128 KB statt der ursprünglichen 512 KB: der Puffer wird bei jedem Kaltstart
+ * vollstaendig genullt und per esp_cache_msync in die PSRAM-Cache-Lines
+ * geschrieben (log_buffer.c). Das war bei 512 KB messbare Boot-Zeit fuer
+ * Speicher, der nie gelesen wird. 128 KB reichen fuer die komplette
+ * Bootsequenz um ein Vielfaches und bleiben damit sinnvoll Puffer fuer die
+ * WebSocket-Ansicht.
+ *
+ * WICHTIG: Der Puffer liegt per EXT_RAM_NOINIT_ATTR in PSRAM. Ohne
+ * CONFIG_SPIRAM_ALLOW_NOINIT_SEG_EXTERNAL_MEMORY=y faellt das Attribut auf
+ * __NOINIT_ATTR zurueck, und 128 KB landen im internen DRAM. Die
+ * main/CMakeLists.txt prueft das beim Build.
+ */
+#define LOG_BUFFER_SIZE  (128 * 1024)  /* 128 KB */
 
 typedef enum {
     WS_TYPE_LOGS,

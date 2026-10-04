@@ -15,8 +15,22 @@ CONFIG_SPIRAM=y
 CONFIG_SPIRAM_MODE_OCT=y
 CONFIG_SPIRAM_SPEED_80M=y
 CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y
+
+# ACHTUNG: main/log_buffer.c legt seinen Log-Ringpuffer per EXT_RAM_NOINIT_ATTR an.
+# Laut ESP-IDF (esp_common/include/esp_attr.h) faellt dieses Attribut auf __NOINIT_ATTR
+# zurueck, sobald NOINIT_SEG_EXTERNAL_MEMORY nicht gesetzt ist. Der Puffer landet dann
+# im internen DRAM, und da der ESP32-S3 dram0_0_seg auf maximal 0x54700 (341 KB)
+# begrenzt ist, bricht der Link mit "region `dram0_0_seg' overflowed" ab.
+# Beide Optionen muessen daher auf y bleiben. main/CMakeLists.txt prueft das beim Build.
 CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY=y
 CONFIG_SPIRAM_ALLOW_NOINIT_SEG_EXTERNAL_MEMORY=y
+
+# Stack des Idle-Tasks. Der IDF-Default ist 1536 Byte. Auf diesem Board laeuft im
+# Idle-Kontext WiFi-Coexistence, Timer, Task-WDT und der Scheduler-Teil des
+# Startup-Pfads; 1536 Byte fuehren reproduzierbar zu
+# "***ERROR*** A stack overflow in task IDLE1 has been detected."
+# Die Reserve im internen DRAM laesst 4096 Byte zu (siehe MEMORY_STRATEGY_PLAN.md).
+CONFIG_FREERTOS_IDLE_TASK_STACKSIZE=4096
 CONFIG_SPIRAM_IGNORE_NOTFOUND=y
 CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
 CONFIG_ESP_WIFI_11KV_SUPPORT=y

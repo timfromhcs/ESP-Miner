@@ -26,6 +26,7 @@
 #include "asic_reset.h"
 #include "asic_init.h"
 #include "task_monitor.h"
+#include "memory_guard.h"
 #include "filesystem.h"
 #include "log_buffer.h"
 #include "setup_ble.h"
@@ -85,6 +86,12 @@ void app_main(void)
         ESP_LOGE(TAG, "Error creating task monitor task");
     }
 #endif
+
+    // Overload protection: watches internal DRAM and restarts in a controlled
+    // way instead of dying in an unexplained "stack overflow in task IDLE1" panic.
+    if (xTaskCreateWithCaps(memory_guard_task, "memory_guard", 3072, NULL, 1, NULL, MALLOC_CAP_SPIRAM) != pdPASS) {
+        ESP_LOGE(TAG, "Error creating memory guard task");
+    }
   
     // Initialize RST pin to low early to minimize ASIC power consumption
     ESP_ERROR_CHECK(asic_hold_reset_low());

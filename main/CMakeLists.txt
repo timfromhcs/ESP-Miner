@@ -11,6 +11,7 @@ SRCS
     "filesystem.c"
     "system.c"
     "work_queue.c"
+    "memory_guard.c"
     "lv_font_portfolio-6x8.c"
     "logo.c"
     "images/generated/bitaxe_background.c"
@@ -110,6 +111,38 @@ EMBED_FILES "http_server/recovery_page.html"
 
 idf_build_set_property(COMPILE_OPTIONS "-DLV_CONF_INCLUDE_SIMPLE=1" APPEND)
 idf_build_set_property(COMPILE_OPTIONS "-DLV_CONF_PATH=\"${CMAKE_SOURCE_DIR}/main/lv_conf.h\"" APPEND)
+
+# main/log_buffer.c legt s_buffer[LOG_BUFFER_SIZE] (512 KB) mit EXT_RAM_NOINIT_ATTR an.
+# Laut ESP-IDF (esp_common/include/esp_attr.h) faellt EXT_RAM_NOINIT_ATTR auf
+# __NOINIT_ATTR zurueck, sobald CONFIG_SPIRAM_ALLOW_NOINIT_SEG_EXTERNAL_MEMORY
+# nicht gesetzt ist. Der 512-KB-Puffer landet dann im internen DRAM, und weil der
+# ESP32-S3 dram0_0_seg auf maximal 0x54700 (341 KB) begrenzt ist, bricht der Link
+# mit "region `dram0_0_seg' overflowed by ~360000 bytes" ab.
+#
+# Diese Pruefung macht den stillen Rueckfall sichtbar, bevor jemand stundenlang
+# einen Reboot-Loop an einem echten Bug sucht.
+foreach(_esp_miner_seg_opt
+        SPIRAM_ALLOW_NOINIT_SEG_EXTERNAL_MEMORY
+        SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY)
+    set(_esp_miner_seg_value "")
+    file(STRINGS "${CMAKE_SOURCE_DIR}/sdkconfig" _esp_miner_sdkconfig_lines)
+    foreach(_esp_miner_line IN LISTS _esp_miner_sdkconfig_lines)
+        if("${_esp_miner_line}" MATCHES "^CONFIG_${_esp_miner_seg_opt}=(.+)$")
+            set(_esp_miner_seg_value "${CMAKE_MATCH_1}")
+        elseif("${_esp_miner_line}" MATCHES "^# CONFIG_${_esp_miner_seg_opt} is not set$")
+            set(_esp_miner_seg_value "n")
+        endif()
+    endforeach()
+    if(NOT _esp_miner_seg_value STREQUAL "y")
+        message(FATAL_ERROR
+            "sdkconfig-Fehler: CONFIG_${_esp_miner_seg_opt} ist nicht 'y'.\n"
+            "main/log_buffer.c braucht externen RAM fuer seinen Log-Ringpuffer "
+            "(EXT_RAM_NOINIT_ATTR). Ohne diese Option landet er im internen DRAM "
+            "und fraesst die Reserve, die sonst fuer Task-Stacks frei bleibt.\n"
+            "Fix: CONFIG_${_esp_miner_seg_opt}=y setzen oder sdkconfig aus "
+            "sdkconfig.defaults neu erzeugen (idf.py fullclean && rm sdkconfig).")
+    endif()
+endforeach()
 
 set(WEB_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/http_server/axe-os")
 

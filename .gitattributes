@@ -1,0 +1,10 @@
+# Shell-Skripte muessen LF-Zeilenenden haben. Mit core.autocrlf=true werden sie
+# sonst als CRLB committed und scheitern unter Linux/CI mit:
+#   env: 'bash\r': No such file or directory
+*.sh text eol=lf
+
+# Firmware, Partitionstabellen und Binaries unveraendert lassen.
+*.bin binary
+partitions.csv text eol=lf
+sdkconfig.defaults text eol=lf
+sdkconfig.ci text eol=lf
