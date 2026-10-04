@@ -520,7 +520,6 @@ static bool try_static_ip_fallback(GlobalState * GLOBAL_STATE)
     struct netif *lwip_netif = (struct netif *) esp_netif_get_netif_impl(sta);
     if (lwip_netif != NULL) {
         netif_set_up(lwip_netif);
-        netif_set_default_netif(lwip_netif);
     }
 
     if (dns_s != NULL && dns_s[0] != '\0') {
