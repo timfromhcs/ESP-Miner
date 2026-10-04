@@ -54,6 +54,11 @@ static SemaphoreHandle_t nvs_update_mutex = NULL;
 static Settings settings[NVS_CONFIG_COUNT] = {
     [NVS_CONFIG_WIFI_SSID]                             = {.nvs_key_name = "wifissid",        .type = TYPE_STR,   .default_value = {.str = (char *)CONFIG_ESP_WIFI_SSID},                .rest_name = "ssid",                               .min = 1,  .max = 32},
     [NVS_CONFIG_WIFI_PASS]                             = {.nvs_key_name = "wifipass",        .type = TYPE_STR,   .default_value = {.str = (char *)CONFIG_ESP_WIFI_PASSWORD},            .rest_name = "wifiPass",                           .min = 0,  .max = 63},
+    /* Empty by default: general releases let the driver choose the node. Set this
+     * when the unit must sit on one specific mesh node, for example because the
+     * strongest one relays nothing. Exposed as wifiBssid so it can be changed
+     * from AxeOS without reflashing. */
+    [NVS_CONFIG_WIFI_BSSID]                           = {.nvs_key_name = "wifi_bssid",      .type = TYPE_STR,   .default_value = {.str = ESP_MINER_WIFI_BSSID},                        .rest_name = "wifiBssid",                         .min = 0,  .max = 17},
     [NVS_CONFIG_HOSTNAME]                              = {.nvs_key_name = "hostname",        .type = TYPE_STR,   .default_value = {.str = (char *)CONFIG_LWIP_LOCAL_HOSTNAME},          .rest_name = "hostname",                           .min = 1,  .max = 32},
 
     [NVS_CONFIG_POOL]                                  = {.nvs_key_name = "pool",            .type = TYPE_STR,   .default_value = {.str = ""},                                          .rest_name = "pools",                              .min = 0,  .max = NVS_STR_LIMIT, .array_size = MAX_POOLS},
@@ -61,32 +66,35 @@ static Settings settings[NVS_CONFIG_COUNT] = {
     [NVS_CONFIG_SECONDARY_POOL_INDEX]                  = {.nvs_key_name = "sec_idx",         .type = TYPE_U16,   .default_value = {.u16 = 1},                                           .rest_name = "secondaryPoolIndex",                 .min = 0,  .max = MAX_POOLS - 1},
     [NVS_CONFIG_USE_FALLBACK_STRATUM]                  = {.nvs_key_name = "usefbstartum",    .type = TYPE_BOOL,                                                                         .rest_name = "useFallbackStratum",                 .min = 0,  .max = 1},
 
-    /* Last-resort static IPv4 fallback: OFF by default and with no address baked in.
+    /* Last-resort static IPv4 fallback: OFF and empty in the general release.
      *
-     * There is deliberately no per-device or per-site address here. A default that
-     * names a specific address is wrong everywhere else: it makes every unit built
-     * from this firmware claim an address it was never given, which on a network
-     * where that address is already reserved produces exactly the duplicate-IP
-     * conflict this fallback is meant to survive.
+     * A unit that cannot obtain a lease is flashed with its own release, built
+     * with -DESP_MINER_FALLBACK_ENABLED=1 and the address its operator has already
+     * reserved in the router (see nvs_config.h). Keeping it out of the general
+     * build is deliberate: a globally baked address is claimed by every unit built
+     * from that source, on every network, which is how a fallback turns into an
+     * outage for whoever already owns that address.
      *
-     * To use it, set an address RESERVED ON YOUR ROUTER for this unit
-     * (AxeOS -> Settings -> Advanced Tuning, or PATCH /api/system with
-     * useStaticFallback / staticIp / staticGateway / staticSubnet / staticDns).
+     * Rung 1 of the ladder - the last address the DHCP server really handed out,
+     * together with its resolver, netmask and gateway - needs no configuration at
+     * all and is tried first, so a unit that has ever held a lease recovers on its
+     * own.
      *
-     * Rung 1 of the ladder (the last address the DHCP server really handed out,
-     * together with the resolver it handed out) needs no configuration at all and
-     * is tried first, so a unit that has ever held a lease recovers without the
-     * operator doing anything. */
-    [NVS_CONFIG_USE_STATIC_FALLBACK]                   = {.nvs_key_name = "use_static_ip",   .type = TYPE_BOOL,  .default_value = {.b   = false},                                      .rest_name = "useStaticFallback",                 .min = 0,  .max = 1},
-    [NVS_CONFIG_STATIC_IP]                             = {.nvs_key_name = "static_ip",       .type = TYPE_STR,   .default_value = {.str = ""},                                          .rest_name = "staticIp",                         .min = 0,  .max = 15},
-    [NVS_CONFIG_STATIC_GATEWAY]                        = {.nvs_key_name = "static_gw",       .type = TYPE_STR,   .default_value = {.str = ""},                                          .rest_name = "staticGateway",                    .min = 0,  .max = 15},
-    [NVS_CONFIG_STATIC_SUBNET]                         = {.nvs_key_name = "static_mask",     .type = TYPE_STR,   .default_value = {.str = "255.255.255.0"},                             .rest_name = "staticSubnet",                    .min = 0,  .max = 15},
-    [NVS_CONFIG_STATIC_DNS]                            = {.nvs_key_name = "static_dns",      .type = TYPE_STR,   .default_value = {.str = ""},                                          .rest_name = "staticDns",                       .min = 0,  .max = 15},
+     * Either way the values can still be overridden at runtime through AxeOS
+     * (-> Settings -> Advanced Tuning) or PATCH /api/system with
+     * useStaticFallback / staticIp / staticGateway / staticSubnet / staticDns. */
+    [NVS_CONFIG_USE_STATIC_FALLBACK]                   = {.nvs_key_name = "use_static_ip",   .type = TYPE_BOOL,  .default_value = {.b   = ESP_MINER_FALLBACK_ENABLED}, .rest_name = "useStaticFallback",                 .min = 0,  .max = 1},
+    [NVS_CONFIG_STATIC_IP]                             = {.nvs_key_name = "static_ip",       .type = TYPE_STR,   .default_value = {.str = ESP_MINER_FALLBACK_IP},        .rest_name = "staticIp",                         .min = 0,  .max = 15},
+    [NVS_CONFIG_STATIC_GATEWAY]                        = {.nvs_key_name = "static_gw",       .type = TYPE_STR,   .default_value = {.str = ESP_MINER_FALLBACK_GW},        .rest_name = "staticGateway",                    .min = 0,  .max = 15},
+    [NVS_CONFIG_STATIC_SUBNET]                         = {.nvs_key_name = "static_mask",     .type = TYPE_STR,   .default_value = {.str = ESP_MINER_FALLBACK_MASK},      .rest_name = "staticSubnet",                    .min = 0,  .max = 15},
+    [NVS_CONFIG_STATIC_DNS]                            = {.nvs_key_name = "static_dns",      .type = TYPE_STR,   .default_value = {.str = ESP_MINER_FALLBACK_DNS},        .rest_name = "staticDns",                       .min = 0,  .max = 15},
 
     /* Written by connect.c whenever a lease is bound. Not exposed in the API:
      * these are device state, not settings, and must not be hand-editable. */
     [NVS_CONFIG_LAST_DHCP_IP]                          = {.nvs_key_name = "last_dhcp_ip",    .type = TYPE_STR,   .default_value = {.str = ""},                                          .rest_name = NULL,                               .min = 0,  .max = 15},
     [NVS_CONFIG_LAST_DHCP_DNS]                         = {.nvs_key_name = "last_dhcp_dns",   .type = TYPE_STR,   .default_value = {.str = ""},                                          .rest_name = NULL,                               .min = 0,  .max = 15},
+    [NVS_CONFIG_LAST_DHCP_MASK]                        = {.nvs_key_name = "last_dhcp_mask",  .type = TYPE_STR,   .default_value = {.str = "255.255.255.0"},                          .rest_name = NULL,                               .min = 0,  .max = 15},
+    [NVS_CONFIG_LAST_DHCP_GW]                          = {.nvs_key_name = "last_dhcp_gw",    .type = TYPE_STR,   .default_value = {.str = ""},                                          .rest_name = NULL,                               .min = 0,  .max = 15},
 
     [NVS_CONFIG_ASIC_FREQUENCY]                        = {.nvs_key_name = "asicfrequency_f", .type = TYPE_FLOAT, .default_value = {.f   = CONFIG_ASIC_FREQUENCY},                       .rest_name = "frequency",                          .min = 1,  .max = UINT16_MAX},
     [NVS_CONFIG_ASIC_VOLTAGE]                          = {.nvs_key_name = "asicvoltage",     .type = TYPE_U16,   .default_value = {.u16 = CONFIG_ASIC_VOLTAGE},                         .rest_name = "coreVoltage",                        .min = 1,  .max = UINT16_MAX},

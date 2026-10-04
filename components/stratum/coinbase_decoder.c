@@ -7,6 +7,9 @@
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include "esp_log.h"
+
+static const char * TAG = "coinbase";
 
 #define BIP110_SIGNAL_BIT 4
 #define BIP110_SIGNAL_EXPIRY_BLOCK 965664
@@ -151,7 +154,7 @@ esp_err_t coinbase_process_notification(const mining_notify *notification,
                                  const char *user_address,
                                  bool decode_coinbase_tx,
                                  mining_notification_result_t *result) {
-    if (!notification || !extranonce1 || !result) return ESP_ERR_INVALID_ARG;
+    if (!notification || !extranonce1 || !result) { ESP_LOGE(TAG, "coinbase reject @%d: null arg", __LINE__); return ESP_ERR_INVALID_ARG; }
 
     // Initialize result
     result->total_value_satoshis = 0;
@@ -180,24 +183,44 @@ esp_err_t coinbase_process_notification(const mining_notify *notification,
     // 2. Parse Coinbase 1 for ScriptSig info
     int coinbase_1_len = strlen(notification->coinbase_1) / 2;
     int coinbase_1_offset = 41; // Skip version (4), inputcount (1), prevhash (32), vout (4)
-    
-    if (coinbase_1_len < coinbase_1_offset) return ESP_ERR_INVALID_ARG;
+
+    if (coinbase_1_len < coinbase_1_offset) { ESP_LOGE(TAG, "coinbase reject @%d: cb1 short (%d < %d)", __LINE__, coinbase_1_len, coinbase_1_offset); return ESP_ERR_INVALID_ARG; }
 
     uint8_t scriptsig_len;
     hex2bin(notification->coinbase_1 + (coinbase_1_offset * 2), &scriptsig_len, 1);
     coinbase_1_offset++;
 
-    if (coinbase_1_len < coinbase_1_offset) return ESP_ERR_INVALID_ARG;
-    
+    if (coinbase_1_len < coinbase_1_offset) { ESP_LOGE(TAG, "coinbase reject @%d: cb1 short (%d < %d)", __LINE__, coinbase_1_len, coinbase_1_offset); return ESP_ERR_INVALID_ARG; }
+
     uint8_t block_height_len;
     hex2bin(notification->coinbase_1 + (coinbase_1_offset * 2), &block_height_len, 1);
-    coinbase_1_offset++;
 
-    if (coinbase_1_len < coinbase_1_offset || block_height_len == 0 || block_height_len > 4) return ESP_ERR_INVALID_ARG;
-
-    result->block_height = 0;
-    hex2bin(notification->coinbase_1 + (coinbase_1_offset * 2), (uint8_t *)&result->block_height, block_height_len);
-    coinbase_1_offset += block_height_len;
+    /* The BIP 34 block height lives at the start of the miner tag in coinbase_1.
+     *
+     * Two pools layouts break a naive read:
+     *   - the tag region is already filled with 0xff because the tag has spilled
+     *     into coinbase_2, so 0xff is not a length
+     *   - coinbase_1 stops right after the vout, so there is no tag at all and the
+     *     whole height-plus-extranonce region is in coinbase_2
+     *
+     * Both were seen with zpool: every notification after the first was rejected as
+     * invalid_coinbase, so the unit never submitted a share. The block height is only
+     * used for display and BIP-110/BIP-54 signalling, both optional, so the safe
+     * reading is to carry on without it rather than discard a usable job. */
+    bool height_in_cb1 = (block_height_len >= 1 && block_height_len <= 4);
+    if (!height_in_cb1) {
+        ESP_LOGD(TAG, "coinbase: no BIP34 height in coinbase_1 at offset %d (len=0x%02x), "
+                      "continuing without block height", coinbase_1_offset, block_height_len);
+        result->block_height = 0;
+        block_height_len = 0;
+    } else {
+        coinbase_1_offset++;
+        if (coinbase_1_len < coinbase_1_offset) { ESP_LOGE(TAG, "coinbase reject @%d: cb1 short (%d < %d)", __LINE__, coinbase_1_len, coinbase_1_offset); return ESP_ERR_INVALID_ARG; }
+        result->block_height = 0;
+        hex2bin(notification->coinbase_1 + (coinbase_1_offset * 2),
+                (uint8_t *)&result->block_height, block_height_len);
+        coinbase_1_offset += block_height_len;
+    }
 
     // Detect BIP-110 signaling: check if bit 4 (0x00000010) is set in version
     result->bip110_signaling = decode_coinbase_tx && result->block_height < BIP110_SIGNAL_EXPIRY_BLOCK && (notification->version & (1U << BIP110_SIGNAL_BIT)) != 0;
@@ -246,51 +269,83 @@ esp_err_t coinbase_process_notification(const mining_notify *notification,
     }
 
     // 3. Parse Coinbase 2 for Outputs
-    // Calculate offset in coinbase_2 where outputs start
-    // Re-calculate raw remainder length without subtracting extranonces
-    int raw_scriptsig_remainder = (scriptsig_len - 1 - block_height_len) - (coinbase_1_len - coinbase_1_offset);
-    
-    int coinbase_2_offset = 0;
-    if (raw_scriptsig_remainder > 0) {
-        // Subtract extranonce lengths to see what's left for coinbase_2
-        int remainder_in_coinbase_2 = raw_scriptsig_remainder - (extranonce1_len + extranonce2_len);
-        if (remainder_in_coinbase_2 > 0) {
-            coinbase_2_offset = remainder_in_coinbase_2;
-        }
+    //
+    // BIP 34 defines the start of the transaction body: the height push followed by
+    // the extranonce, padded out to exactly 100 bytes.
+    //
+    // The padding spans both halves. What is already in coinbase_1 after the header
+    // counts towards it, and the remainder is taken off the front of coinbase_2.
+    // When the height is not in coinbase_1 at all - the layout that made every
+    // zpool notification after the first fail - nothing but the extranonce is in
+    // coinbase_1, so more of the padding remains to skip in coinbase_2.
+    //
+    // The offset used to be derived by subtracting the extranonce length from the end
+    // of the scriptsig, which assumes the extranonce is the last thing in the
+    // scriptsig. It is not necessarily: the tag can spill into coinbase_2, and pools
+    // append extra bytes after the extranonce. That arithmetic then produced an
+    // offset past the end of coinbase_2 and the notification was rejected as
+    // invalid_coinbase.
+    int extranonce_bytes = extranonce1_len + extranonce2_len;
+    int region_in_cb1 = (coinbase_1_len - coinbase_1_offset);
+    int region_total = 1 + block_height_len + extranonce_bytes;   /* push + height + extranonce */
+    int padding_total = (region_total < 100) ? (100 - region_total) : 0;
+    int padding_left = padding_total - region_in_cb1;
+    if (padding_left < 0) {
+        padding_left = 0;
     }
-    
+
+    int coinbase_2_offset = padding_left;
     int coinbase_2_len = strlen(notification->coinbase_2) / 2;
+
+    /* Bound the offset to what coinbase_2 actually holds. Reading past the buffer
+     * would be worse than an imprecise offset, so clamp rather than reject. */
+    if (coinbase_2_offset + 5 > coinbase_2_len) {
+        ESP_LOGD(TAG, "coinbase: BIP34 offset %d exceeds coinbase_2 (%d B), clamping",
+                 coinbase_2_offset, coinbase_2_len);
+        coinbase_2_offset = (coinbase_2_len > 5) ? (coinbase_2_len - 5) : 0;
+    }
+
     uint8_t *coinbase_2_bin = malloc(coinbase_2_len);
     if (!coinbase_2_bin) {
         return ESP_ERR_NO_MEM; // Memory error is fatal
     }
     
     hex2bin(notification->coinbase_2, coinbase_2_bin, coinbase_2_len);
-    
+
     int offset = coinbase_2_offset;
-    
-    // Read sequence (4 bytes) for BIP-54 detection
-    if (offset + 4 > coinbase_2_len) {
-        free(coinbase_2_bin);
-        return ESP_ERR_INVALID_ARG; // No room for outputs, but valid notification processed so far
+
+    /* A body we cannot read must not cost us the job.
+     *
+     * The coinbase transaction is only parsed for display and to report which part
+     * of the reward goes to this unit. Nothing about mining depends on it: the work
+     * itself comes from the notification's job id, prevhash and merkle root. So when
+     * the body cannot be walked - which happens when a pool's padding split differs
+     * from what BIP 34 describes - the transaction is skipped and the job is kept.
+     *
+     * Discarding it instead is what made a unit accept exactly one job from a given
+     * pool and then sit at zero shares for the rest of its life. */
+    bool body_ok = true;
+    if (offset + 5 > coinbase_2_len) {
+        ESP_LOGE(TAG, "coinbase reject @%d: no room for nSequence (offset %d, len %d)",
+                 __LINE__, offset, coinbase_2_len);
+        body_ok = false;
     }
-    uint32_t nSequence = 0;
-    for (int i = 0; i < 4; i++) {
-        nSequence |= ((uint32_t)coinbase_2_bin[offset + i]) << (i * 8);
-    }
-    offset += 4;
-    
-    // Decode output count
-    if (offset >= coinbase_2_len) {
-        free(coinbase_2_bin);
-        return ESP_ERR_INVALID_ARG;
-    }
-    
-    uint64_t num_outputs = coinbase_decode_varint(coinbase_2_bin, &offset);
+
+    uint32_t nSequence = 0xffffffff;
+    uint64_t num_outputs = 0;
     result->output_count = 0;
-    
+
+    if (body_ok) {
+        for (int i = 0; i < 4; i++) {
+            nSequence |= ((uint32_t) coinbase_2_bin[offset + i]) << (i * 8);
+        }
+        offset += 4;
+
+        num_outputs = coinbase_decode_varint(coinbase_2_bin, &offset);
+    }
+
     // Parse each output
-    for (uint64_t i = 0; i < num_outputs && offset < coinbase_2_len; i++) {
+    for (uint64_t i = 0; body_ok && i < num_outputs && offset < coinbase_2_len; i++) {
         // Read value (8 bytes, little-endian)
         if (offset + 8 > coinbase_2_len) break;
 
@@ -340,7 +395,7 @@ esp_err_t coinbase_process_notification(const mining_notify *notification,
     uint32_t nLockTime = 0;
     if (offset + 4 <= coinbase_2_len) {
         for (int i = 0; i < 4; i++) {
-            nLockTime |= ((uint32_t)coinbase_2_bin[offset + i]) << (i * 8);
+            nLockTime |= ((uint32_t) coinbase_2_bin[offset + i]) << (i * 8);
         }
     }
     

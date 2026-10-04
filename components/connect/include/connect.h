@@ -11,6 +11,27 @@
 
 typedef struct GlobalState GlobalState;
 
+/** Regulatory domain (ISO 3166-1 alpha-2). "DE" unless overridden at build time. */
+#ifndef ESP_MINER_COUNTRY_CODE
+#define ESP_MINER_COUNTRY_CODE "DE"
+#endif
+
+/* Station channel bandwidth: HT20 (20 MHz) rather than the driver default HT40.
+ *
+ * ESP-IDF leaves a station on HT40 by default, and Espressif's own guidance is to
+ * force HT20 in crowded environments. HT40 needs a legal primary channel with a
+ * valid secondary; on a mesh that auto-selects, a station can end up negotiated
+ * onto a channel pairing where association succeeds but frames never get through.
+ * The link then looks healthy while no traffic flows, which is much harder to
+ * diagnose than a clean association failure.
+ *
+ * HT20 also leaves more of the spectrum to neighbouring cells, which is what a
+ * miner needs: it spends its whole life sending small packets on one channel.
+ */
+#ifndef ESP_MINER_WIFI_BW_HT20
+#define ESP_MINER_WIFI_BW_HT20 1
+#endif
+
 // Structure to hold WiFi scan results
 typedef struct {
     char ssid[33];  // 32 chars + null terminator

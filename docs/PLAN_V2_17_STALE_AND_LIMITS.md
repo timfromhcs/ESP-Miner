@@ -440,48 +440,40 @@ still >5 %, the stranding theory is wrong and items 2/7 are the wrong lever.
 - RLS general predictive control on a low-cost MCU: https://www.sciencedirect.com/science/article/abs/pii/S0967066120302446
 - Proactive fan DVFS via thermal history (MPSoC): https://re.public.polimi.it/retrieve/handle/11311/1129453/489459/
 - MPC vs model-free trade-off for thermal control: https://cris.unibo.it/retrieve/handle/11585/868929/
-## 11. Device B (`blackharkminer`, `.61`) - unresolved, and it is not firmware
+## 11. Device B (`.61`) - WITRUNG: diese Sektion war falsch
 
-Unit: MAC `74:4D:BD:77:99:80`, IP `192.168.178.61`, host `blackharkminer`.
-State: running the local v2.17 build, NVS intact (19/19 settings, own wallet, own
-pools). It is **not** mining and cannot be reached over the network.
+Die urspruengliche Fassung dieser Sektion behauptete, Device Bs Ausfall sei
+"Access-Point-Seite, nicht Firmware", gestuetzt auf
+`GATEWAY_PROBE,result=UNREACHABLE,sent=0,received=0`. **Diese Schlussfolgerung
+war falsch** und wurde entfernt, statt sie zu praezisieren.
 
-What was measured, in order:
+Warum: In ESP-IDFs `ping_sock.c` zaehlt `transmitted` nur bei erfolgreichem
+`sendto`. lwIP implementiert `getsockopt(SO_ERROR)` nicht und liefert dort immer
+`0` - das Log zeigte `send error=0`. `sent=0` bedeutet also nur "`sendto`
+fehlschlug", nicht "es wurde nichts gesendet". Der Access-Point war nie belegt.
 
-| Observation | Meaning |
-|---|---|
-| Associates to the SSID, gets an IP by static bind | RF link and driver are fine |
-| `esp_netif_dhcpc_start()` returns `ESP_OK`, no lease ever arrives | The router never serves this MAC |
-| `IP_FALLBACK_VERIFY ... dns_get=192.168.178.1,espnetif_up=1` | Fallback bound address, gateway and resolver all read back correctly |
-| `GATEWAY_PROBE,result=UNREACHABLE,sent=0,received=0` | **The device put zero packets on the air toward its own gateway** |
-| No ARP entry for `.61` on the gateway, ever | Consistent with the above |
-| Device A (`.66`) on the same AP, SSID and band, simultaneously | Not a network-wide fault |
-| No duplicate `.61` visible anywhere in the LAN | Not a plain address collision |
+Der echte Fehler lag in der Firmware: `esp_netif_dhcpc_stop()` war korrekt und
+sogar **vorgeschrieben** (`esp_netif_set_ip_info()` liefert sonst
+`ESP_ERR_ESP_NETIF_DHCP_NOT_STOPPED`), aber direkt danach wurde
+`esp_netif_dhcpc_start()` aufgerufen. Der neu gestartete DHCP-Client, der
+`STA_CONNECTED`-Default-Handler (ruft `esp_netif_set_old_ip_info()` auf) und der
+"IP lost timer" setzten die gerade gebundene Adresse wieder auf `0.0.0.0`. Die
+Einheit kam hoch und fiel wieder aus - genau das beobachtete Verhalten.
 
-`sent=0` is the load-bearing measurement. A device that transmits and gets no
-reply is a filtering problem; a device that transmits *nothing* never reached the
-point of sending, so no amount of address configuration, route setup, DNS fixing
-or retry tuning can change the outcome. Together with a DHCP server that refuses
-to serve the MAC, this points at access-point / router-side state for this
-station - a stale entry in the FRITZ!Box client table, a blocked client entry, or
-the unit being stuck on one mesh/AP node.
+Beleg in der Sache: Mit derselben Firmung ist Device B nach dem Rettungsbuild in
+~3 Sekunden mit `.61` online gegangen und hat geminet (408-494 GH/s, 20
+akzeptiert / 0 rejected, `notifyDropped=0`). Eine Access-Point-Sperre erklaert
+das nicht.
 
-Firmware work that *was* completed as a result and is worth keeping regardless:
+Die vollstaendige Korrektur, die Fix-Reihenfolge und die Regeln fuer moderne
+Router stehen in **`PLAN_V3_NETWORK_AND_RANKER.md`**. Zwei Befunde von hier
+bleiben korrekt und wurden behalten:
 
-- The last-lease fallback now restores the **resolver** as well as the address.
-  Previously it restored only IP/gateway/netmask, so DNS stayed unset and every
-  stratum connect failed with `getaddrinfo() returns 202` even though the address
-  was live. That was a genuine firmware bug and it is fixed.
-- The fallback ladder no longer stops the DHCP client to rebind the address.
-  `esp_netif_dhcpc_stop()` leaves the stack reporting "up" with an address bound
-  but no traffic actually flowing, which is precisely the confusing state this
-  whole exercise was trying to escape. The client is left running so a real lease
-  supersedes the fallback when a server does answer.
-- `GATEWAY_PROBE` is kept as a permanent, cheap (3 ICMP packets, ~1.5 s at boot)
-  diagnostic that separates "the interface is configured" from "traffic actually
-  flows". Without it this fault is indistinguishable from a firmware bug.
+- Der Last-Lease-Fallback stellte die Adresse ohne den Resolver wieder her. Das
+  war ein echter Firmware-Bug und ist behoben (`NVS_CONFIG_LAST_DHCP_DNS`).
+- `GATEWAY_PROBE` und `GATEWAY_TCP` bleiben als Diagnostik erhalten, weil sie
+  genau die Behauptung widerlegt haben, die hier falsch war.
 
-What is **not** claimed: that v2.17 fixed Device B. It did not, and the evidence
-says it could not. Recommended operator action is on the router - power-cycle the
-FRITZ!Box or delete the stale client entry for `74:4D:BD:77:99:80`, then confirm
-the unit receives a lease.
+Die zentrale Erkenntnis aus dem ganzen Vorfall: **auf diesem Netz ist DHCP
+unzuverlaessig.** Der Fallback darf nicht davon abhaengen, dass DHCP wieder
+antwortet, und er darf seine Adresse nicht an DHCP zurueckgeben.

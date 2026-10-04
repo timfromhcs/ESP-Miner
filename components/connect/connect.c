@@ -415,18 +415,111 @@ static uint32_t s_network_generation = 0;
 static uint32_t s_dhcp_generation = 0;
 static uint32_t s_stratum_generation = 0;
 static int dhcp_retry_count = 0;
+
+/* Used by the DHCP retry ladder; defined further down. */
+static void wifi_connect_pinned(void);
 /* Retry budget kept deliberately short. Each rung of the ladder is attempted as
  * soon as there is any chance of it succeeding, and DHCP keeps running in the
  * background throughout, so waiting longer only extends the outage. */
-#define DHCP_RETRY_MAX 3
-#define DHCP_RETRY_BASE_MS 3000
-#define DHCP_RECOVERY_WIFI_RECONNECT_AFTER 2
+/* DHCP retry policy.
+ *
+ * No maximum: the loop is endless by design, because a miner that stops asking
+ * stays offline forever, and the only thing that should end the retry is the router
+ * answering. The backoff is bounded so a unit that has been offline for hours still
+ * recovers within seconds of the network returning. */
+#define DHCP_RETRY_BASE_MS 2500
+#define DHCP_BACKOFF_CAP_MS 12000
+
+/* Escalation ladder: each step changes *how* the client asks rather than only how
+ * often. Bouncing the client produces a fresh DISCOVER with a new transaction id; a
+ * Wi-Fi re-association re-registers the station with a mesh DHCP relay. Both are
+ * needed because the two failure modes are distinct and indistinguishable from the
+ * outside. */
+#define DHCP_ESCALATION_CYCLE 4
 
 /* First retry timeout after which the fallback ladder is consulted. The last
  * real lease costs nothing to try — no negotiation, no timeout, and it is an
  * address this unit is already known to hold — so there is no reason to make the
  * operator idling through a full retry budget first. */
 #define DHCP_LADDER_AFTER_RETRY 1
+
+/* Re-assert a bound fallback address if it disappears.
+ *
+ * A static address is not stable on its own: esp-netif clears it when the DHCP
+ * client times out, the default STA_CONNECTED handler overwrites it via
+ * esp_netif_set_old_ip_info(), and the IP lost timer zeroes it once the netif has
+ * been down long enough. Rather than restart DHCP and fight all three, this
+ * re-applies the bind whenever the address is gone.
+ *
+ * One esp_netif_get_ip_info() per second, which is a struct copy. Real work happens
+ * only when the address is actually missing, and a genuine lease still supersedes
+ * this because the lease calls esp_netif_set_ip_info() itself. */
+static bool s_have_fallback = false;
+static char s_fb_ip[IP4ADDR_STRLEN_MAX];
+static char s_fb_gw[IP4ADDR_STRLEN_MAX];
+static char s_fb_mask[IP4ADDR_STRLEN_MAX];
+static char s_fb_dns[IP4ADDR_STRLEN_MAX];
+
+static void ip_reassert_check(void)
+{
+    if (!s_have_fallback) {
+        return;
+    }
+
+    esp_netif_t *sta = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+    if (sta == NULL || !esp_netif_is_netif_up(sta)) {
+        return;
+    }
+
+    esp_netif_ip_info_t cur = {0};
+    if (esp_netif_get_ip_info(sta, &cur) == ESP_OK && cur.ip.addr != 0) {
+        return;
+    }
+
+    ESP_LOGW(TAG, "NET,event=IP_FALLBACK_LOST,ip=%s,reasserting=1", s_fb_ip);
+    esp_netif_ip_info_t want = {0};
+    esp_netif_str_to_ip4(s_fb_ip, &want.ip);
+    esp_netif_str_to_ip4(s_fb_gw, &want.gw);
+    esp_netif_str_to_ip4(s_fb_mask, &want.netmask);
+
+    /* DHCP must stay stopped: esp_netif_set_ip_info() rejects the call with
+     * ESP_ERR_ESP_NETIF_DHCP_NOT_STOPPED while a client is running. */
+    esp_netif_dhcpc_stop(sta);
+    struct netif *gn = (struct netif *) esp_netif_get_netif_impl(sta);
+    if (gn != NULL && !(gn->flags & NETIF_FLAG_UP)) {
+        netif_set_up(gn);
+        netif_set_link_up(gn);
+        vTaskDelay(pdMS_TO_TICKS(50));
+    }
+
+    esp_err_t err = esp_netif_set_ip_info(sta, &want);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "NET,event=IP_FALLBACK_LOST,ip=%s,reassert=FAILED,err=%s",
+                 s_fb_ip, esp_err_to_name(err));
+        return;
+    }
+
+    if (s_fb_dns[0] != '\0') {
+        esp_netif_dns_info_t dns = {0};
+        dns.ip.type = ESP_IPADDR_TYPE_V4;
+        if (esp_netif_str_to_ip4(s_fb_dns, &dns.ip.u_addr.ip4) == ESP_OK) {
+            esp_netif_set_dns_info(sta, ESP_NETIF_DNS_MAIN, &dns);
+            esp_netif_set_dns_info(NULL, ESP_NETIF_DNS_MAIN, &dns);
+        }
+    }
+
+    ESP_LOGW(TAG, "NET,event=IP_FALLBACK_REASSERTED,ip=%s,gw=%s,mask=%s",
+             s_fb_ip, s_fb_gw, s_fb_mask);
+}
+
+static void ip_reassert_task(void * arg)
+{
+    (void) arg;
+    for (;;) {
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        ip_reassert_check();
+    }
+}
 
 /* While online on a fallback address, re-check it periodically so a dropped link
  * is healed. This deliberately does NOT restart the DHCP client: starting it with
@@ -508,6 +601,65 @@ static void on_ping_end(esp_ping_handle_t hdl, void *args)
     }
 }
 
+/**
+ * @brief Reachability probe that reports the real errno.
+ *
+ * esp_ping only reports how many packets were handed to the socket, and lwIP does
+ * not implement getsockopt(SO_ERROR), so a route or ARP failure shows up as
+ * "sent=0, received=0" with no way to tell why. A TCP connect to a port on the
+ * gateway exercises the identical path - route lookup, ARP, then transmit - and
+ * leaves the errno intact, which is what actually separates "no route to host"
+ * from "packets going out and being dropped".
+ *
+ * Runs on its own task: connect() can block for a full retransmit window and the
+ * fallback path must not stall behind it.
+ */
+static void gateway_tcp_probe_task(void * arg)
+{
+    char * gw_s = (char *) arg;
+
+    struct sockaddr_in dst = {0};
+    dst.sin_family = AF_INET;
+    dst.sin_port = htons(80);
+    if (inet_aton(gw_s, &dst.sin_addr) != 1) {
+        ESP_LOGE(TAG, "NET,event=GATEWAY_TCP,target=%s,result=BAD_ADDRESS", gw_s);
+        goto done;
+    }
+
+    int s = socket(AF_INET, SOCK_STREAM, 0);
+    if (s < 0) {
+        ESP_LOGE(TAG, "NET,event=GATEWAY_TCP,target=%s,result=SOCKET_FAILED,errno=%d(%s)",
+                 gw_s, errno, strerror(errno));
+        goto done;
+    }
+
+    struct timeval tv = {.tv_sec = 3, .tv_usec = 0};
+    setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+
+    errno = 0;
+    int r = connect(s, (struct sockaddr *) &dst, sizeof(dst));
+    if (r == 0) {
+        ESP_LOGW(TAG, "NET,event=GATEWAY_TCP,target=%s:80,result=CONNECTED", gw_s);
+    } else {
+        ESP_LOGE(TAG, "NET,event=GATEWAY_TCP,target=%s:80,result=FAILED,errno=%d(%s)",
+                 gw_s, errno, strerror(errno));
+    }
+    close(s);
+
+done:
+    free(gw_s);
+    vTaskDelete(NULL);
+}
+
+static void gateway_tcp_probe(const char * gw_s)
+{
+    char * target = strdup(gw_s);
+    if (target == NULL) {
+        return;
+    }
+    xTaskCreate(gateway_tcp_probe_task, "gw_probe", 3072, target, 3, NULL);
+}
+
 static bool apply_static_address(GlobalState * GLOBAL_STATE, const char * ip_s, const char * gw_s,
                                 const char * mask_s, const char * dns_s, const char * source)
 {
@@ -529,11 +681,36 @@ static bool apply_static_address(GlobalState * GLOBAL_STATE, const char * ip_s, 
         esp_netif_str_to_ip4(mask_s, &ip_info.netmask);
     }
 
-/* esp_netif_set_ip_info() must not race a running DHCP client. */
+/* Order is load-bearing, and getting it wrong produces a unit that looks
+     * configured but can never send or receive anything.
+     *
+     * esp_netif_dhcpc_stop() leaves the netif administratively DOWN, and
+     * esp_netif_set_ip_info() only pushes the address into the live TCP/IP stack
+     * "if the interface is up" - otherwise it merely updates esp-netif's own copy.
+     * So: stop the client first (set_ip_info refuses to run against a running
+     * client), then bring the interface back UP, and only then assign. Assigning
+     * while the netif is down leaves lwIP with ip_addr == 0, which answers no ARP
+     * and yields EHOSTUNREACH for every destination, including the gateway.
+     *
+     * The read-back further down asks esp-netif, which is NOT sufficient evidence:
+     * that copy is updated whether or not the value reached the stack. */
     esp_netif_dhcpc_stop(sta);
 
-    /* Give esp-netif a consistent picture: the client is stopped and the address
-     * is ours. */
+    /* Bring the interface up BEFORE assigning. This is the step that makes the
+     * address actually reach the stack. */
+    {
+        struct netif *gn = (struct netif *) esp_netif_get_netif_impl(sta);
+        if (gn != NULL && !(gn->flags & NETIF_FLAG_UP)) {
+            netif_set_up(gn);
+            netif_set_link_up(gn);
+            ESP_LOGW(TAG, "NET,event=NETIF_RAISE,netif_up=%d",
+                     (gn->flags & NETIF_FLAG_UP) ? 1 : 0);
+            vTaskDelay(pdMS_TO_TICKS(50));
+        }
+    }
+
+    /* Give esp-netif a consistent picture: the client is stopped, the interface is
+     * up, and the address is ours. */
     esp_netif_set_ip_info(sta, &ip_info);
     esp_netif_set_default_netif(sta);
 
@@ -593,18 +770,32 @@ static bool apply_static_address(GlobalState * GLOBAL_STATE, const char * ip_s, 
         }
         snprintf(ip_s2, sizeof(ip_s2), IPSTR, IP2STR(&got_ip.ip));
         snprintf(gw_s2, sizeof(gw_s2), IPSTR, IP2STR(&got_ip.gw));
+        char mask_s2[IP4ADDR_STRLEN_MAX] = "(unset)";
+        if (!ip4_addr_isany_val(got_ip.netmask)) {
+            snprintf(mask_s2, sizeof(mask_s2), IPSTR, IP2STR(&got_ip.netmask));
+        }
 
-        ESP_LOGW(TAG, "NET,event=IP_FALLBACK_VERIFY,source=%s,ip=%s,gw=%s,dns=%s,dns_get=%s,espnetif_up=%d",
-                 source, ip_s2, gw_s2, dns_s, dns_s2, esp_netif_is_netif_up(sta) ? 1 : 0);
+        ESP_LOGW(TAG, "NET,event=IP_FALLBACK_VERIFY,source=%s,ip=%s,gw=%s,mask=%s,dns=%s,dns_get=%s,espnetif_up=%d",
+                 source, ip_s2, gw_s2, mask_s2, dns_s, dns_s2, esp_netif_is_netif_up(sta) ? 1 : 0);
     }
 
-    /* Restart the DHCP client after binding. It will not disturb our address
-     * unless the server answers, in which case a genuine lease supersedes the
-     * fallback - which is the behaviour we want anyway. Keeping the client alive
-     * is what keeps esp-netif's interface state consistent: stopping it leaves
-     * the stack in a state where the address is set and the netif reports up, yet
-     * no traffic is actually passed. */
-    esp_netif_dhcpc_start(sta);
+    snprintf(s_fb_ip, sizeof(s_fb_ip), "%s", check_s);
+    snprintf(s_fb_gw, sizeof(s_fb_gw), "%s", gw_s);
+    snprintf(s_fb_mask, sizeof(s_fb_mask), "%s", (mask_s && mask_s[0]) ? mask_s : "255.255.255.0");
+    snprintf(s_fb_dns, sizeof(s_fb_dns), "%s", dns_s ? dns_s : "");
+    s_have_fallback = true;
+
+    /* Do NOT restart the DHCP client here. Once a fallback address is ours,
+     * restarting the client hands it straight back to the DHCP machine, and three
+     * separate mechanisms then take it away again:
+     *   - the client's own timeout makes esp-netif clear the stored IP to 0.0.0.0
+     *   - the default STA_CONNECTED handler calls esp_netif_set_old_ip_info(),
+     *     documented to overwrite the previous address
+     *   - the "IP lost timer" zeroes it once the netif has been down long enough
+     * The symptom was a unit that came up for a few seconds and then vanished,
+     * which reads exactly like a router fault and is not one. A fallback address is
+     * therefore re-asserted by us; see ip_reassert_check(). A real lease still
+     * wins, because it calls esp_netif_set_ip_info() itself. */
 
     /* Probe the gateway from the device itself. This is the only way to tell
      * "the interface is configured" from "traffic actually flows": if the device
@@ -634,6 +825,7 @@ static bool apply_static_address(GlobalState * GLOBAL_STATE, const char * ip_s, 
                          gw_s, esp_err_to_name(perr));
             }
         }
+        gateway_tcp_probe(gw_s);
     }
 
     /* End-to-end reachability is not asserted here on purpose: the stratum connect
@@ -769,76 +961,177 @@ static void ip_timeout_callback(TimerHandle_t xTimer)
         }
     }
     // No IP yet — this is DHCP timeout, NOT a signal to fake an address
-    if (dhcp_retry_count < DHCP_RETRY_MAX) {
+// No IP yet — this is a DHCP timeout, NOT a signal to fake an address.
+    //
+    // There is deliberately no retry ceiling. A miner that gives up after three
+    // attempts stays offline until something restarts it, which is the worst
+    // possible behaviour for a device whose whole job is to hash unattended. The
+    // loop runs forever with a bounded backoff, and each escalation step changes
+    // *how* we ask rather than only asking again:
+    //
+    //   step 0-1  plain retry, lwIP's own RFC2131 retransmits
+    //   step 2    bounce the DHCP client: a fresh xid, so the server treats the
+    //             request as a new client rather than a stuck lease
+    //   step 3+   alternate a full Wi-Fi re-association, which is the only thing
+    //             that reliably re-registers a station with a mesh DHCP relay
+    //
+    // The backoff is capped rather than growing without limit, so a unit that has
+    // been offline for hours still recovers within seconds of the network coming
+    // back.
+    {
         dhcp_retry_count++;
-        int backoff_ms = DHCP_RETRY_BASE_MS + (dhcp_retry_count * 1000) + (esp_random() % 400);
-        ESP_LOGW(TAG, "NET,event=DHCP_TIMEOUT,retry=%d/%d,backoff=%d,state=%s", dhcp_retry_count, DHCP_RETRY_MAX, backoff_ms, net_state_to_str(s_net_state));
+        int step = (dhcp_retry_count - 1) % DHCP_ESCALATION_CYCLE;
+        int backoff_ms = DHCP_RETRY_BASE_MS + (step * 1500) + (esp_random() % 1500);
+        if (backoff_ms > DHCP_BACKOFF_CAP_MS) {
+            backoff_ms = DHCP_BACKOFF_CAP_MS;
+        }
+
+        ESP_LOGW(TAG, "NET,event=DHCP_TIMEOUT,attempt=%d,step=%d,backoff=%d,state=%s",
+                 dhcp_retry_count, step, backoff_ms, net_state_to_str(s_net_state));
         net_state_transition(GLOBAL_STATE, NET_STATE_DHCP_RETRY);
+
         /* Report the live client state alongside the retry count. A client stuck
          * in INIT was never started, which looks identical from the outside but
          * has a completely different cause than a server that never answers. */
         esp_netif_t *dbg = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
         esp_netif_dhcp_status_t st_now = ESP_NETIF_DHCP_INIT;
         if (dbg != NULL && esp_netif_dhcpc_get_status(dbg, &st_now) == ESP_OK) {
-            ESP_LOGW(TAG, "NET,event=DHCP_CLIENT_STATUS,status=%d,link_up=%d", (int)st_now,
+            ESP_LOGW(TAG, "NET,event=DHCP_CLIENT_STATUS,status=%d,link_up=%d", (int) st_now,
                      esp_netif_is_netif_up(dbg) ? 1 : 0);
+        }
+
+        /* Survey the mesh once per outage, before the ladder can return early.
+         *
+         * Every node in a mesh broadcasts the same SSID, so this is the only way to
+         * see that the station landed on a repeater instead of the router: a
+         * station that associates but never appears in the router's own device list
+         * is talking to a node that does not relay it. It has to run here, because
+         * the ladder below returns as soon as any address binds.
+         *
+         * The scan runs while disconnected, since esp_wifi_scan_start() does not
+         * complete reliably on an associated station, and a silent scan would hide
+         * exactly what we are looking for. Once per outage, so its cost is
+         * irrelevant next to the outage it diagnoses. */
+        if (dhcp_retry_count == 1) {
+            esp_wifi_disconnect();
+            vTaskDelay(pdMS_TO_TICKS(400));
+            wifi_scan_config_t sc = {
+                .ssid = (uint8_t *) GLOBAL_STATE->SYSTEM_MODULE.ssid,
+                .bssid = NULL, .channel = 0, .show_hidden = false,
+            };
+            if (esp_wifi_scan_start(&sc, true) == ESP_OK) {
+                uint16_t n = 0;
+                esp_wifi_scan_get_ap_num(&n);
+                if (n > 32) { n = 32; }
+                wifi_ap_record_t recs[32];
+                if (esp_wifi_scan_get_ap_records(&n, recs) == ESP_OK) {
+                    for (uint16_t i = 0; i < n; i++) {
+                        ESP_LOGW(TAG, "NET,event=MESH_NODE,bssid=%02x:%02x:%02x:%02x:%02x:%02x,"
+                                      "channel=%d,rssi=%d,auth=%d",
+                                 recs[i].bssid[0], recs[i].bssid[1], recs[i].bssid[2],
+                                 recs[i].bssid[3], recs[i].bssid[4], recs[i].bssid[5],
+                                 recs[i].primary, recs[i].rssi, recs[i].authmode);
+                    }
+                    ESP_LOGW(TAG, "NET,event=MESH_SCAN_DONE,nodes=%d", n);
+                }
+            }
+            wifi_connect_pinned();
         }
 
         /* Consult the ladder early. Rung 1 (the last real lease) costs nothing to
          * attempt and cannot collide with a stranger, so there is no value in
-         * making the operator wait out a retry budget first. DHCP is left running,
-         * so a genuine lease still overrides the fallback whenever it arrives. */
+         * making the operator wait out a retry budget first. */
         if (dhcp_retry_count >= DHCP_LADDER_AFTER_RETRY && try_ip_fallback_ladder(GLOBAL_STATE)) {
             dhcp_retry_count = 0;
             arm_dhcp_probe();
             return;
         }
 
-        // ESP-IDF LwIP DHCP already retransmits internally per RFC2131 — do NOT bounce dhcpc here (would reset xid and break server).
-        // Just wait; external IP_EVENT will handle success. Log hostname for diagnostics only.
+        /* Escalation: change *how* we ask, not just how often. */
+        esp_netif_t *sta = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+        if (step == 2 && sta != NULL) {
+            /* A stuck client keeps its transaction id, and a server that already gave
+             * up on that xid will not answer it again. Restarting the client issues a
+             * new DISCOVER with a fresh xid, which the relay forwards as a new client
+             * request instead of re-offering into a dead transaction. */
+            ESP_LOGW(TAG, "NET,event=DHCP_CLIENT_BOUNCE,reason=no_offer");
+            esp_netif_dhcpc_stop(sta);
+            vTaskDelay(pdMS_TO_TICKS(250));
+            esp_netif_dhcpc_start(sta);
+        }
+
+        if (step >= 3 && (step % 2) == 1) {
+            /* Re-association is the only reliable way to get a client re-registered
+             * with a mesh DHCP relay. ESP-IDF keeps the configured SSID/BSSID, so this
+             * reconnects to the same network - it is not a channel change. */
+            ESP_LOGW(TAG, "NET,event=DHCP_FORCE_REASSOCIATE,attempt=%d", dhcp_retry_count);
+            GLOBAL_STATE->SYSTEM_MODULE.is_connected = false;
+            esp_wifi_disconnect();
+            vTaskDelay(pdMS_TO_TICKS(300));
+            wifi_connect_pinned();
+        }
+
         char *hn = nvs_config_get_string(NVS_CONFIG_HOSTNAME);
         const char *hlog = (hn && hn[0]) ? hn : GLOBAL_STATE->SYSTEM_MODULE.ssid;
-        ESP_LOGI(TAG, "NET,event=DHCP_RETRY,hostname=%s,retry=%d,backoff=%d,waiting_for_IP_EVENT", hlog, dhcp_retry_count, backoff_ms);
-        if (hn) free(hn);
+        ESP_LOGI(TAG, "NET,event=DHCP_RETRY,hostname=%s,attempt=%d,step=%d,backoff=%d,waiting_for_IP_EVENT",
+                 hlog, dhcp_retry_count, step, backoff_ms);
+        free(hn);
         xTimerChangePeriod(xTimer, pdMS_TO_TICKS(backoff_ms), 0);
         xTimerStart(xTimer, 0);
-        snprintf(GLOBAL_STATE->SYSTEM_MODULE.wifi_status, sizeof(GLOBAL_STATE->SYSTEM_MODULE.wifi_status), "DHCP retry %d/%d", dhcp_retry_count, DHCP_RETRY_MAX);
+        snprintf(GLOBAL_STATE->SYSTEM_MODULE.wifi_status, sizeof(GLOBAL_STATE->SYSTEM_MODULE.wifi_status),
+                 "DHCP retry %d (step %d)", dhcp_retry_count, step);
         return;
     }
-// Exhausted DHCP retries. Walk the recovery ladder: last real lease first, then
-    // the operator-configured static address. If neither is usable we fall through
-    // to the reconnect loop below, which re-runs DHCP and re-attempts the ladder
-    // on every cycle, so the unit comes up as soon as the router answers again.
-    if (try_ip_fallback_ladder(GLOBAL_STATE)) {
-        dhcp_retry_count = 0;
-        return;
-    }
+}
 
-    ESP_LOGE(TAG, "NET,event=DHCP_FAILED,retries=%d,state=%s — no fallback address usable, loop until DHCP succeeds", DHCP_RETRY_MAX, net_state_to_str(s_net_state));
-    net_state_transition(GLOBAL_STATE, NET_STATE_DHCP_FAILED);
-    dhcp_retry_count = 0;
-    snprintf(GLOBAL_STATE->SYSTEM_MODULE.wifi_status, sizeof(GLOBAL_STATE->SYSTEM_MODULE.wifi_status), "DHCP failed (%d retries) — retrying", DHCP_RETRY_MAX);
-    // Kein Fake-IP — nur sauberer Recovery-Loop bis echter Lease
-    static int dhcp_fail_cycles = 0;
-    dhcp_fail_cycles++;
-    ESP_LOGW(TAG, "NET,event=DHCP_RECOVERY,cycle=%d,action=RESTART_DHCP", dhcp_fail_cycles);
-    net_state_transition(GLOBAL_STATE, NET_STATE_DHCP_RECOVERY);
-    s_stratum_generation++;
-    GLOBAL_STATE->SYSTEM_MODULE.is_connected = false;
-    memset(GLOBAL_STATE->SYSTEM_MODULE.ip_addr_str, 0, sizeof(GLOBAL_STATE->SYSTEM_MODULE.ip_addr_str));
-    esp_log_level_set("dhcp", ESP_LOG_INFO);
-    // Kein manueller DHCP-Restart — LwIP retransmittet selbst per RFC2131. Nur loggen und auf IP_EVENT warten.
-    // FRITZ!Box braucht kein Stop/Start, sonst xid-Reset und Lease-Konflikt.
-    if (dhcp_fail_cycles >= DHCP_RECOVERY_WIFI_RECONNECT_AFTER) {
-        dhcp_fail_cycles = 0;
-        ESP_LOGW(TAG, "NET,event=WIFI_RECOVERY,reason=DHCP_PERSISTENT");
-        net_state_transition(GLOBAL_STATE, NET_STATE_WIFI_RECOVERY);
-        esp_wifi_disconnect();
-    } else {
-        int backoff = 5000 + (esp_random() % 2000);
-        xTimerChangePeriod(xTimer, pdMS_TO_TICKS(backoff), 0);
-        xTimerStart(xTimer, 0);
-        snprintf(GLOBAL_STATE->SYSTEM_MODULE.wifi_status, sizeof(GLOBAL_STATE->SYSTEM_MODULE.wifi_status), "DHCP failed, retry %d/%d", dhcp_fail_cycles, DHCP_RECOVERY_WIFI_RECONNECT_AFTER);
+/* Connect, honouring an optional BSSID pin.
+ *
+ * In a mesh every node broadcasts the same SSID, so the driver picks whichever is
+ * loudest. That is not necessarily the node with a working backhaul: a client can
+ * associate successfully with a repeater that relays nothing, and the result looks
+ * exactly like a dead network - association succeeds, DHCP never yields an offer,
+ * nothing reaches the gateway, and the unit never appears in the router's own device
+ * list.
+ *
+ * The pin has to be re-applied immediately before every attempt.
+ * esp_wifi_set_config() accepts sta.bssid and reports ESP_OK, but the driver clears
+ * it again on each reconnection, so a pin written once at init is silently gone by
+ * the next attempt.
+ *
+ * If the pinned node refuses the request for reasons outside our control, the pin is
+ * dropped and an unpinned connect is attempted, so a stale or unreachable BSSID in
+ * the configuration can never brick the unit. */
+static void wifi_connect_pinned(void)
+{
+    char * pin = nvs_config_get_string(NVS_CONFIG_WIFI_BSSID);
+    uint8_t mac[6];
+    bool have = false;
+
+    if (pin != NULL && pin[0] != '\0'
+        && sscanf(pin, "%2hhx:%2hhx:%2hhx:%2hhx:%2hhx:%2hhx",
+                  &mac[0], &mac[1], &mac[2], &mac[3], &mac[4], &mac[5]) == 6) {
+        wifi_config_t cfg = {0};
+        if (esp_wifi_get_config(WIFI_IF_STA, &cfg) == ESP_OK) {
+            if (memcmp(cfg.sta.bssid, mac, 6) != 0) {
+                memcpy(cfg.sta.bssid, mac, 6);
+                esp_wifi_set_config(WIFI_IF_STA, &cfg);
+            }
+            have = true;
+        }
+    }
+    free(pin);
+
+    esp_err_t err = esp_wifi_connect();
+    if (err != ESP_OK && have) {
+        ESP_LOGW(TAG, "NET,event=WIFI_PIN_REJECTED,err=%s,retrying_unpinned",
+                 esp_err_to_name(err));
+        wifi_config_t cfg = {0};
+        if (esp_wifi_get_config(WIFI_IF_STA, &cfg) == ESP_OK) {
+            uint8_t zero[6] = {0};
+            memcpy(cfg.sta.bssid, zero, 6);
+            esp_wifi_set_config(WIFI_IF_STA, &cfg);
+        }
+        esp_wifi_connect();
     }
 }
 
@@ -865,7 +1158,7 @@ static void event_handler(void * arg, esp_event_base_t event_base, int32_t event
             ESP_LOGI(TAG, "NET,event=WIFI_CONNECTING");
             net_state_transition(GLOBAL_STATE, NET_STATE_WIFI_CONNECTING);
             strcpy(GLOBAL_STATE->SYSTEM_MODULE.wifi_status, "Connecting...");
-            esp_wifi_connect();
+            wifi_connect_pinned();
         }
 
         if (event_id == WIFI_EVENT_STA_CONNECTED) {
@@ -962,7 +1255,7 @@ static void event_handler(void * arg, esp_event_base_t event_base, int32_t event
             if (backoff_ms > 8000) backoff_ms = 8000;
             ESP_LOGI(TAG, "NET,event=WIFI_RETRY,attempt=%d,backoff=%d", s_retry_num, backoff_ms);
             vTaskDelay(pdMS_TO_TICKS(backoff_ms));
-            esp_wifi_connect();
+            wifi_connect_pinned();
 
             if (ip_acquire_timer != NULL) {
                 xTimerStop(ip_acquire_timer, 0);
@@ -1275,6 +1568,23 @@ esp_netif_t * wifi_init_sta(const char * wifi_ssid, const char * wifi_pass)
         wifi_sta_config.sta.ssid[ssid_len] = '\0';
     }
 
+    /* Seed the BSSID pin here; wifi_connect_pinned() re-applies it before every
+     * connect attempt, because the driver clears sta.bssid on reconnection. */
+    {
+        char * pin = nvs_config_get_string(NVS_CONFIG_WIFI_BSSID);
+        if (pin != NULL && pin[0] != '\0') {
+            uint8_t mac[6];
+            if (sscanf(pin, "%2hhx:%2hhx:%2hhx:%2hhx:%2hhx:%2hhx",
+                       &mac[0], &mac[1], &mac[2], &mac[3], &mac[4], &mac[5]) == 6) {
+                memcpy(wifi_sta_config.sta.bssid, mac, 6);
+                ESP_LOGW(TAG, "NET,event=WIFI_BSSID_PINNED,bssid=%s", pin);
+            } else {
+                ESP_LOGE(TAG, "NET,event=WIFI_BSSID_INVALID,value=%s", pin);
+            }
+        }
+        free(pin);
+    }
+
     if (authmode != WIFI_AUTH_OPEN) {
         strncpy((char *) wifi_sta_config.sta.password, wifi_pass, sizeof(wifi_sta_config.sta.password));
         wifi_sta_config.sta.password[sizeof(wifi_sta_config.sta.password) - 1] = '\0';
@@ -1317,6 +1627,26 @@ void wifi_init(GlobalState * GLOBAL_STATE)
     // so replacing it would hand out a different lease and lose the reserved
     // address. Lease conflicts are handled by the DHCP client itself via
     // CONFIG_LWIP_DHCP_DOES_ARP_CHECK (see docs/NETWORKING.md).
+
+    /* Pin the station to 20 MHz. Must happen after esp_wifi_init() and before
+     * esp_wifi_start(); the driver defaults a station to HT40, and on a mesh that
+     * auto-selects, a station can end up negotiated onto a channel pairing where
+     * association succeeds but frames never get delivered. Espressif's own guidance
+     * is to force HT20 in crowded environments, and HT20 also leaves more of the
+     * spectrum to the neighbouring cells. */
+    esp_wifi_set_bandwidth(WIFI_IF_STA, WIFI_BW20);
+
+    /* Regulatory domain. Without this the radio runs in the world domain, with
+     * different channel limits and a different power ceiling than the network is
+     * allowed to use here, which costs range and roaming. Override at build time
+     * for other regions. */
+    {
+        const char * cc = ESP_MINER_COUNTRY_CODE;
+        if (cc != NULL && cc[0] != '\0') {
+            esp_err_t cerr = esp_wifi_set_country_code(cc, true);
+            ESP_LOGI(TAG, "NET,event=WIFI_COUNTRY,code=%s,err=%s", cc, esp_err_to_name(cerr));
+        }
+    }
 
     GLOBAL_STATE->SYSTEM_MODULE.ssid = nvs_config_get_string(NVS_CONFIG_WIFI_SSID);
 
@@ -1363,11 +1693,18 @@ void wifi_init(GlobalState * GLOBAL_STATE)
             ESP_LOGI(TAG, "ESP_WIFI setting hostname to: %s", hostname);
         }
 
-        free(hostname);
+free(hostname);
 
-        /* Start Wi-Fi */
-        ESP_ERROR_CHECK(esp_wifi_start());
-    }
+    /* Start Wi-Fi */
+    ESP_ERROR_CHECK(esp_wifi_start());
+
+    /* Keeps a fallback address bound for the life of the firmware. No-op unless a
+     * fallback was applied and the address has since gone missing; it exists because
+     * esp-netif drops a static address whenever DHCP times out or the interface is
+     * re-associated, which otherwise leaves the unit up for a few seconds and then
+     * unreachable again. */
+    xTaskCreate(ip_reassert_task, "ip_reassert", 3072, NULL, 3, NULL);
+}
 }
 
 typedef struct {

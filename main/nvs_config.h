@@ -5,9 +5,63 @@
 #include <stdbool.h>
 #include "esp_err.h"
 
+/* Per-device static fallback, supplied at build time only.
+ *
+ * A general release leaves all of these empty, so nothing is claimed by default.
+ * A unit that cannot get a lease on its network is flashed with its own release
+ * instead, where the operator has already reserved the address in the router:
+ *
+ *   idf.py -DESP_MINER_FALLBACK_ENABLED=1 \
+ *          -DESP_MINER_FALLBACK_IP=192.168.178.66 \
+ *          -DESP_MINER_FALLBACK_GW=192.168.178.1 \
+ *          -DESP_MINER_FALLBACK_MASK=255.255.255.0 \
+ *          -DESP_MINER_FALLBACK_DNS=192.168.178.1 build
+ *
+ * Why a separate release rather than a runtime setting: the address has to be
+ * reserved on the router for that unit's MAC anyway, so it is a property of the
+ * installation, not of the firmware. Baking it in makes the pairing explicit and
+ * makes it impossible to flash a unit onto a network where the address belongs to
+ * something else - which is exactly the failure that a globally baked default
+ * causes.
+ */
+#ifndef ESP_MINER_FALLBACK_ENABLED
+#define ESP_MINER_FALLBACK_ENABLED 0
+#endif
+#ifndef ESP_MINER_FALLBACK_IP
+#define ESP_MINER_FALLBACK_IP ""
+#endif
+#ifndef ESP_MINER_FALLBACK_GW
+#define ESP_MINER_FALLBACK_GW ""
+#endif
+#ifndef ESP_MINER_FALLBACK_MASK
+#define ESP_MINER_FALLBACK_MASK "255.255.255.0"
+#endif
+#ifndef ESP_MINER_FALLBACK_DNS
+#define ESP_MINER_FALLBACK_DNS ""
+#endif
+
+/* BSSID to pin the station to, e.g. "2c:3a:fd:49:d3:95".
+ *
+ * Empty in the general release. A per-device release sets it when the unit has to
+ * sit on one specific mesh node: every node in a mesh broadcasts the same SSID,
+ * so a client that simply takes the strongest signal can land on a repeater that
+ * associates successfully but relays nothing - which presents as a dead network
+ * (no DHCP offer, gateway unreachable) while the radio link looks perfect. */
+#ifndef ESP_MINER_WIFI_BSSID
+#define ESP_MINER_WIFI_BSSID ""
+#endif
+
 typedef enum {
     NVS_CONFIG_WIFI_SSID,
     NVS_CONFIG_WIFI_PASS,
+    /* Optional BSSID of the access point to pin to, e.g. "2c:3a:fd:49:d3:95".
+     *
+     * In a mesh every node broadcasts the same SSID, so a client that just takes
+     * the strongest signal can end up on a repeater that associates fine but
+     * relays nothing - which looks exactly like a dead network. Pinning the node
+     * that has a working backhaul is the reliable fix. Empty by default, so a
+     * general release keeps normal selection. */
+    NVS_CONFIG_WIFI_BSSID,
     NVS_CONFIG_HOSTNAME,
 
     NVS_CONFIG_POOL,
@@ -37,6 +91,11 @@ typedef enum {
      * lease address with no DNS server is useless, because nothing can resolve. */
     NVS_CONFIG_LAST_DHCP_IP,
     NVS_CONFIG_LAST_DHCP_DNS,
+    /* Netmask and gateway from that same lease. The mask used to be hardcoded to
+     * 255.255.255.0 when replaying the lease, which yields an address the rest of
+     * the network cannot reach on any network with a different prefix length. */
+    NVS_CONFIG_LAST_DHCP_MASK,
+    NVS_CONFIG_LAST_DHCP_GW,
     
     NVS_CONFIG_ASIC_FREQUENCY,
     NVS_CONFIG_ASIC_VOLTAGE,
