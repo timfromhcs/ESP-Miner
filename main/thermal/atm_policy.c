@@ -10,6 +10,9 @@ void atm_init(atm_state_t * state, float frequency_mhz, uint16_t voltage_mv)
     state->last_change_s = 0;
     state->ever_downscaled = false;
     state->downscale_fan_percent = 0.0f;
+    state->window_min_temp_c = 0.0;
+    state->window_max_temp_c = 0.0;
+    state->window_start_s = 0;
     state->shutdown_requested = false;
 }
 
@@ -31,6 +34,9 @@ void atm_set_baseline(atm_state_t * state, float frequency_mhz, uint16_t voltage
     state->last_change_s = 0;
     state->ever_downscaled = false;
     state->downscale_fan_percent = 0.0f;
+    state->window_min_temp_c = 0.0;
+    state->window_max_temp_c = 0.0;
+    state->window_start_s = 0;
     state->shutdown_requested = false;
 }
 
@@ -83,6 +89,25 @@ atm_action_t atm_step(const atm_config_t * cfg, atm_state_t * state, const atm_i
 
     const bool hot = in->chip_temp_c >= cfg->hot_temp_c || in->vr_temp_c >= cfg->vr_hot_temp_c;
 
+    /* ---- 1b. startup derate (ahead of the generic step-down) ------ */
+    /* The first minutes are a distinct thermal regime and deserve their own
+     * policy: if the chip is already hot this early, ease it down hard rather
+     * than nudging one step at a time. */
+    if (cfg->startup_window_s > 0 && in->uptime_s < cfg->startup_window_s
+        && in->chip_temp_c >= cfg->hot_temp_c
+        && cfg->startup_derate_percent > 0 && cfg->startup_derate_percent < 100
+        && state->frequency_mhz > cfg->freq_min_mhz) {
+        float target = cfg->freq_ceiling_mhz * ((float) cfg->startup_derate_percent / 100.0f);
+        if (target < cfg->freq_min_mhz) {
+            target = cfg->freq_min_mhz;
+        }
+        if (target < state->frequency_mhz) {
+            state->frequency_mhz = target;
+            state->last_change_s = in->uptime_s;
+            return ATM_ACTION_STEP_DOWN;
+        }
+    }
+
     /* ---- 2. downshift ------------------------------------------------ */
     if (hot) {
         /* A step is already in flight and has not had time to take effect. Do
@@ -123,6 +148,39 @@ atm_action_t atm_step(const atm_config_t * cfg, atm_state_t * state, const atm_i
     /* ---- 3. everything else is rate limited ------------------------- */
     if (state->last_change_s != 0 && in->uptime_s < state->last_change_s + cfg->min_hold_s) {
         return ATM_ACTION_NONE;
+    }
+
+    /* ---- 3a. temperature stability gate ---------------------------- */
+    /* A dwell time alone cannot tell "settled" from "quiet right now". Before any
+     * upscale we require evidence: the temperature has to have been observed for
+     * the whole window AND stayed inside a narrow band across it. Climbing into a
+     * still-moving reading is exactly how a controller overshoots. This gate never
+     * applies to shedding - a hot reading is acted on immediately, above. */
+    if (cfg->stability_window_s > 0 && cfg->stability_window_c > 0.0) {
+        if (state->window_start_s == 0 || in->uptime_s < state->window_start_s) {
+            state->window_start_s = in->uptime_s;
+            state->window_min_temp_c = in->chip_temp_c;
+            state->window_max_temp_c = in->chip_temp_c;
+        }
+        if (in->uptime_s < state->window_start_s + cfg->stability_window_s) {
+            /* Window not yet complete - keep observing, do not climb. */
+            if (in->chip_temp_c < state->window_min_temp_c) {
+                state->window_min_temp_c = in->chip_temp_c;
+            }
+            if (in->chip_temp_c > state->window_max_temp_c) {
+                state->window_max_temp_c = in->chip_temp_c;
+            }
+            return ATM_ACTION_NONE;
+        }
+        if (state->window_max_temp_c - state->window_min_temp_c > cfg->stability_window_c) {
+            /* Unstable over the window: restart it and keep waiting. */
+            state->window_start_s = in->uptime_s;
+            state->window_min_temp_c = in->chip_temp_c;
+            state->window_max_temp_c = in->chip_temp_c;
+            return ATM_ACTION_NONE;
+        }
+        /* Stable: consume the evidence so the next climb needs a fresh window. */
+        state->window_start_s = 0;
     }
 
     /* ---- 4. recovery step up ---------------------------------------- */

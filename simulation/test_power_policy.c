@@ -10,6 +10,7 @@
  */
 
 #include "atm_policy.h"
+#include "power_target.h"
 #include "vf_tuner.h"
 
 #include <stdio.h>
@@ -43,6 +44,10 @@ c.voltage_step_mv = 25;
     c.vr_hot_temp_c = 100.0;
     c.vr_shutdown_temp_c = 105.0;
     c.fan_relief_percent = 20.0;
+    c.stability_window_c = 0.0;
+    c.stability_window_s = 0;
+    c.startup_window_s = 0;
+    c.startup_derate_percent = 0;
     c.min_hashrate_ratio = 0.95;
     c.max_error_percent = 0.1;
     c.min_hold_s = 90;
@@ -483,6 +488,80 @@ static void test_vf_does_not_start_when_baseline_already_failing(void)
     check(st.voltage_mv == 1200, "voltage unchanged");
 }
 
+static void test_atm_stability_gate_blocks_climb(void)
+{
+    atm_config_t cfg = atm_cfg();
+    cfg.stability_window_c = 2.0;
+    cfg.stability_window_s = 60;
+    atm_state_t st;
+    atm_init(&st, 460.0f, 1175);
+
+    /* Comfortable headroom, but the temperature is still swinging by more than
+     * the allowed band inside the window: must NOT climb. A dwell time alone
+     * cannot tell "settled" from "quiet right now". */
+    /* The window has to be observed in full before any climb, even when every
+     * reading so far looks comfortable. */
+    atm_inputs_t a = atm_in(53.0, 50.0, 60.0, 1.00, 0.0, 1000);
+    check(atm_step(&cfg, &st, &a) == ATM_ACTION_NONE, "window not complete -> no climb");
+    atm_inputs_t swing2 = atm_in(57.0, 50.0, 60.0, 1.00, 0.0, 1030);
+    check(atm_step(&cfg, &st, &swing2) == ATM_ACTION_NONE, "window not complete -> still no climb");
+    check(st.frequency_mhz == 460.0f, "frequency untouched while window incomplete");
+
+    /* Window complete, but the band was violated (53 -> 57 = 4 C > 2 C). */
+    atm_inputs_t c3 = atm_in(53.0, 50.0, 60.0, 1.00, 0.0, 1070);
+    check(atm_step(&cfg, &st, &c3) == ATM_ACTION_NONE, "4 C swing -> blocked");
+    check(st.frequency_mhz == 460.0f, "frequency untouched while unstable");
+
+    /* A fresh window that stays inside the band allows the climb. */
+    atm_state_t st2;
+    atm_init(&st2, 460.0f, 1175);
+    atm_inputs_t d = atm_in(53.0, 50.0, 60.0, 1.00, 0.0, 2000);
+    atm_step(&cfg, &st2, &d);
+    atm_inputs_t e = atm_in(53.5, 50.0, 60.0, 1.00, 0.0, 2030);
+    check(atm_step(&cfg, &st2, &e) == ATM_ACTION_NONE, "still inside the window");
+    atm_inputs_t f2 = atm_in(53.5, 50.0, 60.0, 1.00, 0.0, 2070);
+    check(atm_step(&cfg, &st2, &f2) == ATM_ACTION_STEP_UP, "stable window complete -> climb");
+
+    /* The gate must only apply to climbing, never to shedding: a hot reading has
+     * to be acted on immediately. */
+    atm_state_t st3;
+    atm_init(&st3, 485.0f, 1200);
+    atm_inputs_t hot_now = atm_in(72.0, 50.0, 60.0, 1.00, 0.0, 1000);
+    check(atm_step(&cfg, &st3, &hot_now) == ATM_ACTION_STEP_DOWN,
+          "stability gate never delays a derate");
+}
+
+static void test_atm_startup_derate(void)
+{
+    atm_config_t cfg = atm_cfg();
+    cfg.startup_window_s = 300;
+    cfg.startup_derate_percent = 66;
+    atm_state_t st;
+    atm_init(&st, 485.0f, 1200);
+
+    /* Hot this early in the run: drop straight to 66 % of the ceiling (485*0.66
+     * = 320 MHz) instead of crawling down one hold period at a time. */
+    atm_inputs_t hot = atm_in(70.0, 50.0, 100.0, 1.00, 0.0, 60);
+    check(atm_step(&cfg, &st, &hot) == ATM_ACTION_STEP_DOWN, "hot during startup -> derate");
+    /* 66 % of 485 MHz is 320 MHz, below the 400 MHz floor, so the clamp wins. */
+    check(st.frequency_mhz == 400.0f, "dropped straight to the 66 % target, clamped to the floor");
+    check(st.voltage_mv == 1200, "voltage untouched by the startup derate");
+
+    /* Comfortable during startup: the derate must not hold us down. */
+    atm_state_t st2;
+    atm_init(&st2, 485.0f, 1200);
+    atm_inputs_t cool = atm_in(50.0, 45.0, 60.0, 1.00, 0.0, 60);
+    check(atm_step(&cfg, &st2, &cool) == ATM_ACTION_NONE, "cool during startup -> no derate");
+
+    /* Past the window the special policy no longer applies. */
+    atm_state_t st3;
+    atm_init(&st3, 485.0f, 1200);
+    atm_inputs_t later = atm_in(70.0, 50.0, 100.0, 1.00, 0.0, 400);
+    atm_action_t act = atm_step(&cfg, &st3, &later);
+    check(act == ATM_ACTION_STEP_DOWN, "after the window a hot reading still sheds");
+    check(st3.frequency_mhz == 485.0f - 25.0f, "but only one ordinary step, not 66 %");
+}
+
 static void test_vf_aborts_when_too_hot(void)
 {
     vf_config_t cfg = vf_cfg();
@@ -533,6 +612,133 @@ static void test_vf_rejects_null(void)
     check(strcmp(vf_action_name(VF_ACTION_LOWER_VOLTAGE), "LOWER_VOLTAGE") == 0, "action name");
 }
 
+/* ------------------------------------------------------------------ */
+/* Power targeting                                                     */
+/* ------------------------------------------------------------------ */
+
+static pt_config_t pt_cfg(void)
+{
+    pt_config_t c;
+    memset(&c, 0, sizeof(c));
+    c.target_mw = 12000;
+    c.tolerance_mw = 500;
+    c.step_mw = 100;
+    c.settle_s = 300;
+    c.min_hold_s = 120;
+    c.min_mw = 5000;
+    c.max_mw = 30000;
+    return c;
+}
+
+static pt_inputs_t pt_in(uint32_t mw, bool valid, uint32_t t)
+{
+    pt_inputs_t i;
+    memset(&i, 0, sizeof(i));
+    i.measured_mw = mw;
+    i.power_valid = valid;
+    i.uptime_s = t;
+    return i;
+}
+
+static void test_pt_sheds_when_over_budget(void)
+{
+    pt_config_t cfg = pt_cfg();
+    pt_state_t st;
+    pt_init(&st, 12000);
+
+    pt_inputs_t hot = pt_in(13500, true, 1000);
+    check(pt_step(&cfg, &st, &hot) == PT_ACTION_SHED, "over budget -> shed");
+    check(pt_target_mw(&st) == 11900, "budget trimmed by one step");
+
+    /* Nothing may happen until the change has settled. */
+    pt_inputs_t during = pt_in(13500, true, 1100);
+    check(pt_step(&cfg, &st, &during) == PT_ACTION_NONE, "settling -> no action");
+
+    /* Inside the deadband -> hold. */
+    pt_inputs_t ok = pt_in(12100, true, 1400);
+    check(pt_step(&cfg, &st, &ok) == PT_ACTION_NONE, "inside deadband -> hold");
+}
+
+static void test_pt_never_reclaims_before_reaching_target(void)
+{
+    pt_config_t cfg = pt_cfg();
+    pt_state_t st;
+    /* Already reduced, and still under budget: adding allowance back would make
+     * the shortfall worse, so it must not. */
+    pt_init(&st, 11000);
+    pt_inputs_t under = pt_in(10000, true, 1000);
+    check(pt_step(&cfg, &st, &under) == PT_ACTION_NONE, "under budget but already shed -> hold");
+    check(pt_target_mw(&st) == 11000, "budget unchanged");
+
+    /* At or above target and under budget -> reclaim. */
+    pt_state_t st2;
+    pt_init(&st2, 12000);
+    check(pt_step(&cfg, &st2, &under) == PT_ACTION_RECLAIM, "under budget at target -> reclaim");
+    check(pt_target_mw(&st2) == 12100, "budget raised by one step");
+}
+
+static void test_pt_ignores_bad_readings(void)
+{
+    pt_config_t cfg = pt_cfg();
+    pt_state_t st;
+    pt_init(&st, 12000);
+
+    pt_inputs_t invalid = pt_in(0, false, 1000);
+    check(pt_step(&cfg, &st, &invalid) == PT_ACTION_NONE, "invalid reading -> no action");
+    pt_inputs_t zero = pt_in(0, true, 1000);
+    check(pt_step(&cfg, &st, &zero) == PT_ACTION_NONE, "zero reading -> no action");
+    check(pt_target_mw(&st) == 12000, "budget not moved on bad telemetry");
+    check(!st.finished, "bad telemetry must not finish the loop");
+}
+
+static void test_pt_rejects_impossible_target(void)
+{
+    pt_config_t cfg = pt_cfg();
+    cfg.target_mw = 99999;   /* above max_mw */
+    pt_state_t st;
+    pt_init(&st, 12000);
+    pt_inputs_t over = pt_in(14000, true, 1000);
+    check(pt_step(&cfg, &st, &over) == PT_ACTION_TARGET_INVALID, "target above envelope refused");
+    check(pt_target_mw(&st) == 12000, "budget untouched on refusal");
+
+    pt_config_t cfg2 = pt_cfg();
+    cfg2.step_mw = 0;
+    pt_state_t st2;
+    pt_init(&st2, 12000);
+    pt_inputs_t over2 = pt_in(14000, true, 1000);
+    check(pt_step(&cfg2, &st2, &over2) == PT_ACTION_TARGET_INVALID, "zero step refused");
+}
+
+static void test_pt_clamps_to_envelope(void)
+{
+    pt_config_t cfg = pt_cfg();
+    pt_state_t st;
+    pt_init(&st, cfg.min_mw);
+    pt_inputs_t way_over = pt_in(40000, true, 1000);
+    check(pt_step(&cfg, &st, &way_over) == PT_ACTION_NONE, "at the floor -> cannot shed further");
+    check(pt_target_mw(&st) == cfg.min_mw, "floor respected");
+
+    pt_state_t st2;
+    pt_init(&st2, cfg.max_mw);
+    pt_inputs_t way_under = pt_in(1000, true, 1000);
+    check(pt_step(&cfg, &st2, &way_under) == PT_ACTION_NONE, "at the ceiling -> cannot reclaim further");
+    check(pt_target_mw(&st2) == cfg.max_mw, "ceiling respected");
+}
+
+static void test_pt_rejects_null(void)
+{
+    pt_config_t cfg = pt_cfg();
+    pt_state_t st;
+    pt_init(&st, 12000);
+    pt_inputs_t in = pt_in(13000, true, 1000);
+    check(pt_step(NULL, &st, &in) == PT_ACTION_NONE, "NULL cfg safe");
+    check(pt_step(&cfg, NULL, &in) == PT_ACTION_NONE, "NULL state safe");
+    check(pt_step(&cfg, &st, NULL) == PT_ACTION_NONE, "NULL inputs safe");
+    check(pt_target_mw(NULL) == 0, "NULL state -> 0 budget");
+    check(strcmp(pt_action_name(PT_ACTION_SHED), "SHED") == 0, "action name");
+    pt_init(NULL, 100);
+}
+
 int main(void)
 {
     puts("== ATM policy ==");
@@ -559,7 +765,17 @@ int main(void)
     test_vf_respects_attempt_budget();
     test_vf_does_not_start_when_baseline_already_failing();
     test_vf_rejects_null();
+
+    puts("== Power targeting ==");
+    test_pt_sheds_when_over_budget();
+    test_pt_never_reclaims_before_reaching_target();
+    test_pt_ignores_bad_readings();
+    test_pt_rejects_impossible_target();
+    test_pt_clamps_to_envelope();
+    test_pt_rejects_null();
     test_vf_aborts_when_too_hot();
+    test_atm_stability_gate_blocks_climb();
+    test_atm_startup_derate();
 
     printf("\n%d checks, %d failures\n", checks, failures);
     return failures == 0 ? 0 : 1;

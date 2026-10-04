@@ -158,7 +158,14 @@ float BM1397_send_hash_frequency(float target_freq)
     uint8_t fb_divider, refdiv, postdiv1, postdiv2;
     float frequency;
 
-    pll_get_parameters(target_freq, 60, 200, &fb_divider, &refdiv, &postdiv1, &postdiv2, &frequency);
+    esp_err_t pll_err = pll_get_parameters(target_freq, 60, 200, &fb_divider, &refdiv, &postdiv1, &postdiv2, &frequency);
+
+    /* Refuse to write register 0x08 with zeroed dividers: a nonsense clock
+     * configuration leaves the PLL unlocked and the chip idle until a reboot. */
+    if (pll_err != ESP_OK) {
+        ESP_LOGE(TAG, "Refusing to program frequency %g MHz: no valid PLL solution", target_freq);
+        return 0.0f;
+    }
 
     uint8_t vdo_scale = 0x40;
     uint8_t postdiv = ((postdiv1 & 0x7) << 4) + (postdiv2 & 0x7);

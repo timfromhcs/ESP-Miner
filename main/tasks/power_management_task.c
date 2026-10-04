@@ -13,6 +13,7 @@
 #include "asic_reset.h"
 #include "atm_policy.h"
 #include "vf_tuner.h"
+#include "power_target.h"
 #include "driver/uart.h"
 
 #define POLL_RATE 100
@@ -47,6 +48,21 @@
 #define ATM_FREQ_STEP_MHZ 25.0f
 #define ATM_VOLTAGE_STEP_MV 25
 
+/* Do not climb unless the temperature has genuinely settled. A dwell time alone
+ * cannot distinguish "stable" from "quiet at this instant", and climbing into a
+ * still-moving reading is how a controller overshoots. Braiins' DPS requires
+ * "did not fluctuate by more than 1 C in the last minute"; we use 2 C over 60 s to
+ * allow for sensor granularity on this board. */
+#define ATM_STABILITY_WINDOW_TEMP 2.0
+#define ATM_STABILITY_WINDOW_S 60
+
+/* The first minutes are a distinct thermal regime: the rail, the die and the
+ * cooler are all still settling. If the chip is already at the hot threshold
+ * this early, ease it down to 66 % of the ceiling immediately instead of
+ * crawling down one step per hold period. Braiins uses the same 66 % / 5 min. */
+#define ATM_STARTUP_WINDOW_S 300
+#define ATM_STARTUP_DERATE_PERCENT 66
+
 /* A 20-point fan-duty improvement counts as bought thermal headroom and lets ATM
  * undo a derate without waiting out the full recheck band. */
 #define ATM_FAN_RELIEF_PERCENT 20.0
@@ -67,9 +83,32 @@
  * excursion worse, and that is ATM's job to resolve, not the tuner's. */
 #define VF_MAX_TUNE_TEMP 65.0
 
+/* Power targeting tuning. The budget is operator-supplied; these bound the
+ * search. Tolerance is generous because INA260 readings at this power level carry
+ * tens of milliwatts of noise, and a tighter deadband would make the loop chase
+ * its own measurement. */
+#define PT_TOLERANCE_MW 500
+#define PT_STEP_MW 100
+#define PT_SETTLE_S 300
+#define PT_MIN_HOLD_S 120
+#define PT_MIN_MW 5000
+#define PT_MAX_MW 30000
+
 /* The regulator cannot be driven below this, no matter what the thermal policy
  * asks for. Stepping under it is what produced the false "Power Fault" latch. */
 #define ASIC_VOLTAGE_REGULATOR_FLOOR_MV 1000
+
+/* Temperature sanity window. A BM1366 junction cannot be below ambient and
+ * certainly not below -40 C; anything outside this is a sensor fault, not a
+ * measurement. -1 is the codebase's "ASIC powered down / not valid" sentinel. */
+#define TEMP_PLAUSIBLE_MIN_C (-40.0)
+#define TEMP_PLAUSIBLE_MAX_C 150.0
+#define BAD_READING_MAX 10
+
+static bool is_plausible_temp(double t)
+{
+    return t >= TEMP_PLAUSIBLE_MIN_C && t <= TEMP_PLAUSIBLE_MAX_C;
+}
 
 static const char * TAG = "power_management";
 
@@ -181,6 +220,7 @@ void POWER_MANAGEMENT_task(void * pvParameters)
     uint16_t last_known_asic_voltage = 0;
     float last_known_asic_frequency = 0.0;
     bool is_paused = false;
+    int bad_reading_count = 0;
 
     /* The user's configured values are the ceiling; ATM may only work below it
      * and restores back up to it, never above. That keeps the user's own
@@ -198,6 +238,10 @@ void POWER_MANAGEMENT_task(void * pvParameters)
         .hot_temp_c = ATM_HOT_TEMP,
         .shutdown_temp_c = ATM_SHUTDOWN_TEMP,
         .buffer_temp_c = ATM_BUFFER_TEMP,
+        .stability_window_c = ATM_STABILITY_WINDOW_TEMP,
+        .stability_window_s = ATM_STABILITY_WINDOW_S,
+        .startup_window_s = ATM_STARTUP_WINDOW_S,
+        .startup_derate_percent = ATM_STARTUP_DERATE_PERCENT,
         .vr_hot_temp_c = ATM_VR_HOT_TEMP,
         .vr_shutdown_temp_c = ATM_VR_SHUTDOWN_TEMP,
         .fan_relief_percent = ATM_FAN_RELIEF_PERCENT,
@@ -223,6 +267,26 @@ void POWER_MANAGEMENT_task(void * pvParameters)
     };
     vf_state_t vf_state;
     vf_init(&vf_state, atm_voltage_ceiling, atm_voltage_ceiling);
+
+    /* Power targeting: opt-in, off unless the operator configured a budget. */
+    uint16_t power_management_target_mw = nvs_config_get_u16(NVS_CONFIG_POWER_TARGET_MW);
+    bool power_target_enabled = nvs_config_get_bool(NVS_CONFIG_POWER_TARGET_ENABLED)
+                                && power_management_target_mw > 0;
+    pt_config_t pt_cfg = {
+        .target_mw = power_management_target_mw,
+        .tolerance_mw = PT_TOLERANCE_MW,
+        .step_mw = PT_STEP_MW,
+        .settle_s = PT_SETTLE_S,
+        .min_hold_s = PT_MIN_HOLD_S,
+        .min_mw = PT_MIN_MW,
+        .max_mw = PT_MAX_MW,
+    };
+    pt_state_t pt_state;
+    pt_init(&pt_state, power_management_target_mw);
+    if (power_target_enabled) {
+        ESP_LOGI(TAG, "Power targeting enabled: budget %umW (tolerance +/-%umW, step %umW)",
+                 power_management_target_mw, PT_TOLERANCE_MW, PT_STEP_MW);
+    }
 
     while (1) {
         if (GLOBAL_STATE->SELF_TEST_MODULE.is_finished) {
@@ -291,6 +355,50 @@ void POWER_MANAGEMENT_task(void * pvParameters)
             if (power_management->chip_temp2_avg > hottest) {
                 hottest = power_management->chip_temp2_avg;
             }
+
+            /* Sensor quorum. A dead or shorted sensor reports a plausible-looking
+             * number, and a controller that trusts it will happily under-clock a
+             * healthy chip or fail to protect a hot one. Reject readings outside
+             * any physically possible range, and if the ASIC sensors stay bad,
+             * fall back to the regulator temperature - a different sensor on a
+             * different bus - rather than flying blind. LuxOS ships the same idea
+             * (Required Critical Temperature Sensors per Board, Max Bad Readings
+             * 10, Bad Avg Threshold 2). */
+            double t1 = power_management->chip_temp_avg;
+            double t2 = power_management->chip_temp2_avg;
+            bool t1_ok = is_plausible_temp(t1);
+            bool t2_ok = is_plausible_temp(t2);
+
+            if (!t1_ok && !t2_ok) {
+                bad_reading_count++;
+                if (bad_reading_count >= BAD_READING_MAX) {
+                    double vr = power_management->vr_temp;
+                    if (is_plausible_temp(vr)) {
+                        ESP_LOGE(TAG, "ATM: no valid ASIC sensor after %d bad readings (t1=%.1f t2=%.1f) - using VR %.1f C",
+                                 bad_reading_count, t1, t2, vr);
+                        t1_ok = true;
+                        t1 = vr;
+                        bad_reading_count = 0;
+                    } else {
+                        ESP_LOGE(TAG, "ATM: no valid temperature sensor at all (t1=%.1f t2=%.1f vr=%.1f) - holding operating point",
+                                 t1, t2, vr);
+                    }
+                }
+            } else {
+                if (bad_reading_count > 0) {
+                    ESP_LOGW(TAG, "ATM: temperature sensors recovered after %d bad readings", bad_reading_count);
+                }
+                bad_reading_count = 0;
+            }
+
+            if (!t1_ok) {
+                t1 = t2_ok ? t2 : -1;
+            }
+            if (!t2_ok) {
+                t2 = t1;
+            }
+
+            hottest = t1;
 
             float expected = power_management->expected_hashrate;
             float measured = sys_module->hashrate_1h;
@@ -507,6 +615,107 @@ void POWER_MANAGEMENT_task(void * pvParameters)
         if (new_overheat_mode != sys_module->overheat_mode) {
             sys_module->overheat_mode = new_overheat_mode;
             ESP_LOGI(TAG, "Overheat mode updated to: %d", sys_module->overheat_mode);
+        }
+
+        /* ----------------------------------------------------------------
+         * Power targeting — hold a power budget instead of a frequency.
+         *
+         * Opt-in and off by default. LuxOS and Braiins both anchor on watts rather
+         * than temperature, and the reason is measurable: LuxOS reports power draw
+         * varying >10 % through the day at identical settings purely from ambient.
+         * That swing is the whole prize, and the fan PID above cannot see it.
+         *
+         * It composes with ATM rather than competing: ATM owns the thermal envelope
+         * and the safety backstops, and while it is holding a derate this loop stays
+         * out of the way entirely. The budget is nudged by trimming the ceiling the
+         * tuner is allowed to work to, so the mechanism underneath (frequency and
+         * voltage moving together, regulator floor respected) is unchanged.
+         * ---------------------------------------------------------------- */
+        if (power_target_enabled && !is_paused && !sys_module->hardware_fault
+            && GLOBAL_STATE->ASIC_initalized && !atm_state.ever_downscaled) {
+
+            uint32_t measured_mw = (uint32_t)(power_management->power * 1000.0f);
+            pt_inputs_t pt_inputs = {
+                .measured_mw = measured_mw,
+                .power_valid = measured_mw > 0,
+                .uptime_s = (uint32_t)(esp_timer_get_time() / 1000000LL),
+            };
+
+            pt_action_t pt_action = pt_step(&pt_cfg, &pt_state, &pt_inputs);
+            if (pt_action == PT_ACTION_SHED || pt_action == PT_ACTION_RECLAIM) {
+                /* Translate the power budget into a frequency ceiling. The linear
+                 * map is deliberately conservative: it is a ceiling, never a
+                 * setpoint, so ATM and the V/F tuner still own the real operating
+                 * point within it. */
+                uint32_t budget = pt_target_mw(&pt_state);
+                float ceiling = last_known_asic_frequency > 0.0f ? last_known_asic_frequency : atm_cfg.freq_ceiling_mhz;
+                float scaled = ceiling * ((float) budget / (float) power_management_target_mw);
+                if (scaled < 400.0f) {
+                    scaled = 400.0f;
+                }
+                if (scaled > ceiling) {
+                    scaled = ceiling;
+                }
+                ESP_LOGI(TAG, "Power target %s -> budget %umW (measured %umW), ceiling %.0f MHz",
+                         pt_action_name(pt_action), budget, measured_mw, scaled);
+                if (fabsf(scaled - last_asic_frequency) > 1.0f) {
+                    nvs_config_set_float(NVS_CONFIG_ASIC_FREQUENCY, scaled);
+                }
+            }
+        }
+
+        /* ----------------------------------------------------------------
+         * Flatline-of-death watchdog.
+         *
+         * Upstream issue #1053: the miner can keep "hashing" while producing
+         * nothing acceptable, and nothing notices. The key to a watchdog here is
+         * to trigger on shares the POOL accepted, not on local counters: a chip
+         * returning garbage nonces can inflate local counters but cannot pass pool
+         * validation, so only the pool can tell us mining is genuinely working.
+         *
+         * Timeout is 25x the expected share interval at the current pool
+         * difficulty, floored at 10 minutes so a high-difficulty vardiff step can
+         * never arm a false trigger. With that margin the probability of firing
+         * spuriously is e^-25 (~1e-11), i.e. it will not fire in the lifetime of
+         * the device.
+         * ---------------------------------------------------------------- */
+        {
+            static uint32_t last_pool_accepted = 0;
+            static uint32_t last_pool_accept_s = 0;
+
+            uint32_t now_s = (uint32_t)(esp_timer_get_time() / 1000000LL);
+            uint32_t accepted32 = (uint32_t) sys_module->shares_accepted;
+
+            if (accepted32 != last_pool_accepted) {
+                last_pool_accepted = accepted32;
+                last_pool_accept_s = now_s;
+            } else if (!is_paused && !sys_module->hardware_fault && GLOBAL_STATE->ASIC_initalized
+                       && last_pool_accept_s != 0) {
+                /* 2^32 * D / H seconds between shares at hashrate H. H in TH/s. */
+                double difficulty = GLOBAL_STATE->pool_difficulty > 0.0 ? GLOBAL_STATE->pool_difficulty : 1.0;
+                double hashrate_ths = power_management->expected_hashrate / 1000.0;
+                double expected_interval_s = 0.0;
+                if (hashrate_ths > 1.0) {
+                    expected_interval_s = (4294967296.0 * difficulty) / (hashrate_ths * 1e12);
+                }
+                uint32_t timeout_s = (expected_interval_s > 0.0)
+                                     ? (uint32_t)(expected_interval_s * 25.0)
+                                     : 0;
+                if (timeout_s < 600) {
+                    timeout_s = 600;
+                }
+                if (now_s - last_pool_accept_s > timeout_s) {
+                    ESP_LOGE(TAG, "FLATLINE: no pool-accepted share for %us (expected interval %.0fs x25, floor 600s) — reinitialising ASIC",
+                             now_s - last_pool_accept_s, expected_interval_s);
+                    /* Do not reset the timer here: leave it latched so the next
+                     * accepted share is what clears it, and so repeated failures
+                     * keep being visible in the log instead of being masked. */
+                    if (GLOBAL_STATE->ASIC_initalized) {
+                        ASIC_init(GLOBAL_STATE);
+                    }
+                    last_pool_accept_s = now_s - (timeout_s / 2);
+                }
+            }
         }
 
         VCORE_check_fault(GLOBAL_STATE);

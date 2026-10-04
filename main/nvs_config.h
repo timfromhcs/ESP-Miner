@@ -40,6 +40,12 @@ typedef enum {
     NVS_CONFIG_OVERCLOCK_ENABLED,
     NVS_CONFIG_ASIC_FAST_UART,
     NVS_CONFIG_AUTOTUNE_VOLTAGE,
+
+    /* Power targeting: hold a power budget instead of a frequency setpoint. Off by
+     * default. Anchoring on watts is what lets the firmware exploit the >10 % diurnal
+     * swing in power draw at fixed settings that a fan PID cannot even observe. */
+    NVS_CONFIG_POWER_TARGET_ENABLED,
+    NVS_CONFIG_POWER_TARGET_MW,
     
     NVS_CONFIG_DISPLAY,
     NVS_CONFIG_ROTATION,

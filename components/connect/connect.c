@@ -414,9 +414,24 @@ static uint32_t s_network_generation = 0;
 static uint32_t s_dhcp_generation = 0;
 static uint32_t s_stratum_generation = 0;
 static int dhcp_retry_count = 0;
-#define DHCP_RETRY_MAX 5
-#define DHCP_RETRY_BASE_MS 4000
-#define DHCP_RECOVERY_WIFI_RECONNECT_AFTER 3
+/* Retry budget kept deliberately short. Each rung of the ladder is attempted as
+ * soon as there is any chance of it succeeding, and DHCP keeps running in the
+ * background throughout, so waiting longer only extends the outage. */
+#define DHCP_RETRY_MAX 3
+#define DHCP_RETRY_BASE_MS 3000
+#define DHCP_RECOVERY_WIFI_RECONNECT_AFTER 2
+
+/* First retry timeout after which the fallback ladder is consulted. The last
+ * real lease costs nothing to try — no negotiation, no timeout, and it is an
+ * address this unit is already known to hold — so there is no reason to make the
+ * operator idling through a full retry budget first. */
+#define DHCP_LADDER_AFTER_RETRY 1
+
+/* While online via a fallback address, keep probing DHCP at this interval so a
+ * real lease always wins the moment the router recovers. Without this the unit
+ * would sit on the fallback forever and never migrate back. */
+#define DHCP_PROBE_INTERVAL_MS 300000
+static uint32_t s_dhcp_probe_due_ms = 0;
 
 static const char *net_state_to_str(net_state_t s) {
     switch (s) {
@@ -606,6 +621,20 @@ static bool try_ip_fallback_ladder(GlobalState * GLOBAL_STATE)
     return ok;
 }
 
+/**
+ * @brief Schedule the slow background DHCP probe.
+ *
+ * Only used when we came up on a fallback address. DHCP stays running the whole
+ * time, so this merely re-arms the watchdog that re-checks for a real lease and
+ * migrates to it. Without it a unit that once needed the fallback would never
+ * return to normal operation even once the router was healthy again.
+ */
+static void arm_dhcp_probe(void)
+{
+    s_dhcp_probe_due_ms = (uint32_t) (esp_timer_get_time() / 1000) + (DHCP_PROBE_INTERVAL_MS / 1000);
+    ESP_LOGI(TAG, "NET,event=DHCP_PROBE_ARMED,in=%ds", DHCP_PROBE_INTERVAL_MS / 1000);
+}
+
 static void ip_timeout_callback(TimerHandle_t xTimer)
 {
     GlobalState *GLOBAL_STATE = (GlobalState *)pvTimerGetTimerID(xTimer);
@@ -614,6 +643,26 @@ static void ip_timeout_callback(TimerHandle_t xTimer)
         dhcp_retry_count = 0;
         if (s_net_state == NET_STATE_DHCP_RUNNING || s_net_state == NET_STATE_DHCP_RETRY) {
             net_state_transition(GLOBAL_STATE, NET_STATE_IP_ACQUIRED);
+        }
+        /* Online on a fallback address: keep the probe running so a genuine lease
+         * takes over as soon as the router offers one. */
+        if (s_dhcp_probe_due_ms != 0) {
+            uint32_t now_ms = (uint32_t) (esp_timer_get_time() / 1000);
+            if ((int32_t) (now_ms - s_dhcp_probe_due_ms) >= 0) {
+                ESP_LOGI(TAG, "NET,event=DHCP_PROBE,action=REQUEST_LEASE");
+                s_dhcp_probe_due_ms = 0;
+                esp_netif_t *sta = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+                if (sta != NULL) {
+                    esp_netif_dhcpc_start(sta);
+                }
+                /* Re-check shortly; if a lease arrives IP_EVENT_STA_GOT_IP takes
+                 * over and clears the probe, otherwise we retry later. */
+                xTimerChangePeriod(xTimer, pdMS_TO_TICKS(DHCP_RETRY_BASE_MS), 0);
+                xTimerStart(xTimer, 0);
+                return;
+            }
+            xTimerChangePeriod(xTimer, pdMS_TO_TICKS(30000), 0);
+            xTimerStart(xTimer, 0);
         }
         return;
     }
@@ -630,7 +679,7 @@ static void ip_timeout_callback(TimerHandle_t xTimer)
     // No IP yet — this is DHCP timeout, NOT a signal to fake an address
     if (dhcp_retry_count < DHCP_RETRY_MAX) {
         dhcp_retry_count++;
-        int backoff_ms = DHCP_RETRY_BASE_MS + (dhcp_retry_count * 1200) + (esp_random() % 600);
+        int backoff_ms = DHCP_RETRY_BASE_MS + (dhcp_retry_count * 1000) + (esp_random() % 400);
         ESP_LOGW(TAG, "NET,event=DHCP_TIMEOUT,retry=%d/%d,backoff=%d,state=%s", dhcp_retry_count, DHCP_RETRY_MAX, backoff_ms, net_state_to_str(s_net_state));
         net_state_transition(GLOBAL_STATE, NET_STATE_DHCP_RETRY);
         /* Report the live client state alongside the retry count. A client stuck
@@ -642,6 +691,17 @@ static void ip_timeout_callback(TimerHandle_t xTimer)
             ESP_LOGW(TAG, "NET,event=DHCP_CLIENT_STATUS,status=%d,link_up=%d", (int)st_now,
                      esp_netif_is_netif_up(dbg) ? 1 : 0);
         }
+
+        /* Consult the ladder early. Rung 1 (the last real lease) costs nothing to
+         * attempt and cannot collide with a stranger, so there is no value in
+         * making the operator wait out a retry budget first. DHCP is left running,
+         * so a genuine lease still overrides the fallback whenever it arrives. */
+        if (dhcp_retry_count >= DHCP_LADDER_AFTER_RETRY && try_ip_fallback_ladder(GLOBAL_STATE)) {
+            dhcp_retry_count = 0;
+            arm_dhcp_probe();
+            return;
+        }
+
         // ESP-IDF LwIP DHCP already retransmits internally per RFC2131 — do NOT bounce dhcpc here (would reset xid and break server).
         // Just wait; external IP_EVENT will handle success. Log hostname for diagnostics only.
         char *hn = nvs_config_get_string(NVS_CONFIG_HOSTNAME);
@@ -844,6 +904,9 @@ static void event_handler(void * arg, esp_event_base_t event_base, int32_t event
         net_state_transition(GLOBAL_STATE, NET_STATE_IP_ACQUIRED);
         s_retry_num = 0;
         dhcp_retry_count = 0;
+        /* A real lease supersedes any fallback: stop probing so we do not keep
+         * poking the DHCP client for an address we already hold legitimately. */
+        s_dhcp_probe_due_ms = 0;
 
         /* Remember this lease so a future DHCP outage has a safe address to fall
          * back onto. Only written when it actually changed: a DHCP server that

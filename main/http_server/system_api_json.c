@@ -241,6 +241,17 @@ static void system_api_add_config(cJSON *root, GlobalState *g) {
     cJSON_AddNumberToObject(root, "asicFastUart", nvs_config_get_bool(NVS_CONFIG_ASIC_FAST_UART) ? 1 : 0);
     cJSON_AddNumberToObject(root, "autotuneVoltage", nvs_config_get_bool(NVS_CONFIG_AUTOTUNE_VOLTAGE) ? 1 : 0);
 
+    // Why a mining.notify was refused. Split by cause because the responses are
+    // completely different: a protocol quirk we must tolerate, a transient
+    // allocation failure that heals itself, and a decoder bug we have to fix.
+    cJSON_AddNumberToObject(root, "notifyDroppedParse", g->notify_drop_reason[1]);
+    cJSON_AddNumberToObject(root, "notifyDroppedDecode", g->notify_drop_reason[2]);
+    cJSON_AddNumberToObject(root, "notifyDroppedNoMem", g->notify_drop_reason[3]);
+
+    // Power targeting: hold a watt budget instead of a frequency setpoint.
+    cJSON_AddNumberToObject(root, "powerTargetEnabled", nvs_config_get_bool(NVS_CONFIG_POWER_TARGET_ENABLED) ? 1 : 0);
+    cJSON_AddNumberToObject(root, "powerTargetMw", nvs_config_get_u16(NVS_CONFIG_POWER_TARGET_MW));
+
     // Operator-configured static IPv4 fallback. Off by default and empty unless
     // explicitly set, because binding an address that cannot be proven free is
     // what causes lease conflicts. Applied only after DHCP has genuinely failed.

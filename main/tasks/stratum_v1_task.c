@@ -111,6 +111,34 @@ void stratum_v1_close_connection(GlobalState *GLOBAL_STATE)
 }
 
 /**
+ * @brief Classify why a mining.notify was refused, so the causes can be counted.
+ *
+ * The distinction matters: ESP_ERR_INVALID_ARG means our decoder or the pool sent
+ * something structurally wrong (a protocol quirk we may have to tolerate),
+ * ESP_ERR_NO_MEM means we were simply out of memory (transient, self-healing),
+ * and anything else is a decoder bug worth chasing. Without this split, "18 of
+ * 206 notifies dropped" is a number nobody can act on.
+ */
+typedef enum {
+    NOTIFY_DROP_NONE = 0,
+    NOTIFY_DROP_PARSE,     /* refused by the field validator                  */
+    NOTIFY_DROP_DECODE,    /* field-valid but coinbase unusable (structural)  */
+    NOTIFY_DROP_NO_MEM,    /* transient allocation failure                     */
+    NOTIFY_DROP_COUNT
+} notify_drop_reason_t;
+
+static const char *notify_drop_reason_name(esp_err_t err)
+{
+    if (err == ESP_ERR_NO_MEM) {
+        return "no_mem";
+    }
+    if (err == ESP_ERR_INVALID_ARG) {
+        return "invalid_coinbase";
+    }
+    return "other";
+}
+
+/**
  * @brief Decode a mining notification for display/statistics purposes.
  *
  * @return true when the notification was fully understood. A `false` return
@@ -119,11 +147,17 @@ void stratum_v1_close_connection(GlobalState *GLOBAL_STATE)
  *         would hash does not match the pool's, so every share derived from it
  *         would be stale and every joule spent on it is wasted.
  */
-static bool decode_mining_notification(GlobalState * GLOBAL_STATE, const mining_notify *mining_notification)
+static bool decode_mining_notification(GlobalState * GLOBAL_STATE, const mining_notify *mining_notification, esp_err_t * out_err)
 {
+    if (out_err) {
+        *out_err = ESP_OK;
+    }
     mining_notification_result_t *result = heap_caps_malloc(sizeof(mining_notification_result_t), MALLOC_CAP_SPIRAM);
     if (!result) {
         ESP_LOGE(TAG, "Failed to allocate result in PSRAM");
+        if (out_err) {
+            *out_err = ESP_ERR_NO_MEM;
+        }
         return false;
     }
     memset(result, 0, sizeof(mining_notification_result_t));
@@ -132,14 +166,22 @@ static bool decode_mining_notification(GlobalState * GLOBAL_STATE, const mining_
     const char *user = GLOBAL_STATE->SYSTEM_MODULE.pools[pool_idx].user;
     bool decode_coinbase_tx = GLOBAL_STATE->SYSTEM_MODULE.pools[pool_idx].decode_coinbase_tx;
 
-    if (coinbase_process_notification(mining_notification,
+    esp_err_t derr = coinbase_process_notification(mining_notification,
                                      GLOBAL_STATE->extranonce_str,
                                      GLOBAL_STATE->extranonce_2_len,
                                      user,
                                      decode_coinbase_tx,
-                                     result) != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to process mining notification for job %s — dropping it instead of mining garbage",
-                 mining_notification->job_id ? mining_notification->job_id : "(null)");
+                                     result);
+    if (derr != ESP_OK) {
+        /* The specific error is the whole point: without it we cannot tell a pool
+         * protocol quirk from our own validator rejecting good work. Classified
+         * into a counter so the rate of each cause is visible over hours. */
+        ESP_LOGE(TAG, "Failed to process mining notification for job %s — err=%s (%s)",
+                 mining_notification->job_id ? mining_notification->job_id : "(null)",
+                 esp_err_to_name(derr), notify_drop_reason_name(derr));
+        if (out_err) {
+            *out_err = derr;
+        }
         free(result);
         return false;
     }
@@ -387,7 +429,9 @@ void stratum_v1_task(void *pvParameters)
                 // received/dropped invariant would not hold.
                 if (stratum_api_v1_message.method == MINING_NOTIFY) {
                     GLOBAL_STATE->notify_dropped++;
-                    ESP_LOGE(TAG, "Rejected malformed mining.notify (dropped=%u received=%u)",
+                    GLOBAL_STATE->notify_drop_reason[NOTIFY_DROP_PARSE]++;
+                    ESP_LOGE(TAG, "Rejected malformed mining.notify reason=%s (dropped=%u received=%u)",
+                             notify_drop_reason_name(ESP_ERR_INVALID_ARG),
                              (unsigned) GLOBAL_STATE->notify_dropped,
                              (unsigned) GLOBAL_STATE->notify_received);
                 } else {
@@ -417,30 +461,46 @@ void stratum_v1_task(void *pvParameters)
 
                         if (is_duplicate) {
                             ESP_LOGW(TAG, "Ignoring duplicate notify for job %s", notify ? notify->job_id : "unknown");
-                        } else if (!decode_mining_notification(GLOBAL_STATE, stratum_api_v1_message.mining_notification)) {
-                            // Never enqueue work we could not decode. Mining it would
-                            // burn the full job interval producing guaranteed-stale shares.
-                            GLOBAL_STATE->notify_dropped++;
-                            ESP_LOGW(TAG, "Dropping undecodable job %s (dropped=%u received=%u), keeping ASIC on current work",
-                                     notify && notify->job_id ? notify->job_id : "(null)",
-                                     (unsigned) GLOBAL_STATE->notify_dropped,
-                                     (unsigned) GLOBAL_STATE->notify_received);
-                            STRATUM_V1_free_mining_notify(stratum_api_v1_message.mining_notification);
-                            stratum_api_v1_message.mining_notification = NULL;
                         } else {
-                            GLOBAL_STATE->SYSTEM_MODULE.work_received++;
-                            GLOBAL_STATE->notify_received++;
-                            SYSTEM_notify_new_ntime(GLOBAL_STATE, stratum_api_v1_message.mining_notification->ntime);
-                            if (stratum_api_v1_message.mining_notification->clean_jobs &&
-                                (GLOBAL_STATE->stratum_queue.count > 0)) {
-                                SYSTEM_clean_jobs_queue(GLOBAL_STATE);
+                            esp_err_t derr = ESP_OK;
+                            if (!decode_mining_notification(GLOBAL_STATE, stratum_api_v1_message.mining_notification, &derr)) {
+                                /* Never enqueue work we could not decode — the coinbase we
+                                 * would hash is not the pool's, so every share from it is stale.
+                                 *
+                                 * But refusing the job is NOT free. The pool has already
+                                 * retired the job we are still hashing, and it issues a new
+                                 * job_id only every ~31 s. Staying on the old work therefore
+                                 * strands the ASIC for up to a full job cycle, not one job
+                                 * interval, and every share submitted in that window is
+                                 * rejected as stale. So the strand must be closed, not just
+                                 * avoided: force the next dequeued work to be programmed
+                                 * regardless of clean_jobs, which is what
+                                 * force_clean_pending asks create_jobs_task to do. */
+                                GLOBAL_STATE->notify_dropped++;
+                                GLOBAL_STATE->notify_drop_reason[derr == ESP_ERR_NO_MEM ? NOTIFY_DROP_NO_MEM : NOTIFY_DROP_DECODE]++;
+                                GLOBAL_STATE->force_clean_pending = true;
+                                ESP_LOGW(TAG, "Dropping undecodable job %s reason=%s (dropped=%u received=%u) — forcing clean switch",
+                                         notify && notify->job_id ? notify->job_id : "(null)",
+                                         notify_drop_reason_name(derr),
+                                         (unsigned) GLOBAL_STATE->notify_dropped,
+                                         (unsigned) GLOBAL_STATE->notify_received);
+                                STRATUM_V1_free_mining_notify(stratum_api_v1_message.mining_notification);
+                                stratum_api_v1_message.mining_notification = NULL;
+                            } else {
+                                GLOBAL_STATE->SYSTEM_MODULE.work_received++;
+                                GLOBAL_STATE->notify_received++;
+                                SYSTEM_notify_new_ntime(GLOBAL_STATE, stratum_api_v1_message.mining_notification->ntime);
+                                if (stratum_api_v1_message.mining_notification->clean_jobs &&
+                                    (GLOBAL_STATE->stratum_queue.count > 0)) {
+                                    SYSTEM_clean_jobs_queue(GLOBAL_STATE);
+                                }
+                                if (GLOBAL_STATE->stratum_queue.count == QUEUE_SIZE) {
+                                    mining_notify *next_notify_json_str = (mining_notify *) queue_dequeue(&GLOBAL_STATE->stratum_queue);
+                                    STRATUM_V1_free_mining_notify(next_notify_json_str);
+                                }
+                                queue_enqueue(&GLOBAL_STATE->stratum_queue, stratum_api_v1_message.mining_notification);
+                                stratum_api_v1_message.mining_notification = NULL;
                             }
-                            if (GLOBAL_STATE->stratum_queue.count == QUEUE_SIZE) {
-                                mining_notify *next_notify_json_str = (mining_notify *) queue_dequeue(&GLOBAL_STATE->stratum_queue);
-                                STRATUM_V1_free_mining_notify(next_notify_json_str);
-                            }
-                            queue_enqueue(&GLOBAL_STATE->stratum_queue, stratum_api_v1_message.mining_notification);
-                            stratum_api_v1_message.mining_notification = NULL;
                         }
                     }
                     break;

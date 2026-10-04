@@ -56,6 +56,21 @@ typedef struct {
     double shutdown_temp_c;  /* hard backstop, e.g. 75                       */
     double buffer_temp_c;     /* hysteresis band, e.g. 8                      */
 
+    /* Maximum temperature excursion permitted over the last `stability_window_s`
+     * before an upscale is allowed at all. Braiins' DPS requires "temperature
+     * did not fluctuate by more than 1 C in the last minute": still-transient
+     * readings are exactly when a controller overshoots, and a pure dwell time
+     * cannot distinguish "settled" from "happened to be quiet". 0 disables. */
+    double stability_window_c;
+    uint32_t stability_window_s;
+
+    /* Startup policy: for the first `startup_window_s` of ASIC operation the
+     * controller is allowed to hold the chip at `startup_derate_percent` of the
+     * ceiling if it is already hot, because the first minutes are a distinct
+     * thermal regime (Braiins uses 66 % for 5 min). 0 disables. */
+    uint32_t startup_window_s;
+    uint8_t startup_derate_percent;
+
     double vr_hot_temp_c;    /* TPS546 throttle, e.g. 100                    */
     double vr_shutdown_temp_c;
 
@@ -98,6 +113,10 @@ typedef struct {
     uint32_t last_change_s;
     bool ever_downscaled;        /* anti-hunting memory                     */
     float downscale_fan_percent; /* fan duty at the moment we derated        */
+    /* Rolling temperature extremes for the stability gate. */
+    double window_min_temp_c;
+    double window_max_temp_c;
+    uint32_t window_start_s;
     bool shutdown_requested;
 } atm_state_t;
 

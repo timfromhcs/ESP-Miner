@@ -508,6 +508,31 @@ components:
             hashrate with at most 0.1 % errors, reverting to the last proven-stable
             voltage otherwise. Never drops below the regulator floor. Disables itself
             when it reaches the floor or exhausts its attempt budget.
+        powerTargetEnabled:
+          type: integer
+          description: >-
+            Hold a power budget instead of a frequency setpoint (0=off, 1=on).
+            Anchoring on watts is what lets the firmware exploit the >10 % diurnal
+            swing in power draw at fixed settings, which a fan PID cannot observe.
+            Composes with the thermal policy, which keeps ownership of the safety
+            envelope; the two never fight because the thermal policy vetoes.
+        powerTargetMw:
+          type: integer
+          description: Power budget in milliwatts (5000-30000). Only used when powerTargetEnabled is 1.
+        notifyDroppedParse:
+          type: integer
+          description: >-
+            mining.notify frames refused by field validation (malformed hex,
+            implausible nBits, bad field types). A protocol quirk we may have to
+            tolerate rather than a firmware bug.
+        notifyDroppedDecode:
+          type: integer
+          description: >-
+            mining.notify frames that passed field validation but whose coinbase
+            could not be decoded. A genuine anomaly in what the pool sent.
+        notifyDroppedNoMem:
+          type: integer
+          description: mining.notify frames dropped because an allocation failed. Transient and self-healing.
         useStaticFallback:
           type: integer
           description: >-

@@ -432,6 +432,10 @@ void SYSTEM_clean_jobs_queue(GlobalState * GLOBAL_STATE)
 {
     ESP_LOGI(TAG, "Clean Jobs: clearing queue");
     queue_clear(&GLOBAL_STATE->stratum_queue);
+    /* The queue is empty, so there is no "next work item" left for the override
+     * to rescue. Leaving it set would make create_jobs_task program work on a
+     * later non-clean notify for no reason. */
+    GLOBAL_STATE->force_clean_pending = false;
 
     pthread_mutex_lock(&GLOBAL_STATE->valid_jobs_lock);
     for (int i = 0; i < MAX_ASIC_JOBS; i = i + 4) {

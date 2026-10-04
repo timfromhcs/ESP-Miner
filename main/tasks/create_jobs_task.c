@@ -88,6 +88,15 @@ void create_jobs_task(void *pvParameters)
         uint64_t start_time = esp_timer_get_time();
         void *new_work = queue_dequeue_timeout(&GLOBAL_STATE->stratum_queue, timeout_ms);
         timeout_ms -= (esp_timer_get_time() - start_time) / 1000;
+        /* Clamp at zero. The `!clean -> continue` path below does not reset the
+         * budget, so across a run of non-clean notifies the remainder keeps
+         * shrinking and can go negative. queue_dequeue_timeout() then builds an
+         * absolute timespec in the past, the wait returns ETIMEDOUT immediately,
+         * and the job interval stops being rate-limited altogether — several jobs
+         * pushed to the ASIC back to back, which is pure churn. */
+        if (timeout_ms < 0) {
+            timeout_ms = 0;
+        }
 
         if (new_work != NULL) {
             active_protocol = GLOBAL_STATE->stratum_protocol;
@@ -177,7 +186,22 @@ void create_jobs_task(void *pvParameters)
             }
 
             if (!clean) {
-                continue;
+                /* A notify was refused upstream, so the ASIC is still hashing a
+                 * job_id the pool has already retired. Deferring to clean_jobs
+                 * here would leave it stranded for up to a full job cycle (~31 s
+                 * on Zpool) and every share submitted meanwhile would be rejected
+                 * as stale. force_clean_pending overrides the flag exactly once,
+                 * for the next work item only. */
+                if (GLOBAL_STATE->force_clean_pending) {
+                    GLOBAL_STATE->force_clean_pending = false;
+                    ESP_LOGW(TAG, "force-clean override: programming work despite clean_jobs=false");
+                } else {
+                    /* Not clean and nothing pending: skip this cycle. The budget is
+                     * deliberately left as-is (and clamped at 0 above) rather than
+                     * restored, so a run of non-clean notifies cannot push jobs to
+                     * the ASIC back to back. */
+                    continue;
+                }
             }
         } else {
             if (current_work == NULL) {

@@ -216,8 +216,19 @@ typedef struct GlobalState
      * of wasted hashrate before P0 dropped them. */
     uint32_t notify_dropped;
     uint32_t notify_received;
+    /* Why notifies were refused: [0]=none [1]=field validation [2]=undecodable
+     * coinbase [3]=out of memory. Without this split "N dropped" is not
+     * actionable — a pool protocol quirk and our own decoder bug need opposite
+     * responses. Indexed by notify_drop_reason_t in stratum_v1_task.c. */
+    uint32_t notify_drop_reason[4];
     uint32_t share_rejected_stale;   /* pool error 21 "Invalid job id"/"Stale" */
     uint32_t share_rejected_other;
+
+    /* Set when a notify was refused, so the next dequeued work item must be
+     * programmed into the ASIC regardless of its clean_jobs flag. Without this
+     * the ASIC keeps hashing a job_id the pool retired, and every share in that
+     * window is rejected as stale. See docs/PLAN_V2_17_STALE_AND_LIMITS.md §1.2. */
+    bool force_clean_pending;
 
     /* Opt-in higher chip UART rate (BM1366: BT8D=1, 1 562 500 baud).
      * Off by default because the default rate is the proven configuration; the

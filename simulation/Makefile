@@ -18,9 +18,9 @@ test_dataflow_memory: virtual_board.c test_dataflow_memory.c
 test_notify_validate: $(STRATUM_DIR)/notify_validate.c test_notify_validate.c
 	$(CC) $(CFLAGS) -I$(STRATUM_DIR)/include -std=c11 -o $@ $^
 
-# Thermal (ATM) and voltage (V/F) policies are dependency-free decision logic,
-# so they are fully testable on the host as well.
-test_power_policy: $(MAIN_DIR)/thermal/atm_policy.c $(MAIN_DIR)/power/vf_tuner.c test_power_policy.c
+# Thermal (ATM), voltage (V/F) and power-target policies are dependency-free
+# decision logic, so they are fully testable on the host as well.
+test_power_policy: $(MAIN_DIR)/thermal/atm_policy.c $(MAIN_DIR)/power/vf_tuner.c $(MAIN_DIR)/power/power_target.c test_power_policy.c
 	$(CC) $(CFLAGS) -I$(MAIN_DIR)/thermal -I$(MAIN_DIR)/power -std=c11 -o $@ $^
 
 run: all

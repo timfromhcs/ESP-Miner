@@ -209,11 +209,18 @@ void BM1366_set_nonce_space(double nonce_percent, float frequency, uint16_t asic
 
 float BM1366_send_hash_frequency(float target_freq)
 {
-    uint8_t fb_divider, refdiv, postdiv1, postdiv2;
-    float new_freq;
-    
-    pll_get_parameters(target_freq, 144, 235, &fb_divider, &refdiv, &postdiv1, &postdiv2, &new_freq);
-    
+    uint8_t fb_divider = 0, refdiv = 0, postdiv1 = 0, postdiv2 = 0;
+    float new_freq = 0.0f;
+
+    esp_err_t perr = pll_get_parameters(target_freq, 144, 235, &fb_divider, &refdiv, &postdiv1, &postdiv2, &new_freq);
+    if (perr != ESP_OK) {
+        /* Refuse to write register 0x08 with the zeroed dividers. A nonsense or
+         * divide-by-zero clock configuration on the wire means the PLL never
+         * locks and the chip stops hashing until a reboot. */
+        ESP_LOGE(TAG, "Refusing to program frequency %g MHz: no valid PLL solution", target_freq);
+        return 0.0f;
+    }
+
     uint8_t vdo_scale = (fb_divider * FREQ_MULT / refdiv >= 2400) ? 0x50 : 0x40;
     uint8_t postdiv = (((postdiv1 - 1) & 0xf) << 4) | ((postdiv2 - 1) & 0xf);
     uint8_t freqbuf[6] = {0x00, 0x08, vdo_scale, fb_divider, refdiv, postdiv};
@@ -300,12 +307,32 @@ uint8_t BM1366_init(GlobalState * GLOBAL_STATE)
         _send_BM1366((TYPE_CMD | GROUP_SINGLE | CMD_WRITE), set_3c_register_third, 6, BM1366_SERIALTX_DEBUG);
     }
 
+    float requested = GLOBAL_STATE->POWER_MANAGEMENT_MODULE.frequency_value;
     do_frequency_transition(GLOBAL_STATE, BM1366_send_hash_frequency);
-
-    float frequency = GLOBAL_STATE->POWER_MANAGEMENT_MODULE.frequency_value;
+    /* do_frequency_transition() records the frequency the chip was actually
+     * programmed at in actual_frequency (0.0 if the PLL solve failed and the
+     * register write was refused), so nonce space can be sized from the real
+     * clock rather than the request. */
+    float applied = GLOBAL_STATE->POWER_MANAGEMENT_MODULE.actual_frequency;
     int cores = GLOBAL_STATE->DEVICE_CONFIG.family.asic.core_count;
 
-    BM1366_set_nonce_space(1.0, frequency, asic_count, cores);
+    /* Nonce space (HCN) sizes how much of its slice the chip burns before needing
+     * a new job, and it is derived from the frequency. It MUST be sized from the
+     * clock the chip actually runs at, not the one we asked for: a chip whose PLL
+     * never locked hashes at a completely different rate. Too large an HCN and
+     * late nonces all belong to a job the pool has already retired, which shows up
+     * as a flood of stratum error 21 "Invalid job id". See
+     * docs/PLAN_V2_17_STALE_AND_LIMITS.md §1.5 and upstream PR #1989. */
+    if (applied <= 0.0f) {
+        applied = requested;
+    }
+    if (fabsf(applied - requested) > 0.5f) {
+        ESP_LOGW(TAG, "nonce space: requested=%.2f MHz applied=%.2f MHz MISMATCH", requested, applied);
+    } else {
+        ESP_LOGI(TAG, "nonce space: requested=%.2f MHz applied=%.2f MHz", requested, applied);
+    }
+
+    BM1366_set_nonce_space(1.0, applied, asic_count, cores);
 
     unsigned char init795[11] = {0x55, 0xAA, 0x51, 0x09, 0x00, 0xA4, 0x90, 0x00, 0xFF, 0xFF, 0x1C};
     _send_simple(init795, 11);
