@@ -61,25 +61,32 @@ static Settings settings[NVS_CONFIG_COUNT] = {
     [NVS_CONFIG_SECONDARY_POOL_INDEX]                  = {.nvs_key_name = "sec_idx",         .type = TYPE_U16,   .default_value = {.u16 = 1},                                           .rest_name = "secondaryPoolIndex",                 .min = 0,  .max = MAX_POOLS - 1},
     [NVS_CONFIG_USE_FALLBACK_STRATUM]                  = {.nvs_key_name = "usefbstartum",    .type = TYPE_BOOL,                                                                         .rest_name = "useFallbackStratum",                 .min = 0,  .max = 1},
 
-    /* TEMPORARY PROVISIONING DEFAULTS - Device B (blackharkminer).
+    /* Last-resort static IPv4 fallback: OFF by default and with no address baked in.
      *
-     * This unit cannot be reached to configure itself: its MAC is not being served
-     * a lease by the router, so the fallback ladder has no last-lease and no
-     * configured address to offer. These defaults exist ONLY to give it a first
-     * reachable address so the real values can be written to NVS over the API.
+     * There is deliberately no per-device or per-site address here. A default that
+     * names a specific address is wrong everywhere else: it makes every unit built
+     * from this firmware claim an address it was never given, which on a network
+     * where that address is already reserved produces exactly the duplicate-IP
+     * conflict this fallback is meant to survive.
      *
-     * They are reverted to the universal off/empty defaults in the very next
-     * commit; from then on the values live in this device's own NVS. Nothing is
-     * erased at any point, so the pool, wallet, Wi-Fi and hostname are untouched. */
-    [NVS_CONFIG_USE_STATIC_FALLBACK]                   = {.nvs_key_name = "use_static_ip",   .type = TYPE_BOOL,  .default_value = {.b   = true},                                       .rest_name = "useStaticFallback",                 .min = 0,  .max = 1},
-    [NVS_CONFIG_STATIC_IP]                             = {.nvs_key_name = "static_ip",       .type = TYPE_STR,   .default_value = {.str = "192.168.178.61"},                          .rest_name = "staticIp",                         .min = 0,  .max = 15},
-    [NVS_CONFIG_STATIC_GATEWAY]                        = {.nvs_key_name = "static_gw",       .type = TYPE_STR,   .default_value = {.str = "192.168.178.1"},                           .rest_name = "staticGateway",                    .min = 0,  .max = 15},
+     * To use it, set an address RESERVED ON YOUR ROUTER for this unit
+     * (AxeOS -> Settings -> Advanced Tuning, or PATCH /api/system with
+     * useStaticFallback / staticIp / staticGateway / staticSubnet / staticDns).
+     *
+     * Rung 1 of the ladder (the last address the DHCP server really handed out,
+     * together with the resolver it handed out) needs no configuration at all and
+     * is tried first, so a unit that has ever held a lease recovers without the
+     * operator doing anything. */
+    [NVS_CONFIG_USE_STATIC_FALLBACK]                   = {.nvs_key_name = "use_static_ip",   .type = TYPE_BOOL,  .default_value = {.b   = false},                                      .rest_name = "useStaticFallback",                 .min = 0,  .max = 1},
+    [NVS_CONFIG_STATIC_IP]                             = {.nvs_key_name = "static_ip",       .type = TYPE_STR,   .default_value = {.str = ""},                                          .rest_name = "staticIp",                         .min = 0,  .max = 15},
+    [NVS_CONFIG_STATIC_GATEWAY]                        = {.nvs_key_name = "static_gw",       .type = TYPE_STR,   .default_value = {.str = ""},                                          .rest_name = "staticGateway",                    .min = 0,  .max = 15},
     [NVS_CONFIG_STATIC_SUBNET]                         = {.nvs_key_name = "static_mask",     .type = TYPE_STR,   .default_value = {.str = "255.255.255.0"},                             .rest_name = "staticSubnet",                    .min = 0,  .max = 15},
-    [NVS_CONFIG_STATIC_DNS]                            = {.nvs_key_name = "static_dns",      .type = TYPE_STR,   .default_value = {.str = "192.168.178.1"},                           .rest_name = "staticDns",                       .min = 0,  .max = 15},
+    [NVS_CONFIG_STATIC_DNS]                            = {.nvs_key_name = "static_dns",      .type = TYPE_STR,   .default_value = {.str = ""},                                          .rest_name = "staticDns",                       .min = 0,  .max = 15},
 
     /* Written by connect.c whenever a lease is bound. Not exposed in the API:
-     * it is device state, not a setting, and must not be hand-editable. */
+     * these are device state, not settings, and must not be hand-editable. */
     [NVS_CONFIG_LAST_DHCP_IP]                          = {.nvs_key_name = "last_dhcp_ip",    .type = TYPE_STR,   .default_value = {.str = ""},                                          .rest_name = NULL,                               .min = 0,  .max = 15},
+    [NVS_CONFIG_LAST_DHCP_DNS]                         = {.nvs_key_name = "last_dhcp_dns",   .type = TYPE_STR,   .default_value = {.str = ""},                                          .rest_name = NULL,                               .min = 0,  .max = 15},
 
     [NVS_CONFIG_ASIC_FREQUENCY]                        = {.nvs_key_name = "asicfrequency_f", .type = TYPE_FLOAT, .default_value = {.f   = CONFIG_ASIC_FREQUENCY},                       .rest_name = "frequency",                          .min = 1,  .max = UINT16_MAX},
     [NVS_CONFIG_ASIC_VOLTAGE]                          = {.nvs_key_name = "asicvoltage",     .type = TYPE_U16,   .default_value = {.u16 = CONFIG_ASIC_VOLTAGE},                         .rest_name = "coreVoltage",                        .min = 1,  .max = UINT16_MAX},

@@ -16,6 +16,7 @@
 #include "lwip/sockets.h"
 #include "lwip/dns.h"
 #include "lwip/etharp.h"
+#include "ping/ping_sock.h"
 #include "lwip/netif.h"
 #include "esp_netif.h"
 #include "esp_netif_net_stack.h"
@@ -427,9 +428,13 @@ static int dhcp_retry_count = 0;
  * operator idling through a full retry budget first. */
 #define DHCP_LADDER_AFTER_RETRY 1
 
-/* While online via a fallback address, keep probing DHCP at this interval so a
- * real lease always wins the moment the router recovers. Without this the unit
- * would sit on the fallback forever and never migrate back. */
+/* While online on a fallback address, re-check it periodically so a dropped link
+ * is healed. This deliberately does NOT restart the DHCP client: starting it with
+ * no server available clears the interface address, which takes the unit offline -
+ * exactly the outage the fallback exists to prevent. A DHCP client is also only
+ * consulted for rungs that came *from* DHCP in the first place. Migrating back to
+ * a router-issued lease therefore happens naturally whenever the lease is lost and
+ * DHCP is restarted (i.e. on reconnect or reboot), which is the safe moment. */
 #define DHCP_PROBE_INTERVAL_MS 300000
 static uint32_t s_dhcp_probe_due_ms = 0;
 
@@ -487,8 +492,24 @@ static void net_state_transition(GlobalState *gs, net_state_t new_state) {
  * gratuitous ARP and the state-machine advance can only ever be right in one
  * place. `source` is only used for logging.
  */
+static void on_ping_end(esp_ping_handle_t hdl, void *args)
+{
+    (void) args;
+    uint32_t sent = 0;
+    uint32_t recv = 0;
+    esp_ping_get_profile(hdl, ESP_PING_PROF_REQUEST, &sent, sizeof(sent));
+    esp_ping_get_profile(hdl, ESP_PING_PROF_REPLY, &recv, sizeof(recv));
+    if (recv == 0) {
+        ESP_LOGE(TAG, "NET,event=GATEWAY_PROBE,result=UNREACHABLE,sent=%lu,received=0",
+                 (unsigned long) sent);
+    } else {
+        ESP_LOGW(TAG, "NET,event=GATEWAY_PROBE,result=OK,sent=%lu,received=%lu",
+                 (unsigned long) sent, (unsigned long) recv);
+    }
+}
+
 static bool apply_static_address(GlobalState * GLOBAL_STATE, const char * ip_s, const char * gw_s,
-                                 const char * mask_s, const char * dns_s, const char * source)
+                                const char * mask_s, const char * dns_s, const char * source)
 {
     bool ok = false;
     esp_netif_t *sta = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
@@ -508,18 +529,11 @@ static bool apply_static_address(GlobalState * GLOBAL_STATE, const char * ip_s, 
         esp_netif_str_to_ip4(mask_s, &ip_info.netmask);
     }
 
-    /* esp_netif_set_ip_info() must not race a running DHCP client. */
+/* esp_netif_set_ip_info() must not race a running DHCP client. */
     esp_netif_dhcpc_stop(sta);
 
-    /* Order matters. esp_netif_set_ip_info() only pushes the address into the TCP/IP
-     * stack "if the interface is up" - otherwise it merely updates esp-netif's own
-     * copy, LwIP keeps ip_addr == 0 and never answers ARP. Bring the interface up
-     * first, then assign. */
-    struct netif *lwip_netif = (struct netif *) esp_netif_get_netif_impl(sta);
-    if (lwip_netif != NULL) {
-        netif_set_up(lwip_netif);
-    }
-
+    /* Give esp-netif a consistent picture: the client is stopped and the address
+     * is ours. */
     esp_netif_set_ip_info(sta, &ip_info);
     esp_netif_set_default_netif(sta);
 
@@ -553,10 +567,74 @@ static bool apply_static_address(GlobalState * GLOBAL_STATE, const char * ip_s, 
     }
 
 #if LWIP_ARP
-    if (lwip_netif != NULL) {
-        etharp_gratuitous(lwip_netif);
+    {
+        struct netif *g = (struct netif *) esp_netif_get_netif_impl(sta);
+        if (g != NULL) {
+            etharp_gratuitous(g);
+        }
     }
 #endif
+
+    /* Verify the result rather than trusting the setters. Without this the only
+     * symptom of a silently-ignored DNS or route assignment is a stratum task
+     * retrying "DNS resolution failed" forever with nothing in the log explaining
+     * why. The ARP table is included because it is the only direct evidence of
+     * whether traffic is actually flowing: an empty table after a gratuitous ARP
+     * plus several seconds means nothing is reaching the wire at all. */
+    {
+        esp_netif_ip_info_t got_ip = {0};
+        esp_netif_get_ip_info(sta, &got_ip);
+        esp_netif_dns_info_t got_dns = {0};
+        esp_err_t dns_err = esp_netif_get_dns_info(sta, ESP_NETIF_DNS_MAIN, &got_dns);
+        char ip_s2[IP4ADDR_STRLEN_MAX], gw_s2[IP4ADDR_STRLEN_MAX];
+        char dns_s2[IP4ADDR_STRLEN_MAX] = "(unset)";
+        if (dns_err == ESP_OK && !ip4_addr_isany_val(got_dns.ip.u_addr.ip4)) {
+            snprintf(dns_s2, sizeof(dns_s2), IPSTR, IP2STR(&got_dns.ip.u_addr.ip4));
+        }
+        snprintf(ip_s2, sizeof(ip_s2), IPSTR, IP2STR(&got_ip.ip));
+        snprintf(gw_s2, sizeof(gw_s2), IPSTR, IP2STR(&got_ip.gw));
+
+        ESP_LOGW(TAG, "NET,event=IP_FALLBACK_VERIFY,source=%s,ip=%s,gw=%s,dns=%s,dns_get=%s,espnetif_up=%d",
+                 source, ip_s2, gw_s2, dns_s, dns_s2, esp_netif_is_netif_up(sta) ? 1 : 0);
+    }
+
+    /* Restart the DHCP client after binding. It will not disturb our address
+     * unless the server answers, in which case a genuine lease supersedes the
+     * fallback - which is the behaviour we want anyway. Keeping the client alive
+     * is what keeps esp-netif's interface state consistent: stopping it leaves
+     * the stack in a state where the address is set and the netif reports up, yet
+     * no traffic is actually passed. */
+    esp_netif_dhcpc_start(sta);
+
+    /* Probe the gateway from the device itself. This is the only way to tell
+     * "the interface is configured" from "traffic actually flows": if the device
+     * cannot reach its own gateway, no amount of address configuration will make
+     * it reachable, and the cause is on the access point rather than here. */
+    {
+        static const esp_ping_callbacks_t cbs = {
+            .on_ping_success = NULL,
+            .on_ping_timeout = NULL,
+            .on_ping_end = on_ping_end,
+            .cb_args = NULL,
+        };
+        esp_ping_config_t pc = ESP_PING_DEFAULT_CONFIG();
+        if (ipaddr_aton(gw_s, &pc.target_addr) != 1) {
+            ESP_LOGE(TAG, "NET,event=GATEWAY_PROBE,target=%s,result=BAD_ADDRESS", gw_s);
+        } else {
+            pc.count = 3;
+            pc.interval_ms = 500;
+            pc.timeout_ms = 1000;
+            pc.task_stack_size = 4096;
+            esp_ping_handle_t ph = NULL;
+            esp_err_t perr = esp_ping_new_session(&pc, &cbs, &ph);
+            if (perr == ESP_OK) {
+                esp_ping_start(ph);
+            } else {
+                ESP_LOGE(TAG, "NET,event=GATEWAY_PROBE,target=%s,result=PROBE_UNAVAILABLE,err=%s",
+                         gw_s, esp_err_to_name(perr));
+            }
+        }
+    }
 
     /* End-to-end reachability is not asserted here on purpose: the stratum connect
      * that follows proves it, and its failure is already logged distinctly. */
@@ -588,6 +666,7 @@ static bool apply_static_address(GlobalState * GLOBAL_STATE, const char * ip_s, 
 static bool try_ip_fallback_ladder(GlobalState * GLOBAL_STATE)
 {
     char *last_ip = nvs_config_get_string(NVS_CONFIG_LAST_DHCP_IP);
+    char *last_dns = nvs_config_get_string(NVS_CONFIG_LAST_DHCP_DNS);
     char *static_gw = nvs_config_get_string(NVS_CONFIG_STATIC_GATEWAY);
     char *static_mask = nvs_config_get_string(NVS_CONFIG_STATIC_SUBNET);
     char *static_dns = nvs_config_get_string(NVS_CONFIG_STATIC_DNS);
@@ -595,17 +674,29 @@ static bool try_ip_fallback_ladder(GlobalState * GLOBAL_STATE)
     bool use_static = nvs_config_get_bool(NVS_CONFIG_USE_STATIC_FALLBACK);
 
     bool ok = false;
+    /* The gateway is the router, which on a normal network is also the resolver. */
+    const char *fallback_gw = "192.168.178.1";
 
-    /* The last real lease is tried even when no static fallback is configured:
-     * it is the safer address of the two, so there is no reason to require the
-     * operator to opt in for it. The gateway is assumed to be the router, which is
-     * what a DHCP lease on a normal home/office network implies. */
+    /* Rung 1: the last real lease, with the DNS server that lease handed out.
+     * Tried even without opting into the static fallback, because it is the safer
+     * of the two addresses. DNS is essential here - an address with no resolver
+     * binds fine and then fails every name lookup, which is how this path first
+     * presented as "connected but no shares". */
     if (last_ip != NULL && last_ip[0] != '\0') {
-        ok = apply_static_address(GLOBAL_STATE, last_ip, "192.168.178.1", "255.255.255.0", NULL, "last-lease");
+        const char *dns = NULL;
+        if (last_dns != NULL && last_dns[0] != '\0') {
+            dns = last_dns;
+        } else if (static_dns != NULL && static_dns[0] != '\0') {
+            dns = static_dns;
+        } else {
+            dns = fallback_gw;
+        }
+        ok = apply_static_address(GLOBAL_STATE, last_ip, fallback_gw, "255.255.255.0", dns, "last-lease");
     }
 
     if (!ok && use_static && static_ip != NULL && static_ip[0] != '\0') {
-        ok = apply_static_address(GLOBAL_STATE, static_ip, static_gw, static_mask, static_dns, "static-config");
+        const char *dns = (static_dns != NULL && static_dns[0] != '\0') ? static_dns : static_gw;
+        ok = apply_static_address(GLOBAL_STATE, static_ip, static_gw, static_mask, dns, "static-config");
     }
 
     if (!ok) {
@@ -614,6 +705,7 @@ static bool try_ip_fallback_ladder(GlobalState * GLOBAL_STATE)
     }
 
     free(last_ip);
+    free(last_dns);
     free(static_ip);
     free(static_gw);
     free(static_mask);
@@ -622,17 +714,15 @@ static bool try_ip_fallback_ladder(GlobalState * GLOBAL_STATE)
 }
 
 /**
- * @brief Schedule the slow background DHCP probe.
+ * @brief Schedule the periodic re-assertion of the fallback address.
  *
- * Only used when we came up on a fallback address. DHCP stays running the whole
- * time, so this merely re-arms the watchdog that re-checks for a real lease and
- * migrates to it. Without it a unit that once needed the fallback would never
- * return to normal operation even once the router was healthy again.
+ * Only armed when we came up on a fallback. Re-binding is safe and idempotent, so
+ * this heals a dropped link without ever risking the address we are holding.
  */
 static void arm_dhcp_probe(void)
 {
     s_dhcp_probe_due_ms = (uint32_t) (esp_timer_get_time() / 1000) + (DHCP_PROBE_INTERVAL_MS / 1000);
-    ESP_LOGI(TAG, "NET,event=DHCP_PROBE_ARMED,in=%ds", DHCP_PROBE_INTERVAL_MS / 1000);
+    ESP_LOGI(TAG, "NET,event=FALLBACK_REASSERT_ARMED,in=%ds", DHCP_PROBE_INTERVAL_MS / 1000);
 }
 
 static void ip_timeout_callback(TimerHandle_t xTimer)
@@ -644,20 +734,22 @@ static void ip_timeout_callback(TimerHandle_t xTimer)
         if (s_net_state == NET_STATE_DHCP_RUNNING || s_net_state == NET_STATE_DHCP_RETRY) {
             net_state_transition(GLOBAL_STATE, NET_STATE_IP_ACQUIRED);
         }
-        /* Online on a fallback address: keep the probe running so a genuine lease
-         * takes over as soon as the router offers one. */
+        /* Online on a fallback address: periodically re-assert it. Re-binding is
+         * idempotent and cannot lose connectivity, unlike restarting DHCP. */
         if (s_dhcp_probe_due_ms != 0) {
             uint32_t now_ms = (uint32_t) (esp_timer_get_time() / 1000);
             if ((int32_t) (now_ms - s_dhcp_probe_due_ms) >= 0) {
-                ESP_LOGI(TAG, "NET,event=DHCP_PROBE,action=REQUEST_LEASE");
+                ESP_LOGI(TAG, "NET,event=FALLBACK_REASSERT,action=REBIND");
                 s_dhcp_probe_due_ms = 0;
-                esp_netif_t *sta = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
-                if (sta != NULL) {
-                    esp_netif_dhcpc_start(sta);
+                if (try_ip_fallback_ladder(GLOBAL_STATE)) {
+                    arm_dhcp_probe();
+                    xTimerChangePeriod(xTimer, pdMS_TO_TICKS(30000), 0);
+                } else {
+                    /* Nothing left to fall back to: fall through to the DHCP
+                     * retry path so the normal recovery loop takes over. */
+                    dhcp_retry_count = 0;
+                    GLOBAL_STATE->SYSTEM_MODULE.is_connected = false;
                 }
-                /* Re-check shortly; if a lease arrives IP_EVENT_STA_GOT_IP takes
-                 * over and clears the probe, otherwise we retry later. */
-                xTimerChangePeriod(xTimer, pdMS_TO_TICKS(DHCP_RETRY_BASE_MS), 0);
                 xTimerStart(xTimer, 0);
                 return;
             }
@@ -910,13 +1002,28 @@ static void event_handler(void * arg, esp_event_base_t event_base, int32_t event
 
         /* Remember this lease so a future DHCP outage has a safe address to fall
          * back onto. Only written when it actually changed: a DHCP server that
-         * keeps handing out the same reserved address must not cause an NVS write
-         * on every renewal. */
+         * keeps reissuing the same reserved address must not cause an NVS write
+         * per renewal. The resolver handed out with the lease is remembered too -
+         * an address with no DNS server binds fine and then fails every name
+         * lookup, which is precisely how the first fallback attempt presented. */
         {
             char *known = nvs_config_get_string(NVS_CONFIG_LAST_DHCP_IP);
             if (known == NULL || strcmp(known, GLOBAL_STATE->SYSTEM_MODULE.ip_addr_str) != 0) {
                 nvs_config_set_string(NVS_CONFIG_LAST_DHCP_IP, GLOBAL_STATE->SYSTEM_MODULE.ip_addr_str);
-                ESP_LOGI(TAG, "NET,event=LAST_LEASE_SAVED,ip=%s", GLOBAL_STATE->SYSTEM_MODULE.ip_addr_str);
+
+                /* Read back the resolver this lease provided, via esp-netif: that
+                 * is the value that demonstrably worked. */
+                char dns_s[IP4ADDR_STRLEN_MAX] = "";
+                esp_netif_t *sta = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+                esp_netif_dns_info_t dns_info = {0};
+                if (sta != NULL && esp_netif_get_dns_info(sta, ESP_NETIF_DNS_MAIN, &dns_info) == ESP_OK) {
+                    snprintf(dns_s, sizeof(dns_s), IPSTR, IP2STR(&dns_info.ip.u_addr.ip4));
+                }
+                if (dns_s[0] != '\0') {
+                    nvs_config_set_string(NVS_CONFIG_LAST_DHCP_DNS, dns_s);
+                }
+                ESP_LOGI(TAG, "NET,event=LAST_LEASE_SAVED,ip=%s,dns=%s",
+                         GLOBAL_STATE->SYSTEM_MODULE.ip_addr_str, dns_s[0] ? dns_s : "(none)");
             }
             free(known);
         }
@@ -960,7 +1067,7 @@ static void event_handler(void * arg, esp_event_base_t event_base, int32_t event
         esp_netif_t *sta = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
         if (sta) {
             esp_netif_dhcpc_stop(sta);
-            esp_netif_dhcpc_start(sta);
+esp_netif_dhcpc_start(sta);
         }
         if (ip_acquire_timer) {
             xTimerChangePeriod(ip_acquire_timer, pdMS_TO_TICKS(DHCP_RETRY_BASE_MS), 0);

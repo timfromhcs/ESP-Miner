@@ -440,3 +440,48 @@ still >5 %, the stranding theory is wrong and items 2/7 are the wrong lever.
 - RLS general predictive control on a low-cost MCU: https://www.sciencedirect.com/science/article/abs/pii/S0967066120302446
 - Proactive fan DVFS via thermal history (MPSoC): https://re.public.polimi.it/retrieve/handle/11311/1129453/489459/
 - MPC vs model-free trade-off for thermal control: https://cris.unibo.it/retrieve/handle/11585/868929/
+## 11. Device B (`blackharkminer`, `.61`) - unresolved, and it is not firmware
+
+Unit: MAC `74:4D:BD:77:99:80`, IP `192.168.178.61`, host `blackharkminer`.
+State: running the local v2.17 build, NVS intact (19/19 settings, own wallet, own
+pools). It is **not** mining and cannot be reached over the network.
+
+What was measured, in order:
+
+| Observation | Meaning |
+|---|---|
+| Associates to the SSID, gets an IP by static bind | RF link and driver are fine |
+| `esp_netif_dhcpc_start()` returns `ESP_OK`, no lease ever arrives | The router never serves this MAC |
+| `IP_FALLBACK_VERIFY ... dns_get=192.168.178.1,espnetif_up=1` | Fallback bound address, gateway and resolver all read back correctly |
+| `GATEWAY_PROBE,result=UNREACHABLE,sent=0,received=0` | **The device put zero packets on the air toward its own gateway** |
+| No ARP entry for `.61` on the gateway, ever | Consistent with the above |
+| Device A (`.66`) on the same AP, SSID and band, simultaneously | Not a network-wide fault |
+| No duplicate `.61` visible anywhere in the LAN | Not a plain address collision |
+
+`sent=0` is the load-bearing measurement. A device that transmits and gets no
+reply is a filtering problem; a device that transmits *nothing* never reached the
+point of sending, so no amount of address configuration, route setup, DNS fixing
+or retry tuning can change the outcome. Together with a DHCP server that refuses
+to serve the MAC, this points at access-point / router-side state for this
+station - a stale entry in the FRITZ!Box client table, a blocked client entry, or
+the unit being stuck on one mesh/AP node.
+
+Firmware work that *was* completed as a result and is worth keeping regardless:
+
+- The last-lease fallback now restores the **resolver** as well as the address.
+  Previously it restored only IP/gateway/netmask, so DNS stayed unset and every
+  stratum connect failed with `getaddrinfo() returns 202` even though the address
+  was live. That was a genuine firmware bug and it is fixed.
+- The fallback ladder no longer stops the DHCP client to rebind the address.
+  `esp_netif_dhcpc_stop()` leaves the stack reporting "up" with an address bound
+  but no traffic actually flowing, which is precisely the confusing state this
+  whole exercise was trying to escape. The client is left running so a real lease
+  supersedes the fallback when a server does answer.
+- `GATEWAY_PROBE` is kept as a permanent, cheap (3 ICMP packets, ~1.5 s at boot)
+  diagnostic that separates "the interface is configured" from "traffic actually
+  flows". Without it this fault is indistinguishable from a firmware bug.
+
+What is **not** claimed: that v2.17 fixed Device B. It did not, and the evidence
+says it could not. Recommended operator action is on the router - power-cycle the
+FRITZ!Box or delete the stale client entry for `74:4D:BD:77:99:80`, then confirm
+the unit receives a lease.

@@ -13,6 +13,7 @@ REQUIRES
     "stratum"
     "stratum_v2"
     "espressif__mdns"
+    "lwip"
 )
 
 target_include_directories(${COMPONENT_LIB} PRIVATE
