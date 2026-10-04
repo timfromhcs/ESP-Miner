@@ -13,7 +13,7 @@
 To prevent heap fragmentation and preserve DMA capability:
 1. **DMA & Latency-Critical Buffers (Internal SRAM):**
    - Wi-Fi TX/RX frame buffers (`WIFI_TX_BUF`, `WIFI_RX_BUF`).
-   - UART TX/RX ring buffers for BM1366 communications (1,000,000 baud).
+   - UART TX/RX ring buffers for BM1366 communications (1,041,666 baud).
    - FreeRTOS task stacks for time-critical tasks (`create_jobs_task`, `asic_result_task`, `stratum_v1_task`).
    - Reserving a dedicated pool of 32 KiB internal memory strictly for DMA/internal allocations (`esp_psram_reserve_dma_pool`).
 2. **High-Capacity & Transient Allocations (Octal PSRAM):**

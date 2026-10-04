@@ -500,42 +500,37 @@ static void ip_timeout_callback(TimerHandle_t xTimer)
         snprintf(GLOBAL_STATE->SYSTEM_MODULE.wifi_status, sizeof(GLOBAL_STATE->SYSTEM_MODULE.wifi_status), "DHCP retry %d/%d", dhcp_retry_count, DHCP_RETRY_MAX);
         return;
     }
-    // Exhausted DHCP retries — enter DHCP_FAILED. No fake NETWORK_READY.
-    // For this deployment the reserved IP 192.168.178.66 is a legitimate USER_CONFIGURED_STATIC
-    // fallback (not a fake DHCP success). Verify connectivity before declaring READY.
-    ESP_LOGE(TAG, "NET,event=DHCP_FAILED,retries=%d,state=%s", DHCP_RETRY_MAX, net_state_to_str(s_net_state));
+// Exhausted DHCP retries — enter DHCP_FAILED. No fake NETWORK_READY.
+    // There is deliberately NO static-IP fallback: a hardcoded address cannot be
+    // verified as free, so binding it would reintroduce exactly the IP conflicts
+    // this state machine exists to avoid (see docs/NETWORKING.md). Instead we keep
+    // retrying until the DHCP server hands out a real, conflict-checked lease
+    // (CONFIG_LWIP_DHCP_DOES_ARP_CHECK).
+    ESP_LOGE(TAG, "NET,event=DHCP_FAILED,retries=%d,state=%s — no static fallback, loop until DHCP succeeds", DHCP_RETRY_MAX, net_state_to_str(s_net_state));
     net_state_transition(GLOBAL_STATE, NET_STATE_DHCP_FAILED);
     dhcp_retry_count = 0;
-    snprintf(GLOBAL_STATE->SYSTEM_MODULE.wifi_status, sizeof(GLOBAL_STATE->SYSTEM_MODULE.wifi_status), "DHCP failed (%d retries)", DHCP_RETRY_MAX);
-    ESP_LOGW(TAG, "NET,event=STATIC_FALLBACK,ip=192.168.178.66,gw=192.168.178.1 — explicit reserved lease for mining");
-    esp_netif_t *sta = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
-    if (sta) {
-        esp_netif_dhcpc_stop(sta);
-        esp_netif_ip_info_t ip_info = {0};
-        esp_netif_str_to_ip4("192.168.178.66", &ip_info.ip);
-        esp_netif_str_to_ip4("192.168.178.1", &ip_info.gw);
-        esp_netif_str_to_ip4("255.255.255.0", &ip_info.netmask);
-        esp_netif_set_ip_info(sta, &ip_info);
-        esp_netif_set_default_netif(sta);
-        esp_netif_dns_info_t dns_main = {0}; dns_main.ip.type = ESP_IPADDR_TYPE_V4; esp_netif_str_to_ip4("192.168.178.1", &dns_main.ip.u_addr.ip4);
-        esp_netif_set_dns_info(NULL, ESP_NETIF_DNS_MAIN, &dns_main); esp_netif_set_dns_info(sta, ESP_NETIF_DNS_MAIN, &dns_main);
-        esp_netif_dns_info_t dns_back = {0}; dns_back.ip.type = ESP_IPADDR_TYPE_V4; esp_netif_str_to_ip4("1.1.1.1", &dns_back.ip.u_addr.ip4);
-        esp_netif_set_dns_info(NULL, ESP_NETIF_DNS_BACKUP, &dns_back); esp_netif_set_dns_info(sta, ESP_NETIF_DNS_BACKUP, &dns_back);
-        ip_addr_t gw_dns={}, cf={}; ipaddr_aton("192.168.178.1",&gw_dns); ipaddr_aton("1.1.1.1",&cf); dns_setserver(0,&gw_dns); dns_setserver(1,&cf);
-#if LWIP_ARP
-        struct netif *lwip = (struct netif*)esp_netif_get_netif_impl(sta);
-        if (lwip) etharp_gratuitous(lwip);
-#endif
-        snprintf(GLOBAL_STATE->SYSTEM_MODULE.ip_addr_str, IP4ADDR_STRLEN_MAX, "192.168.178.66");
-        net_state_transition(GLOBAL_STATE, NET_STATE_IP_ACQUIRED);
-        ESP_LOGI(TAG, "NET,event=STATIC_IP_ASSIGNED,ip=192.168.178.66,verifying DNS...");
-        spawn_mdns_init_if_needed(GLOBAL_STATE);
-        GLOBAL_STATE->SYSTEM_MODULE.is_connected = true;
-        strcpy(GLOBAL_STATE->SYSTEM_MODULE.wifi_status, "Connected (Static Fallback)");
-        net_state_transition(GLOBAL_STATE, NET_STATE_DNS_READY);
-    } else {
-        strcpy(GLOBAL_STATE->SYSTEM_MODULE.wifi_status, "DHCP failed — no netif");
+    snprintf(GLOBAL_STATE->SYSTEM_MODULE.wifi_status, sizeof(GLOBAL_STATE->SYSTEM_MODULE.wifi_status), "DHCP failed (%d retries) — retrying", DHCP_RETRY_MAX);
+    // Kein Fake-IP — nur sauberer Recovery-Loop bis echter Lease
+    static int dhcp_fail_cycles = 0;
+    dhcp_fail_cycles++;
+    ESP_LOGW(TAG, "NET,event=DHCP_RECOVERY,cycle=%d,action=RESTART_DHCP", dhcp_fail_cycles);
+    net_state_transition(GLOBAL_STATE, NET_STATE_DHCP_RECOVERY);
+    s_stratum_generation++;
+    GLOBAL_STATE->SYSTEM_MODULE.is_connected = false;
+    memset(GLOBAL_STATE->SYSTEM_MODULE.ip_addr_str, 0, sizeof(GLOBAL_STATE->SYSTEM_MODULE.ip_addr_str));
+    esp_log_level_set("dhcp", ESP_LOG_INFO);
+    // Kein manueller DHCP-Restart — LwIP retransmittet selbst per RFC2131. Nur loggen und auf IP_EVENT warten.
+    // FRITZ!Box braucht kein Stop/Start, sonst xid-Reset und Lease-Konflikt.
+    if (dhcp_fail_cycles >= DHCP_RECOVERY_WIFI_RECONNECT_AFTER) {
+        dhcp_fail_cycles = 0;
+        ESP_LOGW(TAG, "NET,event=WIFI_RECOVERY,reason=DHCP_PERSISTENT");
+        net_state_transition(GLOBAL_STATE, NET_STATE_WIFI_RECOVERY);
         esp_wifi_disconnect();
+    } else {
+        int backoff = 5000 + (esp_random() % 2000);
+        xTimerChangePeriod(xTimer, pdMS_TO_TICKS(backoff), 0);
+        xTimerStart(xTimer, 0);
+        snprintf(GLOBAL_STATE->SYSTEM_MODULE.wifi_status, sizeof(GLOBAL_STATE->SYSTEM_MODULE.wifi_status), "DHCP failed, retry %d/%d", dhcp_fail_cycles, DHCP_RECOVERY_WIFI_RECONNECT_AFTER);
     }
 }
 
@@ -575,12 +570,24 @@ static void event_handler(void * arg, esp_event_base_t event_base, int32_t event
 
             esp_netif_t *sta_netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
             if (sta_netif != NULL) {
+                // Do NOT clear the IP here. esp_netif_set_ip_info() requires the DHCP
+                // client to be stopped first, and wiping a still-valid lease forces a
+                // full renegotiation on every re-association (roaming, AP reboot),
+                // which drops the stratum socket and the web UI for no benefit.
+                // esp_netif_dhcpc_start() is idempotent: if the client is already
+                // running it returns ESP_ERR_INVALID_STATE and we simply wait for
+                // IP_EVENT_STA_GOT_IP. Bouncing stop->start here would reset the
+                // DHCP xid and is exactly what makes some routers hand out a
+                // conflicting lease.
                 esp_netif_dhcp_status_t dhcp_status;
                 if (esp_netif_dhcpc_get_status(sta_netif, &dhcp_status) == ESP_OK) {
-                    if (dhcp_status == ESP_NETIF_DHCP_INIT || dhcp_status == ESP_NETIF_DHCP_STOPPED) {
+                    ESP_LOGD(TAG, "NET,event=DHCP_STATUS,status=%d", (int)dhcp_status);
+                    if (dhcp_status == ESP_NETIF_DHCP_STOPPED) {
                         esp_netif_dhcpc_start(sta_netif);
                     }
                 }
+                // Diagnostics only, and only while we are waiting for a lease.
+                esp_log_level_set("dhcp", ESP_LOG_DEBUG);
             }
 
             if (ip_acquire_timer == NULL) {
@@ -678,6 +685,10 @@ static void event_handler(void * arg, esp_event_base_t event_base, int32_t event
         }
 
         GLOBAL_STATE->SYSTEM_MODULE.is_connected = true;
+
+        // Lease acquired — stop the verbose DHCP tracing again so the log ring
+        // buffer is not permanently consumed by RFC2131 chatter.
+        esp_log_level_set("dhcp", ESP_LOG_INFO);
 
         ESP_LOGI(TAG, "Connected to SSID: %s", GLOBAL_STATE->SYSTEM_MODULE.ssid);
         strcpy(GLOBAL_STATE->SYSTEM_MODULE.wifi_status, "Connected!");
@@ -938,6 +949,10 @@ void wifi_init(GlobalState * GLOBAL_STATE)
     net_state_transition(GLOBAL_STATE, NET_STATE_WIFI_INIT);
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
+    // The DHCP client log level stays at its default here. It is raised to DEBUG
+    // only while we are waiting for a lease (WIFI_EVENT_STA_CONNECTED) and
+    // restored in the IP_EVENT_STA_GOT_IP handler, so the 512 KB log ring buffer
+    // is not permanently flooded with RFC2131 chatter.
 
     esp_event_handler_instance_t instance_any_id;
     esp_event_handler_instance_t instance_got_ip;
@@ -949,6 +964,11 @@ void wifi_init(GlobalState * GLOBAL_STATE)
     /* Initialize Wi-Fi */
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+    // NOTE: the STA MAC is the efuse factory MAC and must NOT be overridden.
+    // The router-side DHCP reservation for this device is keyed on that MAC,
+    // so replacing it would hand out a different lease and lose the reserved
+    // address. Lease conflicts are handled by the DHCP client itself via
+    // CONFIG_LWIP_DHCP_DOES_ARP_CHECK (see docs/NETWORKING.md).
 
     GLOBAL_STATE->SYSTEM_MODULE.ssid = nvs_config_get_string(NVS_CONFIG_WIFI_SSID);
 

@@ -21,7 +21,7 @@ The Bitmain BM1366 is an SHA-256 custom ASIC utilizing TSMC FinFET process:
 
 ### Host-to-ASIC Transport
 - **Physical Interface:** ESP32-S3 UART hardware controller (TX GPIO 43, RX GPIO 44).
-- **Baud Rate:** Auto-negotiated to **1,000,000 baud** following chip detection and PLL ramp-up.
+- **Baud Rate:** Auto-negotiated to **1,041,666 baud** (exact `25000000 / 24`; the previous 1,000,000 was a 4.17 % mismatch against the chip clock) following chip detection and PLL ramp-up.
 - **Packet Structure (Host TX):**
   - BMXX Header (2 bytes: `0xAA 0x55`)
   - Command Type / Job Payload (76 bytes: Midstate 32B, Merkle Root remainder 12B, nTime 4B, nBits 4B, Version 4B)
@@ -49,7 +49,7 @@ The ESP-Miner firmware implements incremental PLL clock ramping:
 2. **Core Voltage:** Maxim DS4432U+ 7-bit I2C DAC programs TPS40305 feedback voltage to 1.200 V.
 3. **Step Ramping:** Frequency ascends in 6.25 MHz increments every 100 ms:
    `50.00 MHz -> 56.25 -> 62.50 -> ... -> 475.00 -> 481.25 -> 485.00 MHz`
-4. **Baud Switch:** Upon reaching target clock, UART baud switches from 115,200 to 1,000,000 baud.
+4. **Baud Switch:** Upon reaching target clock, UART baud switches from 115,200 to 1,041,666 baud.
 
 ---
 

@@ -125,6 +125,11 @@ void create_jobs_task(void *pvParameters)
             if (GLOBAL_STATE->new_set_mining_difficulty_msg) {
                 ESP_LOGI(TAG, "New pool difficulty %.2f", GLOBAL_STATE->pool_difficulty);
                 difficulty = GLOBAL_STATE->pool_difficulty;
+                // Keep the chip's ticket mask (register 0x14) in step with the
+                // pool. Without this the chip keeps reporting nonces at the
+                // init-time family default, which floods the UART with results
+                // we are about to discard.
+                ASIC_set_ticket_mask(GLOBAL_STATE, difficulty);
                 GLOBAL_STATE->new_set_mining_difficulty_msg = false;
             }
 

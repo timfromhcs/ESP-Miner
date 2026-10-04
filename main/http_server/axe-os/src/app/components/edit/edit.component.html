@@ -179,5 +179,49 @@
         class="btn btn-danger" appTooltip="Return to safe preset values only">Disable Overclock Mode</button>
       }
     </div>
+
+    <!-- Advanced tuning. Both options need a restart (the UART rate) or run
+         entirely on their own (the tuner), and both are documented in
+         docs/PLAN_BITAXE_BM1366_OPTIMIZATION.md. -->
+    <div class="mt-6 pt-4 border-t border-surface-border">
+      <span class="block text-lg font-medium mb-3">Advanced Tuning</span>
+      <p class="text-secondary text-sm mb-4">
+        BM1366 only. These are not preset overclock values — they change how the
+        firmware drives and protects the chip, so they need a restart to take effect.
+      </p>
+
+      <div class="flex flex-col gap-3">
+        <div class="flex items-center justify-between gap-4">
+          <div>
+            <span class="block font-medium">Fast ASIC UART</span>
+            <span class="text-secondary text-sm">
+              Raises the chip link from 1 041 667 to 1 562 500 baud. Only needed if the
+              chip reports nonces faster than the link can drain. Enable it only after
+              confirming no "Serial RX invalid" errors appear in the log.
+            </span>
+          </div>
+          <button type="button" class="btn" [class.btn-secondary]="!asicFastUart"
+            (click)="toggleAsicFastUart()" [disabled]="fastUartSaving">
+            {{ asicFastUart ? 'Enabled' : 'Disabled' }}
+          </button>
+        </div>
+
+        <div class="flex items-center justify-between gap-4">
+          <div>
+            <span class="block font-medium">Auto-tune core voltage</span>
+            <span class="text-secondary text-sm">
+              Keeps {{ form.value.frequency | number: '1.0-0' }} MHz and searches for the lowest
+              core voltage that still holds at least 95 % of the expected hashrate with at most
+              0.1 % errors, reverting to the last proven value otherwise. Disables itself when
+              it reaches the regulator floor. Never overclocks the frequency.
+            </span>
+          </div>
+          <button type="button" class="btn" [class.btn-secondary]="!autotuneVoltage"
+            (click)="toggleAutotuneVoltage()" [disabled]="autotuneSaving">
+            {{ autotuneVoltage ? 'Running' : 'Off' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </form>
 }

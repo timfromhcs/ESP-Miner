@@ -53,13 +53,13 @@ task_result * ASIC_process_work(GlobalState * GLOBAL_STATE)
     return NULL;
 }
 
-int ASIC_set_max_baud(GlobalState * GLOBAL_STATE)
+int ASIC_set_max_baud(GlobalState * GLOBAL_STATE, bool fast_uart)
 {
     switch (GLOBAL_STATE->DEVICE_CONFIG.family.asic.id) {
         case BM1397:
             return BM1397_set_max_baud();
         case BM1366:
-            return BM1366_set_max_baud();
+            return BM1366_set_max_baud(fast_uart);
         case BM1368:
             return BM1368_set_max_baud();
         case BM1370:
@@ -69,6 +69,44 @@ int ASIC_set_max_baud(GlobalState * GLOBAL_STATE)
     }
     ESP_LOGE(TAG, "Unknown ASIC id %d — cannot set max baud", GLOBAL_STATE->DEVICE_CONFIG.family.asic.id);
     return 0;
+}
+
+/**
+ * @brief Re-program the chip's ticket mask (BM1366 register 0x14) so it tracks
+ *        the difficulty the pool just assigned.
+ *
+ * Called from create_jobs_task whenever mining.set_difficulty arrives. Before
+ * this existed, register 0x14 was written exactly once at init from a static
+ * family default, so a rising pool difficulty was never followed by the chip
+ * and the UART kept carrying nonces we discard. Cap the mask so a pathological
+ * pool value cannot silently mute the chip: a chip that reports nothing cannot
+ * find a block, which is far worse than extra UART traffic.
+ */
+void ASIC_set_ticket_mask(GlobalState * GLOBAL_STATE, double difficulty)
+{
+    if (!(difficulty >= 1.0)) {
+        ESP_LOGW(TAG, "Refusing ticket mask for implausible difficulty %.2f", difficulty);
+        return;
+    }
+
+    double masked = difficulty;
+    if (masked > ASIC_TICKET_MASK_MAX_DIFFICULTY) {
+        ESP_LOGW(TAG, "Capping ticket mask difficulty %.2f -> %.0f", masked,
+                 ASIC_TICKET_MASK_MAX_DIFFICULTY);
+        masked = ASIC_TICKET_MASK_MAX_DIFFICULTY;
+    }
+
+    switch (GLOBAL_STATE->DEVICE_CONFIG.family.asic.id) {
+        case BM1366:
+            BM1366_set_ticket_mask(masked);
+            break;
+        default:
+            // Other families already program their mask from the init-time
+            // family difficulty; only BM1366 tracked a live pool difficulty.
+            ESP_LOGD(TAG, "ASIC id %d does not support runtime ticket mask",
+                     GLOBAL_STATE->DEVICE_CONFIG.family.asic.id);
+            break;
+    }
 }
 
 void ASIC_send_work(GlobalState * GLOBAL_STATE, bm_job * next_job)

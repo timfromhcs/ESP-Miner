@@ -1646,4 +1646,84 @@ All claims must remain evidence-based.
   - Pause / Resume transition executed with 0 reboots, 0 dropped frames, and immediate share resumption ($40 \to 42$ shares).
 - **Status:** `PROVEN` / `MEASURED` / `HARDWARE_VALIDATED`.
 
-
+
+---
+
+#56. v2.16.0-hardened - P0 JOB-QUEUE FIX, THERMAL POLICY, WiFi CORRECTION
+
+**Trigger:** 41-minute ring-buffer capture from the production Bitaxe Ultra at `192.168.178.66`
+(`evidence/192.168.178.66/snapshots/20261004-003232`, 4 909 lines, baseline `v2.15.3-hardened`).
+**Design document:** `docs/PLAN_BITAXE_BM1366_OPTIMIZATION.md` (written this session; five files
+already referenced it while it did not exist).
+
+## Findings
+- **P0-1** `E stratum_v1_task: Failed to process mining notification` at `t=2349263520`, yet job
+  `72b7` was mined from `t=2349264596` to `t=2349270625` - a full ~6.7 s job interval burned on work
+  the firmware had already failed to decode. 3 occurrences in the window.
+  The frame's hex is entirely well-formed; the anomaly is semantic (`nVersion 00000006` has no DGB
+  algorithm selector, `merkle_branch` is `[]` where every other job had 5, `nBits 1900c185` implies
+  difficulty ~8.7e4 against a ~2.6e9 network).
+- **P0-2** `parse_mining_notify()` `malloc()`ed the merkle array then filled it without checking
+  `hex2bin()`, so a short branch left uninitialised heap on the chip.
+- **P1-1** 222 / 88 425 shares rejected (0.250 %), all stratum error 21 "Invalid job id" - the
+  new-job / in-flight-share latency race, previously indistinguishable from a real defect.
+- **P1-2** Hash-domain spread 131.0 / 100.9 / 96.6 / 113.8 TH/s = 36 %.
+- **P1-3** Vcore 1188-1239 mV around a 1200 mV set point.
+- **P2** 3x `httpd_sock_err recv : 104` (ECONNRESET). PSRAM healthy, no leak.
+
+## Delivered
+- `components/stratum/notify_validate.{c,h}` - dependency-free field validator. Wired in *before*
+  allocation; `hex2bin()` return now checked; `params[0..3]` type-checked before dereference.
+- `decode_mining_notification()` now returns `bool` and gates `queue_enqueue()`. **This is the
+  actual fix for P0-1** - the hex validator guards memory safety, the decoder guards correctness,
+  and `simulation/test_notify_validate.c` pins that division of responsibility.
+- `main/thermal/atm_policy.{c,h}` + `main/power/vf_tuner.{c,h}` - proactive thermal management and
+  an opt-in voltage minimiser.
+- API/UI: `notifyReceived`, `notifyDropped`, `sharesRejectedStale`, `sharesRejectedOther`,
+  `asicFastUart`, `autotuneVoltage`.
+- UART baud corrected from a hardcoded 1 000 000 to the exact `25000000/24` = 1 041 666
+  (a 4.17 % mismatch against the chip clock).
+
+## Corrections made to the in-progress work (this session)
+- **STA MAC override removed.** The previous revision hardcoded `74:4D:BD:77:DD:3D` and the DHCP
+  hostname `bitaxe-dd3c` to dodge a lease conflict. That defeats the router-side reservation for
+  `192.168.178.66`, was global not per-device, contradicted itself, was called *before*
+  `esp_wifi_start()` against the documented contract, and discarded its return value - which is why
+  the real `...DD:3C` still appears in the device's own API output.
+  The correct mechanism already exists: `CONFIG_LWIP_DHCP_DOES_ARP_CHECK` (already `=y`).
+  ESP-IDF documents that the obvious alternative, ACD, "can cause repeated DHCP DECLINEs" on access
+  points that echo the client MAC in ARP replies - exactly a FRITZ!Box - so ACD would have made the
+  symptom worse. Researched, not guessed; see `docs/NETWORKING.md` Fix 3a.
+- Also: no longer wipes a valid lease via `esp_netif_set_ip_info()` on re-association; no
+  `stop`->`start` DHCP bounce; `dhcp` log level no longer pinned to DEBUG (it was inflating the
+  512 KB ring buffer); DHCP hostname comes from NVS.
+- `CONFIG_LWIP_DHCP_RESTORE_LAST_IP` considered and deliberately left **off** - the restore path
+  bypasses the conflict check.
+- **ATM shutdown latch** was clearable by nobody (`atm_init()` ran once, before the task loop), so
+  one >= 75 C reading disabled thermal management permanently. Now cleared by the backstop recovery.
+- **ATM derates no longer written to NVS** - a reboot mid-derate used to re-read the derated value
+  as the new ceiling. NVS is again the single source of truth for the user's setting.
+- **ATM ceiling now follows the user's setting** instead of being frozen at task start, which
+  silently fought any frequency reduction made in AxeOS.
+- `VF_ACTION_ABORT_THERMAL` was declared and named but unreachable
+  (`chip_temp_c >= 0.0 && !acceptance_passed()`); now a real abort above 65 C.
+- The fan-relief path promised in the ATM design comment was never written; now implemented.
+- `notifyDropped` now counts parse-level rejections too, so `received + dropped = total` holds.
+- `ASICModel` had lost its `required` marker in `openapi.yaml`, silently making the generated
+  Angular field optional.
+
+## Verification
+- Host: `test_notify_validate` 33 checks, `test_power_policy` 77 checks (0 failures, `-Werror`).
+- Frontend: 60/60 Karma specs.
+- The `host-tests` CI job runs all four host binaries in seconds, without waiting for QEMU.
+- **Known:** on Windows `npm run test:ci` prints `TOTAL: n SUCCESS` but exits 1 - Karma's browser
+  teardown raises an uncaught `ECONNRESET`. Windows-only; Linux CI is green, so the Karma config was
+  left alone rather than adding a disconnect tolerance that could mask a real browser crash.
+
+## Deliberately not done
+Stricter `nBits` plausibility (`1900c185` still passes) - tightening it without hardware validation
+risks dropping *valid* jobs. Domain imbalance and Vcore flapping recorded, not acted on.
+Static-IP fallback and its `dns_setserver()`/Gratuitous-ARP machinery removed, and the documentation
+that described them as PROVEN has been corrected (`docs/EVIDENCE.md` EV-007 -> RETRACTED).
+
+**Status:** `v2.16.0-hardened`, pending hardware re-validation on `192.168.178.66`.

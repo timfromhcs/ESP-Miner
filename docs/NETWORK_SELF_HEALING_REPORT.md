@@ -1,3 +1,11 @@
+> **SUPERSEDED — read docs/NETWORKING.md for current behaviour.**
+> This is a historical report describing 2.15.3-hardened. The static-IP fallback it
+> discusses was **removed** in 2.16.0-hardened: a hardcoded address cannot be verified
+> as free, so binding it caused and masked the very lease conflicts the state machine
+> exists to prevent. Conflict handling now uses the DHCP client itself
+> (CONFIG_LWIP_DHCP_DOES_ARP_CHECK). See
+> docs/PLAN_BITAXE_BM1366_OPTIMIZATION.md §3.6 and docs/EVIDENCE.md EV-007.
+
 # Network Self-Healing Report â€” ESP-Miner v2.15.3-hardened (self-healing)
 
 ## Observed Failure

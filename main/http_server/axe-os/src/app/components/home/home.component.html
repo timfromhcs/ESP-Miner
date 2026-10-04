@@ -181,6 +181,42 @@
               </div>
             }
           }
+
+          <!-- Pool health: separates the unavoidable latency race from real defects
+               and surfaces jobs the firmware refused to mine. Before the notify
+               validation each dropped job still cost a full job interval of hashrate. -->
+          <div class="mt-3 pt-3 border-t border-surface-border text-sm">
+            <div class="flex flex-wrap gap-x-5 gap-y-1">
+              <span>
+                <span class="text-secondary">stale </span>
+                <span class="text-yellow-500 font-medium">{{ info.sharesRejectedStale | number: '1.0-0' }}</span>
+                <i class="pi pi-info-circle ml-1 text-xs align-middle"
+                   appTooltip="Rejected with stratum error 21 (Invalid job id / Job not found / Stale). This is the unavoidable race between a new job arriving and a share still in flight — lower latency reduces it, but it cannot be eliminated."
+                   tooltipPosition="top"></i>
+              </span>
+              <span>
+                <span class="text-secondary">other </span>
+                <span [ngClass]="info.sharesRejectedOther > 0 ? 'text-red-500 font-medium' : 'font-medium'">{{ info.sharesRejectedOther | number: '1.0-0' }}</span>
+                <i class="pi pi-info-circle ml-1 text-xs align-middle"
+                   appTooltip="Rejected for any reason other than staleness (duplicate, above target, low difficulty, worker mismatch). Unlike stale rejects these indicate a real client-side defect."
+                   tooltipPosition="top"></i>
+              </span>
+              <span>
+                <span class="text-secondary">jobs dropped </span>
+                <span [ngClass]="notifyDropped > 0 ? 'text-red-500 font-medium' : 'font-medium'">{{ notifyDropped | number: '1.0-0' }}</span>
+                <i class="pi pi-info-circle ml-1 text-xs align-middle"
+                   appTooltip="mining.notify frames that arrived as valid JSON but could not be turned into valid chip work. Each one used to be mined anyway, which burned a full job interval on guaranteed-stale shares."
+                   tooltipPosition="top"></i>
+              </span>
+              <span>
+                <span class="text-secondary">jobs accepted </span>
+                <span class="font-medium">{{ notifyReceived | number: '1.0-0' }}</span>
+                <i class="pi pi-info-circle ml-1 text-xs align-middle"
+                   appTooltip="mining.notify frames that passed validation and were turned into real chip work. Compare against jobs dropped: received + dropped is the total the pool sent."
+                   tooltipPosition="top"></i>
+              </span>
+            </div>
+          </div>
         </div>
       </div>
     </div>

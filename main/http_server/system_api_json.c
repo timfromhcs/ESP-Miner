@@ -78,6 +78,15 @@ static void system_api_add_telemetry(cJSON *root, GlobalState *g) {
     cJSON_AddFloatToObject(root, "processTime", g->SYSTEM_MODULE.process_time);
     cJSON_AddNumberToObject(root, "workReceived", g->SYSTEM_MODULE.work_received);
 
+    // Stratum notify + reject health. notify_dropped used to be invisible: an
+    // undecodable mining.notify was still enqueued and mined for a full job
+    // interval. shares_rejected_stale separates the unavoidable latency race
+    // (pool error 21) from real client-side defects.
+    cJSON_AddNumberToObject(root, "notifyReceived", g->notify_received);
+    cJSON_AddNumberToObject(root, "notifyDropped", g->notify_dropped);
+    cJSON_AddNumberToObject(root, "sharesRejectedStale", g->share_rejected_stale);
+    cJSON_AddNumberToObject(root, "sharesRejectedOther", g->share_rejected_other);
+
     // Dynamic Block Info
     cJSON_AddNumberToObject(root, "blockFound", g->SYSTEM_MODULE.block_found);
     cJSON_AddBoolToObject(root, "showNewBlock", g->SYSTEM_MODULE.show_new_block);
@@ -223,6 +232,14 @@ static void system_api_add_config(cJSON *root, GlobalState *g) {
     // User Preferences
     cJSON_AddNumberToObject(root, "useCustomWWW", nvs_config_get_bool(NVS_CONFIG_USE_CUSTOM_WWW) ? 1 : 0);
     cJSON_AddNumberToObject(root, "overclockEnabled", nvs_config_get_bool(NVS_CONFIG_OVERCLOCK_ENABLED) ? 1 : 0);
+    // Opt-in advanced controls. Both are exposed here and are automatically
+    // PATCH-able because the handler iterates the NVS table by rest_name.
+    //   asicFastUart: BM1366 BT8D=1 -> 1 562 500 baud instead of 1 041 667.
+    //                 The previous firmware ran the host at 1 000 000 while the
+    //                 chip was clocked at 1 041 667 (4.17 % mismatch).
+    //   autotuneVoltage: hold frequency, let the closed loop minimise Vcore.
+    cJSON_AddNumberToObject(root, "asicFastUart", nvs_config_get_bool(NVS_CONFIG_ASIC_FAST_UART) ? 1 : 0);
+    cJSON_AddNumberToObject(root, "autotuneVoltage", nvs_config_get_bool(NVS_CONFIG_AUTOTUNE_VOLTAGE) ? 1 : 0);
     char *disp_name = nvs_config_get_string(NVS_CONFIG_DISPLAY);
     cJSON_AddStringToObject(root, "display", disp_name ? disp_name : "");
     free(disp_name);

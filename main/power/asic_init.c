@@ -87,7 +87,7 @@ uint8_t asic_initialize(GlobalState *GLOBAL_STATE, asic_init_mode_t mode, uint32
         return 0;
     }
 
-    int max_baud = ASIC_set_max_baud(GLOBAL_STATE);
+    int max_baud = ASIC_set_max_baud(GLOBAL_STATE, GLOBAL_STATE->asic_fast_uart);
     if (max_baud == 0 || SERIAL_set_baud(max_baud) != ESP_OK) {
         GLOBAL_STATE->SYSTEM_MODULE.asic_status = "ASIC UART configuration failed";
         ESP_LOGE(TAG, "Failed to configure ASIC UART");

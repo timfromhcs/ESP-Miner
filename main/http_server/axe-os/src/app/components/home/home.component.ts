@@ -185,6 +185,8 @@ export class HomeComponent implements OnInit, OnDestroy {
   public activePoolUserAddressPart: string = '';
   public activePoolUserSuffixPart: string = '';
   public sortedRejectionReasons: Array<{ message: string; count: number; percentage: number }> = [];
+  public notifyDropped: number = 0;
+  public notifyReceived: number = 0;
   public networkDifficultyPercentage: string = '0';
   public payoutPercentage: number = -1;
   public chartDataSources: { name: string; value: string }[] = [];
@@ -970,6 +972,9 @@ export class HomeComponent implements OnInit, OnDestroy {
             ...reason,
             percentage: totalShares > 0 ? (reason.count / totalShares) * 100 : 0
           }));
+
+        this.notifyDropped = info.notifyDropped ?? 0;
+        this.notifyReceived = info.notifyReceived ?? 0;
 
         // Only collect and update chart data if there's no power fault
         // and at most once every second, AND after stats are loaded to maintain order

@@ -26,7 +26,11 @@ typedef struct __attribute__((__packed__))
 uint8_t BM1366_init(GlobalState * GLOBAL_STATE);
 void BM1366_send_work(GlobalState * GLOBAL_STATE, bm_job * next_bm_job);
 void BM1366_set_version_mask(uint32_t version_mask);
-int BM1366_set_max_baud(void);
+void BM1366_set_ticket_mask(double difficulty);
+/** Program the chip UART rate and return the exact rate the host must use.
+ *  @param fast_uart false -> BT8D=2 (1 041 667 baud, proven), true -> BT8D=1
+ *         (1 562 500 baud). Both are exact multiples of the 25 MHz chip clock. */
+int BM1366_set_max_baud(bool fast_uart);
 float BM1366_send_hash_frequency(float frequency);
 task_result * BM1366_process_work(GlobalState * GLOBAL_STATE);
 void BM1366_read_registers(GlobalState * GLOBAL_STATE);

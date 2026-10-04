@@ -220,6 +220,8 @@ components:
       type: object
       required:
         - ASICModel
+        - asicFastUart
+        - autotuneVoltage
         - apEnabled
         - autofanspeed
         - bestDiff
@@ -273,13 +275,17 @@ components:
         - pools
         - poolConnectionInfo
         - poolDifficulty
+        - notifyDropped
+        - notifyReceived
         - power
         - resetReason
         - responseTime
         - runningPartition
         - sharesAccepted
         - sharesRejected
+        - sharesRejectedOther
         - sharesRejectedReasons
+        - sharesRejectedStale
         - smallCoreCount
         - ssid
         - ipv4
@@ -487,6 +493,21 @@ components:
         overclockEnabled:
           type: integer
           description: Set custom voltage/frequency in AxeOS
+        asicFastUart:
+          type: integer
+          description: >-
+            BM1366 only. 0 selects the proven chip UART rate (BT8D=2, 1 041 667 baud),
+            1 selects BT8D=1 (1 562 500 baud) for more headroom when the chip reports
+            nonces faster than the link can drain. Requires a logic-analyser check before
+            use, and takes effect after an ASIC re-init.
+        autotuneVoltage:
+          type: integer
+          description: >-
+            Closed-loop voltage tuner. Holds the configured frequency and searches for
+            the lowest core voltage that still delivers at least 95 % of the expected
+            hashrate with at most 0.1 % errors, reverting to the last proven-stable
+            voltage otherwise. Never drops below the regulator floor. Disables itself
+            when it reaches the floor or exhausts its attempt budget.
         useCustomWWW:
           type: integer
           description: Whether to serve files from the SPIFFS www partition instead of the embedded Web UI (0=embedded, 1=custom/SPIFFS)
@@ -687,6 +708,29 @@ components:
         workReceived:
           type: integer
           description: Total number of mining jobs received from the pool
+        notifyReceived:
+          type: integer
+          description: Number of mining.notify frames accepted and turned into chip work
+        notifyDropped:
+          type: integer
+          description: >-
+            Number of mining.notify frames that arrived as well-formed JSON but could
+            not be turned into valid chip work (undecodable coinbase, implausible
+            compact target, malformed hex). Each dropped frame previously cost a full
+            job interval of wasted hashrate, so a non-zero growth rate is a real
+            problem rather than a cosmetic counter.
+        sharesRejectedStale:
+          type: integer
+          description: >-
+            Shares rejected with stratum error 21 (Invalid job id / Job not found /
+            Stale). This is the unavoidable latency race between a new job and an
+            in-flight submission, not a client bug.
+        sharesRejectedOther:
+          type: integer
+          description: >-
+            Shares rejected for any other reason (duplicate, above target, low
+            difficulty, worker mismatch). Unlike sharesRejectedStale these indicate a
+            real client-side defect.
         partitions:
           type: array
           description: List of available app partitions and their firmware versions

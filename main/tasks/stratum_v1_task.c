@@ -110,12 +110,21 @@ void stratum_v1_close_connection(GlobalState *GLOBAL_STATE)
     vTaskDelay(1000 / portTICK_PERIOD_MS);
 }
 
-static void decode_mining_notification(GlobalState * GLOBAL_STATE, const mining_notify *mining_notification)
+/**
+ * @brief Decode a mining notification for display/statistics purposes.
+ *
+ * @return true when the notification was fully understood. A `false` return
+ *         means we could not make sense of the coinbase payload and therefore
+ *         must NOT turn this notification into chip work — the coinbase we
+ *         would hash does not match the pool's, so every share derived from it
+ *         would be stale and every joule spent on it is wasted.
+ */
+static bool decode_mining_notification(GlobalState * GLOBAL_STATE, const mining_notify *mining_notification)
 {
     mining_notification_result_t *result = heap_caps_malloc(sizeof(mining_notification_result_t), MALLOC_CAP_SPIRAM);
     if (!result) {
         ESP_LOGE(TAG, "Failed to allocate result in PSRAM");
-        return;
+        return false;
     }
     memset(result, 0, sizeof(mining_notification_result_t));
 
@@ -129,9 +138,10 @@ static void decode_mining_notification(GlobalState * GLOBAL_STATE, const mining_
                                      user,
                                      decode_coinbase_tx,
                                      result) != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to process mining notification");
+        ESP_LOGE(TAG, "Failed to process mining notification for job %s — dropping it instead of mining garbage",
+                 mining_notification->job_id ? mining_notification->job_id : "(null)");
         free(result);
-        return;
+        return false;
     }
 
     // Update network difficulty
@@ -198,6 +208,7 @@ static void decode_mining_notification(GlobalState * GLOBAL_STATE, const mining_
     }
 
     free(result);
+    return true;
 }
 
 void stratum_v1_task(void *pvParameters)
@@ -369,7 +380,19 @@ void stratum_v1_task(void *pvParameters)
 
             bool reconnect_requested = false;
             if (!STRATUM_V1_parse(&stratum_api_v1_message, line)) {
-                ESP_LOGE(TAG, "Failed to parse Stratum message, ignoring");
+                // STRATUM_V1_parse sets ->method before dispatching, so we can tell
+                // a rejected mining.notify apart from any other parse failure. Count
+                // it here as well, otherwise parse-level drops (malformed hex,
+                // implausible nbits) would be invisible and the documented
+                // received/dropped invariant would not hold.
+                if (stratum_api_v1_message.method == MINING_NOTIFY) {
+                    GLOBAL_STATE->notify_dropped++;
+                    ESP_LOGE(TAG, "Rejected malformed mining.notify (dropped=%u received=%u)",
+                             (unsigned) GLOBAL_STATE->notify_dropped,
+                             (unsigned) GLOBAL_STATE->notify_received);
+                } else {
+                    ESP_LOGE(TAG, "Failed to parse Stratum message, ignoring");
+                }
                 STRATUM_V1_reset_message(&stratum_api_v1_message);
                 free(line);
                 continue;
@@ -394,8 +417,19 @@ void stratum_v1_task(void *pvParameters)
 
                         if (is_duplicate) {
                             ESP_LOGW(TAG, "Ignoring duplicate notify for job %s", notify ? notify->job_id : "unknown");
+                        } else if (!decode_mining_notification(GLOBAL_STATE, stratum_api_v1_message.mining_notification)) {
+                            // Never enqueue work we could not decode. Mining it would
+                            // burn the full job interval producing guaranteed-stale shares.
+                            GLOBAL_STATE->notify_dropped++;
+                            ESP_LOGW(TAG, "Dropping undecodable job %s (dropped=%u received=%u), keeping ASIC on current work",
+                                     notify && notify->job_id ? notify->job_id : "(null)",
+                                     (unsigned) GLOBAL_STATE->notify_dropped,
+                                     (unsigned) GLOBAL_STATE->notify_received);
+                            STRATUM_V1_free_mining_notify(stratum_api_v1_message.mining_notification);
+                            stratum_api_v1_message.mining_notification = NULL;
                         } else {
                             GLOBAL_STATE->SYSTEM_MODULE.work_received++;
+                            GLOBAL_STATE->notify_received++;
                             SYSTEM_notify_new_ntime(GLOBAL_STATE, stratum_api_v1_message.mining_notification->ntime);
                             if (stratum_api_v1_message.mining_notification->clean_jobs &&
                                 (GLOBAL_STATE->stratum_queue.count > 0)) {
@@ -406,7 +440,6 @@ void stratum_v1_task(void *pvParameters)
                                 STRATUM_V1_free_mining_notify(next_notify_json_str);
                             }
                             queue_enqueue(&GLOBAL_STATE->stratum_queue, stratum_api_v1_message.mining_notification);
-                            decode_mining_notification(GLOBAL_STATE, stratum_api_v1_message.mining_notification);
                             stratum_api_v1_message.mining_notification = NULL;
                         }
                     }

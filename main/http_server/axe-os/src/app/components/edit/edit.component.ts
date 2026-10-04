@@ -43,6 +43,12 @@ export class EditComponent implements OnInit, OnDestroy, OnChanges {
   public savedChanges: boolean = false;
   public settingsUnlocked: boolean = false;
 
+  // Advanced tuning toggles (see docs/PLAN_BITAXE_BM1366_OPTIMIZATION.md)
+  public asicFastUart: boolean = false;
+  public autotuneVoltage: boolean = false;
+  public fastUartSaving: boolean = false;
+  public autotuneSaving: boolean = false;
+
   @Input() uri = '';
 
   // Store frequency and voltage options from API
@@ -127,6 +133,49 @@ export class EditComponent implements OnInit, OnDestroy, OnChanges {
       });
   }
 
+  /**
+   * BM1366 UART rate. Takes effect on the next ASIC re-init, so the UI asks for
+   * a restart rather than pretending it applied immediately.
+   */
+  public toggleAsicFastUart() {
+    const deviceUri = this.uri || '';
+    const next = this.asicFastUart ? 0 : 1;
+    this.fastUartSaving = true;
+    this.systemService.updateSystem(deviceUri, { asicFastUart: next }).subscribe({
+      next: () => {
+        this.asicFastUart = next === 1;
+        this.fastUartSaving = false;
+        this.toastr.info(next === 1
+          ? 'Fast ASIC UART enabled. Restart to apply.'
+          : 'Fast ASIC UART disabled. Restart to apply.');
+      },
+      error: (err) => {
+        this.fastUartSaving = false;
+        this.toastr.error(`Failed to save ASIC UART setting: ${getHttpErrorMessage(err, this.uri)}`);
+      }
+    });
+  }
+
+  /** Closed-loop core-voltage tuner. Runs on its own once enabled. */
+  public toggleAutotuneVoltage() {
+    const deviceUri = this.uri || '';
+    const next = this.autotuneVoltage ? 0 : 1;
+    this.autotuneSaving = true;
+    this.systemService.updateSystem(deviceUri, { autotuneVoltage: next }).subscribe({
+      next: () => {
+        this.autotuneVoltage = next === 1;
+        this.autotuneSaving = false;
+        this.toastr.info(next === 1
+          ? 'Voltage auto-tune started. Watch hashrate and errors for the next few minutes.'
+          : 'Voltage auto-tune stopped.');
+      },
+      error: (err) => {
+        this.autotuneSaving = false;
+        this.toastr.error(`Failed to save auto-tune setting: ${getHttpErrorMessage(err, this.uri)}`);
+      }
+    });
+  }
+
   ngOnInit(): void {
     this.loadDeviceSettings();
   }
@@ -170,6 +219,9 @@ export class EditComponent implements OnInit, OnDestroy, OnChanges {
           '⚡ Custom frequency and voltage values are available.'
         );
       }
+
+      this.asicFastUart = info.asicFastUart === 1;
+      this.autotuneVoltage = info.autotuneVoltage === 1;
 
         this.form = this.fb.group({
           display: [info.display, [Validators.required]],

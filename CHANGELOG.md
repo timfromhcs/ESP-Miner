@@ -5,6 +5,95 @@ This project adheres to [Semantic Versioning](https://semver.org/) and the **Tru
 
 ---
 
+## [2.16.0-hardened] - 2026-10-04
+
+Driven by a 41-minute ring-buffer capture from the production Bitaxe Ultra at
+`192.168.178.66`. Full rationale, findings and the deliberate non-goals:
+[`docs/PLAN_BITAXE_BM1366_OPTIMIZATION.md`](docs/PLAN_BITAXE_BM1366_OPTIMIZATION.md).
+
+### Fixed
+- **Undecodable jobs were mined anyway (P0).** `mining.notify` frames whose
+  coinbase could not be decoded were still enqueued, so the chip burned a full
+  ~6.7 s job interval on work that could never produce an acceptable share. The
+  decode now gates the enqueue; the job is dropped and the ASIC keeps its
+  current work.
+- **Unchecked `hex2bin()` on merkle branches (P0).** A short branch string left
+  part of a freshly `malloc()`ed buffer uninitialised, and the chip hashed it.
+  Validation now runs before allocation and the conversion result is checked.
+- **Unchecked `params[]` dereferences.** `params[0..3]` were dereferenced without
+  a type check; a truncated or hostile notify could crash the parser.
+- **STA MAC was overridden in firmware.** A hardcoded `74:4D:BD:77:DD:3D`
+  (plus a hardcoded `bitaxe-dd3c` DHCP hostname) was introduced to dodge a lease
+  conflict. That defeats the router-side reservation for `192.168.178.66`, was
+  global rather than per-device, contradicted itself, was called before
+  `esp_wifi_start()` against the documented contract, and had its return value
+  discarded. Removed — lease conflicts are handled by the DHCP client itself via
+  `CONFIG_LWIP_DHCP_DOES_ARP_CHECK`.
+- **A valid DHCP lease was wiped on every re-association.** `esp_netif_set_ip_info()`
+  was called with a zeroed struct on each association (ESP-IDF requires the DHCP
+  client to be stopped first), forcing needless renegotiation on every roam and
+  dropping the stratum socket and web UI.
+- **DHCP client was bounced `stop`→`start`**, resetting the DHCP xid.
+- **`dhcp` log level was pinned to DEBUG permanently**, inflating the 512 KB
+  ring buffer. Now raised only while acquiring a lease and restored after.
+- **UART baud mismatch.** The host derived BT8D for an exact 1 041 666 baud but
+  programmed 1 000 000 — a 4.17 % mismatch against a chip clocked at 25 MHz/24.
+- **`ASICModel` lost its `required` marker** in `openapi.yaml`, silently making
+  the generated Angular field optional.
+- **ATM shutdown latch could never clear.** `atm_init()` ran once before the
+  task loop, so one ≥75 °C reading disabled thermal management for the rest of
+  the task's life. The hard backstop's recovery path now clears it.
+- **Transient ATM derates were persisted to NVS**, so a reboot during a derate
+  re-read the derated value as the new ceiling. Derates are now in-memory only;
+  NVS remains the single source of truth for the user's setting.
+- **ATM ceiling was captured once at task start**, so lowering the target in
+  AxeOS was silently fought by the old, higher value. It now follows the setting.
+- **`VF_ACTION_ABORT_THERMAL` was unreachable.** The guard was
+  `chip_temp_c >= 0.0 && !acceptance_passed()`, where the left operand is true
+  for any sane reading. Now a real abort above the 65 °C continuous limit.
+- **`notifyDropped` undercounted.** Parse-level rejections were logged but never
+  counted, breaking the documented `received + dropped` invariant.
+- **ATM/VR threshold comment was inverted** and the VR emergency cutoff was
+  duplicated with the legacy backstop at the same value.
+
+### Added
+- **`components/stratum/notify_validate.{c,h}`** — dependency-free
+  `mining.notify` field validator (job id, prev-block, both coinbase halves,
+  every merkle branch, version/nbits/ntime) with an `nBits` plausibility
+  heuristic. Tested on the host and under QEMU Unity.
+- **`main/thermal/atm_policy.{c,h}`** — proactive thermal management: hysteresis
+  buffer, frequency and voltage moving together, regulator-floor clamp,
+  anti-hunting "DPS memory", minimum dwell, and a fan-relief path that lets a
+  materially better duty cycle substitute for the extra temperature margin.
+- **`main/power/vf_tuner.{c,h}`** — opt-in closed-loop voltage minimiser that
+  holds frequency and reverts to the last proven-stable voltage on failure.
+- **API/UI:** `notifyReceived`, `notifyDropped`, `sharesRejectedStale`,
+  `sharesRejectedOther`, `asicFastUart`, `autotuneVoltage`. The home view now
+  separates the unavoidable stale-share race from real defects.
+- **`host-tests` CI job** running four dependency-free host binaries in seconds,
+  without waiting for the QEMU job.
+- **`docs/PLAN_BITAXE_BM1366_OPTIMIZATION.md`** — the design and rationale
+  document, plus `evidence/192.168.178.66/` device captures.
+
+### Removed
+- **The static-IP fallback.** It is gone from the code; the documentation that
+  still described it as a proven, measured feature has been corrected. A
+  hardcoded address cannot be verified as free, so binding it reintroduced the
+  very conflicts the state machine exists to prevent.
+
+### Known limitations
+- Stricter `nBits` plausibility is deferred: `1900c185` implies difficulty ~8.7e4
+  against a ~2.6e9 network and is still accepted. Tightening it without hardware
+  validation risks dropping valid jobs.
+- Domain imbalance (36 % spread) and Vcore flapping (1188–1239 mV around a
+  1200 mV set point) are recorded but not yet acted on; both need longer
+  captures before any code change is justified.
+- On Windows, `npm run test:ci` prints `TOTAL: n SUCCESS` but exits `1` because
+  Karma's browser teardown raises an uncaught `ECONNRESET`. Windows-only; CI on
+  Linux is green, so the Karma config is intentionally left unchanged.
+
+---
+
 ## [2.15.3-hardened] - 2026-09-06
 
 ### Changed

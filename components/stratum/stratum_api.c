@@ -13,6 +13,7 @@
 #include "esp_transport_tcp.h"
 #include "esp_crt_bundle.h"
 #include "utils.h"
+#include "notify_validate.h"
 #include "esp_timer.h"
 #include "esp_heap_caps.h"
 #include <inttypes.h>
@@ -284,46 +285,109 @@ static bool parse_mining_notify(cJSON *json, StratumApiV1Message *message)
         return false;
     }
 
-    cJSON *job_id_item = cJSON_GetArrayItem(params, 0);
-    if (!job_id_item || !cJSON_IsString(job_id_item)) {
-        ESP_LOGE(TAG, "Invalid job_id in mining.notify");
-        free(new_work);
-        return false;
+    // Every element we dereference below must exist and be the right cJSON
+    // type. Previously params[1..4] were dereferenced unchecked, so a
+    // truncated/hostile notify could crash the parser.
+    static const int kStringParams[] = {0, 1, 2, 3};
+    for (unsigned k = 0; k < sizeof(kStringParams) / sizeof(kStringParams[0]); k++) {
+        cJSON *item = cJSON_GetArrayItem(params, kStringParams[k]);
+        if (!item || !cJSON_IsString(item) || !item->valuestring) {
+            ESP_LOGE(TAG, "mining.notify: params[%d] is not a string", kStringParams[k]);
+            free(new_work);
+            return false;
+        }
     }
-
-    new_work->job_id = strdup(job_id_item->valuestring);
-    new_work->prev_block_hash = strdup(cJSON_GetArrayItem(params, 1)->valuestring);
-    new_work->coinbase_1 = strdup(cJSON_GetArrayItem(params, 2)->valuestring);
-    new_work->coinbase_2 = strdup(cJSON_GetArrayItem(params, 3)->valuestring);
 
     cJSON *merkle_branch = cJSON_GetArrayItem(params, 4);
     if (!merkle_branch || !cJSON_IsArray(merkle_branch)) {
         ESP_LOGE(TAG, "Invalid merkle_branch in mining.notify");
-        free(new_work->job_id);
-        free(new_work->prev_block_hash);
-        free(new_work->coinbase_1);
-        free(new_work->coinbase_2);
         free(new_work);
         return false;
     }
-    new_work->n_merkle_branches = cJSON_GetArraySize(merkle_branch);
-    if (new_work->n_merkle_branches > MAX_MERKLE_BRANCHES) {
-        ESP_LOGE(TAG, "Too many Merkle branches: %zu", new_work->n_merkle_branches);
-        free(new_work->job_id);
-        free(new_work->prev_block_hash);
-        free(new_work->coinbase_1);
-        free(new_work->coinbase_2);
+    size_t n_merkle = (size_t) cJSON_GetArraySize(merkle_branch);
+    if (n_merkle > MAX_MERKLE_BRANCHES) {
+        ESP_LOGE(TAG, "Too many Merkle branches: %zu", n_merkle);
         free(new_work);
         return false;
-    }
-    new_work->merkle_branches = malloc(HASH_SIZE * new_work->n_merkle_branches);
-    for (size_t i = 0; i < new_work->n_merkle_branches; i++) {
-        hex2bin(cJSON_GetArrayItem(merkle_branch, i)->valuestring, new_work->merkle_branches + HASH_SIZE * i, HASH_SIZE);
     }
 
-    new_work->version = strtoul(cJSON_GetArrayItem(params, 5)->valuestring, NULL, 16);
-    new_work->target = strtoul(cJSON_GetArrayItem(params, 6)->valuestring, NULL, 16);
-    new_work->ntime = strtoul(cJSON_GetArrayItem(params, 7)->valuestring, NULL, 16);
+    // params 5..7 (version, nbits, ntime) must be numeric hex strings.
+    for (int k = 5; k <= 7; k++) {
+        cJSON *item = cJSON_GetArrayItem(params, k);
+        if (!item || !cJSON_IsString(item) || !item->valuestring) {
+            ESP_LOGE(TAG, "mining.notify: params[%d] is not a string", k);
+            free(new_work);
+            return false;
+        }
+    }
+
+    // Validate every field before we commit to any allocation or hex decode.
+    // A malformed notify is dropped here so it can never reach the ASIC.
+    const char *merkle_strs[MAX_MERKLE_BRANCHES];
+    for (size_t i = 0; i < n_merkle; i++) {
+        cJSON *item = cJSON_GetArrayItem(merkle_branch, (int) i);
+        if (!item || !cJSON_IsString(item) || !item->valuestring) {
+            ESP_LOGE(TAG, "mining.notify: merkle branch %u is not a string", (unsigned) i);
+            free(new_work);
+            return false;
+        }
+        merkle_strs[i] = item->valuestring;
+    }
+
+    stratum_v1_notify_view_t view = {
+        .job_id           = cJSON_GetArrayItem(params, 0)->valuestring,
+        .prev_block_hash  = cJSON_GetArrayItem(params, 1)->valuestring,
+        .coinbase_1       = cJSON_GetArrayItem(params, 2)->valuestring,
+        .coinbase_2       = cJSON_GetArrayItem(params, 3)->valuestring,
+        .n_merkle_branches= n_merkle,
+        .merkle_branches  = merkle_strs,
+        .version          = cJSON_GetArrayItem(params, 5)->valuestring,
+        .nbits            = cJSON_GetArrayItem(params, 6)->valuestring,
+        .ntime            = cJSON_GetArrayItem(params, 7)->valuestring,
+    };
+
+    char verr[96];
+    if (!stratum_v1_notify_validate(&view, verr, sizeof(verr))) {
+        ESP_LOGE(TAG, "Rejected mining.notify: %s", verr);
+        free(new_work);
+        return false;
+    }
+
+    new_work->job_id = strdup(view.job_id);
+    new_work->prev_block_hash = strdup(view.prev_block_hash);
+    new_work->coinbase_1 = strdup(view.coinbase_1);
+    new_work->coinbase_2 = strdup(view.coinbase_2);
+
+    new_work->n_merkle_branches = n_merkle;
+    // calloc above zeroed the struct, but hex2bin() only writes the bytes it
+    // can decode. Validation guarantees 64 hex chars per branch, so every byte
+    // of this buffer is written exactly once.
+    new_work->merkle_branches = malloc(HASH_SIZE * n_merkle);
+    if (new_work->merkle_branches == NULL && n_merkle > 0) {
+        ESP_LOGE(TAG, "Memory allocation failed for merkle branches");
+        free(new_work->job_id);
+        free(new_work->prev_block_hash);
+        free(new_work->coinbase_1);
+        free(new_work->coinbase_2);
+        free(new_work);
+        return false;
+    }
+    for (size_t i = 0; i < n_merkle; i++) {
+        if (hex2bin(merkle_strs[i], new_work->merkle_branches + HASH_SIZE * i, HASH_SIZE) != HASH_SIZE) {
+            ESP_LOGE(TAG, "hex2bin failed for merkle branch %u", (unsigned) i);
+            free(new_work->merkle_branches);
+            free(new_work->job_id);
+            free(new_work->prev_block_hash);
+            free(new_work->coinbase_1);
+            free(new_work->coinbase_2);
+            free(new_work);
+            return false;
+        }
+    }
+
+    new_work->version = strtoul(view.version, NULL, 16);
+    new_work->target = strtoul(view.nbits, NULL, 16);
+    new_work->ntime = strtoul(view.ntime, NULL, 16);
 
     // params can be variable length
     int paramsLength = cJSON_GetArraySize(params);

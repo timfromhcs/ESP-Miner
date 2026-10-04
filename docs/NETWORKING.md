@@ -24,18 +24,24 @@ The networking subsystem operates as an explicit, event-driven state machine gov
     │
     ├─────────────────────────────┐
     ▼                             ▼
-[ DHCP_START ]              [ TIMER: 12s ]
+[ DHCP_START ]              [ TIMER: 8s watchdog ]
     │                             │
     ▼                             ▼ (If DHCP unacknowledged)
-[ GOT_IP (DHCP) ]           [ STATIC_FALLBACK ]
-    │                             │ (192.168.178.66, GW 192.168.178.1,
-    │                             │  RFC 5227 Gratuitous ARP broadcast)
+[ GOT_IP (DHCP) ]           [ DHCP_RETRY x5 ]
+    │                             │ jittered backoff ~5.2s .. 10.0s
+    │                             ▼ (retries exhausted)
+    │                      [ DHCP_RECOVERY ] x3
+    │                             │ 5-7s backoff
+    │                             ▼
+    │                      [ WIFI_RECOVERY ] -> esp_wifi_disconnect()
+    │                             │ re-associate, DHCP again
+    │                             └──► (loop until a real lease arrives)
     └──────────────┬──────────────┘
                    ▼
            [ NETWORK_READY ]
                    │
                    ▼
-             [ DNS_READY ] ──── (LwIP DNS: 1.1.1.1 / 8.8.8.8 / Router GW)
+             [ DNS_READY ] ──── (DNS from the DHCP lease)
                    │
                    ▼
          [ STRATUM_CONNECTING ] (IPv4-first AF_INET getaddrinfo)
@@ -46,6 +52,8 @@ The networking subsystem operates as an explicit, event-driven state machine gov
                    ▼
               [ MINING ]
 `
+
+> **There is deliberately no static-IP fallback.** See §3.
 
 ### Recovery States
 In the event of network perturbation:
@@ -78,15 +86,34 @@ During physical hardware validation on Bitaxe Ultra (Board 201) connected to an 
   }
   `
 
-### Fix 3: Deterministic DHCP Client Lifecycle & Static Fallback
-- **Vulnerability:** Prematurely invoking sp_netif_dhcpc_start before Wi-Fi station association resulted in indeterminate DHCP client states. Furthermore, if DHCP lease acquisition timed out, static fallback did not advance is_connected, deadlocking pp_main.
+### Fix 3: Deterministic DHCP Client Lifecycle & Conflict Handling
+- **Vulnerability:** Prematurely invoking `esp_netif_dhcpc_start` before Wi-Fi station association resulted in indeterminate DHCP client states. Bouncing the client `stop`→`start` to "retry" reset the DHCP xid and is itself a cause of lease conflicts on some routers.
 - **Resolution:**
-  1. DHCP client start bound to WIFI_EVENT_STA_CONNECTED.
-  2. Implemented 12-second deterministic fallback timer: if DHCP offers are delayed, the system safely falls back to static IP 192.168.178.66, assigns Gateway 192.168.178.1, registers global DNS servers (1.1.1.1 and 8.8.8.8), broadcasts RFC 5227 Gratuitous ARP to update router ARP caches, and advances GLOBAL_STATE->SYSTEM_MODULE.is_connected = true.
+  1. DHCP client start bound to `WIFI_EVENT_STA_CONNECTED`, and only when its status is `ESP_NETIF_DHCP_STOPPED`. No bounce.
+  2. A valid lease is **never wiped** on re-association. `esp_netif_set_ip_info()` requires the DHCP client to be stopped first; zeroing the IP forced a needless renegotiation on every roam, dropping the stratum socket and the web UI.
+  3. Retry uses jittered backoff (~5.2 s → 10.0 s over 5 attempts) and lets LwIP retransmit internally per RFC 2131 rather than restarting the client.
+  4. After 3 exhausted cycles the station disconnects and re-associates. This repeats until a real lease arrives.
 
-### Fix 4: Dual-Stack DNS & Global LwIP Server Registration
-- **Vulnerability:** sp_netif_set_dns_info(esp_netif_sta, ...) only updates LwIP\'s global DNS table if sp_netif_sta == s_last_default_esp_netif.
-- **Resolution:** Added explicit calls to LwIP core dns_setserver(0, &lwip_cf) (1.1.1.1) and dns_setserver(1, &lwip_goog) (8.8.8.8), guaranteeing that DNS resolution functions under both DHCP and static assignments.
+### Fix 3a: Lease conflicts — use the DHCP client, do not spoof the MAC
+- **Vulnerability:** an earlier revision overrode the STA MAC to a hardcoded `74:4D:BD:77:DD:3D` and forced the DHCP hostname to `bitaxe-dd3c` to dodge a lease conflict. That was wrong on four counts: it defeats the router-side reservation that assigns `192.168.178.66`; it is global rather than per-device, so two units would collide; the hostname and the MAC contradicted each other; and `esp_wifi_set_mac()` was called *before* `esp_wifi_start()` against the documented contract, with the return value discarded — which is why the real MAC still appears in the device's own API output.
+- **Resolution:** the efuse factory MAC is left untouched, and conflict handling is delegated to the DHCP client, which already supports it:
+
+  ```
+  CONFIG_LWIP_DHCP_DOES_ARP_CHECK=y
+  ```
+
+  > *Sends two ARP probes and only declines the offer if a reply for the offered IP comes from a **different MAC address than the interface MAC**. This is fast (about 1–2 seconds) and avoids false conflicts on networks where the AP echoes the client's MAC in ARP replies.*
+
+  ESP-IDF's docs explicitly warn **against** the obvious alternative, `CONFIG_LWIP_DHCP_DOES_ACD_CHECK`, for exactly this class of router:
+
+  > *Some access points respond to ARP probes with the client's own MAC for the offered IP; upstream behavior treats any matching sender IP during PROBING as a conflict, **which can cause repeated DHCP DECLINEs on such networks**.*
+
+  An AVM FRITZ!Box that echoes the client MAC in ARP replies is precisely that case, so enabling ACD would have made the original symptom worse. The project stays on the ARP check.
+
+- **`CONFIG_LWIP_DHCP_RESTORE_LAST_IP` is deliberately left off.** Caching and restoring the last lease across a power cut is attractive for fast recovery, but the restore path bypasses the ARP conflict check. For a device whose address is already reserved that is the wrong trade.
+
+### Fix 4: DNS
+- DNS servers come from the DHCP lease. Earlier revisions also poked LwIP's global DNS table directly via `dns_setserver()` to hardcode `1.1.1.1` / `8.8.8.8`; that was only needed to support the static-IP fallback and has been removed with it.
 
 ### Fix 5: IPv4-First Resolution in Stratum Socket
 - **Vulnerability:** Standard getaddrinfo with AF_UNSPEC first attempts IPv6 AAAA lookups. On IPv4-only mining pools (such as dgb.solopool.eu), this caused 2.0–5.0 second timeout delays while awaiting AAAA timeouts.

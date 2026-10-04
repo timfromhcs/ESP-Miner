@@ -22,6 +22,9 @@
 #define BM1366_CHIP_ID 0x1366
 #define BM1366_CHIP_ID_RESPONSE_LENGTH 11
 
+/* Chip reference clock the UART divider is derived from (CLKI, BCLK_SEL = 0). */
+#define BM1366_FCLK_HZ 25000000u
+
 #define TYPE_JOB 0x20
 #define TYPE_CMD 0x40
 
@@ -158,6 +161,29 @@ void BM1366_set_version_mask(uint32_t version_mask)
     _send_BM1366(TYPE_CMD | GROUP_ALL | CMD_WRITE, version_cmd, 6, BM1366_SERIALTX_DEBUG);
 }
 
+/**
+ * @brief Write the ticket mask (register 0x14) that decides when the chip
+ *        reports a nonce back over UART.
+ *
+ * The chip only forwards a nonce whose (reversed) hash satisfies the mask, so
+ * this register is the single knob that controls how much UART traffic a given
+ * hashrate produces. It was previously written exactly once during
+ * BM1366_init() from DEVICE_CONFIG.family.asic.difficulty — a *static* family
+ * default (256 for BM1366) that never tracked the difficulty the pool
+ * actually assigned. On the production device that meant the chip kept
+ * reporting at ~256 while the pool wanted 720.
+ *
+ * @param difficulty pool-assigned difficulty; rounded down to the next power
+ *        of two because a non-power-of-two mask leaves holes in the search.
+ */
+void BM1366_set_ticket_mask(double difficulty)
+{
+    uint8_t difficulty_mask[6];
+    get_difficulty_mask(difficulty, difficulty_mask);
+    ESP_LOGI(TAG, "Setting ticket mask for pool difficulty %.2f", difficulty);
+    _send_BM1366((TYPE_CMD | GROUP_ALL | CMD_WRITE), difficulty_mask, 6, BM1366_SERIALTX_DEBUG);
+}
+
 void BM1366_set_hash_counting_number(uint32_t hcn) {
     uint8_t set_10_hash_counting[6] = {0x00, 0x10, 0x00, 0x00, 0x00, 0x00};
     set_10_hash_counting[2] = (hcn >> 24) & 0xFF;
@@ -239,12 +265,14 @@ uint8_t BM1366_init(GlobalState * GLOBAL_STATE)
     unsigned char init136[11] = {0x55, 0xAA, 0x51, 0x09, 0x00, 0x3C, 0x80, 0x00, 0x80, 0x20, 0x19};
     _send_simple(init136, 11);
 
-    uint16_t difficulty = GLOBAL_STATE->DEVICE_CONFIG.family.asic.difficulty;
-
-    //set difficulty mask
-    uint8_t difficulty_mask[6];
-    get_difficulty_mask(difficulty, difficulty_mask);
-    _send_BM1366((TYPE_CMD | GROUP_ALL | CMD_WRITE), difficulty_mask, 6, BM1366_SERIALTX_DEBUG);    
+    // Ticket mask: prefer the difficulty the pool actually assigned so the chip
+    // does not flood the UART with nonces we are going to throw away. Fall back
+    // to the static family default until the first mining.set_difficulty.
+    double pool_difficulty = GLOBAL_STATE->pool_difficulty;
+    if (!(pool_difficulty >= 1.0)) {
+        pool_difficulty = GLOBAL_STATE->DEVICE_CONFIG.family.asic.difficulty;
+    }
+    BM1366_set_ticket_mask(pool_difficulty);
 
     unsigned char init138[11] = {0x55, 0xAA, 0x51, 0x09, 0x00, 0x54, 0x00, 0x00, 0x00, 0x03, 0x1D};
     _send_simple(init138, 11);
@@ -293,13 +321,49 @@ uint8_t BM1366_init(GlobalState * GLOBAL_STATE)
 //     _send_BM1366((TYPE_CMD | GROUP_ALL | CMD_READ), read_address, 2, BM1366_SERIALTX_DEBUG);
 // }
 
-int BM1366_set_max_baud(void)
+/**
+ * @brief Select the chip's UART rate and return the exact rate to program on
+ *        the host so both ends agree.
+ *
+ * BM13xx derives its baud rate from the 25 MHz chip clock:
+ *     baud = fCLKI / ((BT8D + 1) * 8)
+ * with BT8D living in bits [15:8] of the "Fast UART Configuration" register
+ * 0x28 (reset value 0x0130_1A00 -> BT8D = 26 -> 115 740 bps).
+ *
+ * The previous code wrote BT8D = 2 but returned 1 000 000 to the host. The chip
+ * was therefore clocked at 25e6 / (3 * 8) = 1 041 666.67 bps while the ESP32
+ * UART ran at 1 000 000 — a systematic 4.17 % mismatch that makes framing
+ * errors accumulate over an 89-byte job frame and during idle gaps. That is
+ * the same class of fault as the documented "Serial RX invalid 11" RX-ring
+ * overflow.
+ *
+ * BT8D = 1 yields 1 562 500 bps exactly and BT8D = 0 yields 3 125 000 bps
+ * exactly, both of which are integers, so there is no reason to keep a
+ * fractional rate. We keep BT8D = 2 as the default (proven configuration) but
+ * now return the true 1 041 667 so the link is bit-accurate; the higher rates
+ * are opt-in via `fast_uart` once they have been validated on hardware with a
+ * logic analyser.
+ *
+ * @return host baud rate to program, or 0 on failure (caller keeps the
+ *         previously working rate).
+ */
+int BM1366_set_max_baud(bool fast_uart)
 {
-    ESP_LOGI(TAG, "Setting max baud of 1000000");
+    uint8_t bt8d = fast_uart ? 1 : 2;
+    uint32_t reg28 = 0x11300200u | ((uint32_t) bt8d << 8);
+    int host_baud = (int)(BM1366_FCLK_HZ / ((bt8d + 1u) * 8u));
 
-    unsigned char reg28[11] = {0x55, 0xAA, 0x51, 0x09, 0x00, 0x28, 0x11, 0x30, 0x02, 0x00, 0x03};
-    _send_simple(reg28, 11);
-    return 1000000;
+    ESP_LOGI(TAG, "Setting chip UART BT8D=%u -> %d baud (host programmed to match)", bt8d, host_baud);
+
+    unsigned char frame[11] = {
+        0x55, 0xAA, 0x51, 0x09,
+        0x00, 0x28,
+        (uint8_t)(reg28 >> 24), (uint8_t)(reg28 >> 16),
+        (uint8_t)(reg28 >> 8), (uint8_t) reg28,
+        0x03
+    };
+    _send_simple(frame, 11);
+    return host_baud;
 }
 
 static uint8_t id = 0;

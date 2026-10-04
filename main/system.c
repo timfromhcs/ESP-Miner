@@ -193,6 +193,12 @@ void SYSTEM_init_system(GlobalState * GLOBAL_STATE)
 {
     SystemModule * module = &GLOBAL_STATE->SYSTEM_MODULE;
 
+    GLOBAL_STATE->asic_fast_uart = nvs_config_get_bool(NVS_CONFIG_ASIC_FAST_UART);
+    GLOBAL_STATE->notify_dropped = 0;
+    GLOBAL_STATE->notify_received = 0;
+    GLOBAL_STATE->share_rejected_stale = 0;
+    GLOBAL_STATE->share_rejected_other = 0;
+
     module->screen_page = 0;
     module->shares_accepted = 0;
     module->shares_rejected = 0;
@@ -450,11 +456,47 @@ static int compare_rejected_reason_stats(const void *a, const void *b) {
     return (eb->count > ea->count) - (ea->count > eb->count);
 }
 
+/**
+ * @brief Split a stratum reject into "the pool moved on" and everything else.
+ *
+ * Stratum error 21 ("Invalid job id", "Job not found", "Stale") is a latency
+ * race, not a miner bug: a new job crossed paths with an in-flight share
+ * submission. It cannot be eliminated, only minimised by keeping RTT low and
+ * submitting immediately. Anything else (duplicate, above target, low
+ * difficulty, worker mismatch) *is* a client-side defect and deserves its own
+ * counter so a regression is visible on the dashboard instead of hiding inside
+ * one percentage.
+ */
+static bool reject_is_stale(const char * error_msg)
+{
+    if (error_msg == NULL) {
+        return false;
+    }
+    static const char * const stale_reasons[] = {
+        "Invalid job id",
+        "Job not found",
+        "Stale",
+        "stale",
+    };
+    for (size_t i = 0; i < sizeof(stale_reasons) / sizeof(stale_reasons[0]); i++) {
+        if (strcmp(error_msg, stale_reasons[i]) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
 void SYSTEM_notify_rejected_share(GlobalState * GLOBAL_STATE, char * error_msg)
 {
     SystemModule * module = &GLOBAL_STATE->SYSTEM_MODULE;
 
     module->shares_rejected++;
+
+    if (reject_is_stale(error_msg)) {
+        GLOBAL_STATE->share_rejected_stale++;
+    } else {
+        GLOBAL_STATE->share_rejected_other++;
+    }
 
     for (int i = 0; i < module->rejected_reason_stats_count; i++) {
         if (strncmp(module->rejected_reason_stats[i].message, error_msg, sizeof(module->rejected_reason_stats[i].message) - 1) == 0) {

@@ -1,3 +1,11 @@
+> **SUPERSEDED — read docs/NETWORKING.md for current behaviour.**
+> This is a historical report describing 2.15.3-hardened. The static-IP fallback it
+> discusses was **removed** in 2.16.0-hardened: a hardcoded address cannot be verified
+> as free, so binding it caused and masked the very lease conflicts the state machine
+> exists to prevent. Conflict handling now uses the DHCP client itself
+> (CONFIG_LWIP_DHCP_DOES_ARP_CHECK). See
+> docs/PLAN_BITAXE_BM1366_OPTIMIZATION.md §3.6 and docs/EVIDENCE.md EV-007.
+
 # Final Release & Autonomous Verification Report
 
 **Document Target:** Master Engineering Specification GEMINI.md & Final Release Gate  
@@ -140,7 +148,7 @@
 - **Silicon:** Bitmain BM1366 (112 core clusters, 894 small engines).
 - **Operating Frequency:** 485.00 MHz (ramped incrementally from 50 MHz in 6.25 MHz steps).
 - **Core Voltage:** 1.206 V measured (1.200 V setpoint).
-- **Baud Rate:** 1,000,000 baud UART.
+- **Baud Rate:** 1,041,666 baud UART.
 - **Integrity:** 0 framing errors, 0 CRC5 mismatches across >100,000 packets.
 
 ---

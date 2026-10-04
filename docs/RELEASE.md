@@ -2,7 +2,7 @@
 
 ## 1. Semantic Versioning & Tags
 - Format: `vX.Y.Z-hardened`\
-- Release Tag: `v2.15.2-hardened`
+- Release Tag: `v2.16.0-hardened`
 - Commit: `a3a2b00`
 
 ## 2. Release Artifacts & Checksums

@@ -2,6 +2,7 @@ idf_component_register(
 SRCS
     "utils.c"
     "mining.c"
+    "notify_validate.c"
     "stratum_api.c"
     "stratum_socket.c"
     "coinbase_decoder.c"

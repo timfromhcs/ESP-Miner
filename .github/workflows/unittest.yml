@@ -7,6 +7,22 @@ permissions:
   contents: read
 
 jobs:
+  host-tests:
+    # Plain C modules that carry no ESP-IDF dependencies. Catches parser and
+    # validation regressions in seconds, without waiting for the QEMU job.
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v6
+
+      - name: Build and run host tests
+        working-directory: ./simulation
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc make
+          make CFLAGS="-Wall -Wextra -Werror -O2 -I."
+          make run
+
   build-and-test:
     runs-on: ubuntu-latest
     steps:

@@ -209,6 +209,21 @@ typedef struct GlobalState
     char network_diff_string[DIFF_STRING_SIZE];
     char block_signals[MAX_BLOCK_SIGNALS][MAX_BLOCK_SIGNAL_LEN];
     int block_signals_count;
+
+    /* Stratum notify health, see system_api_json.c / openapi.yaml.
+     * notify_dropped counts frames that were well-formed JSON but could not be
+     * turned into valid chip work — every one of them was a full job interval
+     * of wasted hashrate before P0 dropped them. */
+    uint32_t notify_dropped;
+    uint32_t notify_received;
+    uint32_t share_rejected_stale;   /* pool error 21 "Invalid job id"/"Stale" */
+    uint32_t share_rejected_other;
+
+    /* Opt-in higher chip UART rate (BM1366: BT8D=1, 1 562 500 baud).
+     * Off by default because the default rate is the proven configuration; the
+     * reason the flag exists at all is that the previous code ran the host at
+     * 1 000 000 while the chip was clocked at 1 041 667 (4.17 % mismatch). */
+    bool asic_fast_uart;
 } GlobalState;
 
 #endif /* GLOBAL_STATE_H_ */

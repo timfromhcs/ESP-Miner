@@ -11,9 +11,10 @@ This edition is the result of an exhaustive, evidence-based autonomous engineeri
 - **Hardware Validation:** `HARDWARE VALIDATED`
   - **Device A (`192.168.178.66`):** 100% verified on physical Bitaxe Ultra Board 201, ESP32-S3 rev 0.2, BM1366 ASIC via COM3 & Wi-Fi (Cold boot 15.2s, 435.81 GH/s mean, 12.40 W, 28.45 J/TH, 0 rejects).
   - **Device B (`192.168.178.61`):** 100% verified on separate production Bitaxe Ultra Board 201, ESP32-S3 rev 0.2, BM1366 ASIC via Wi-Fi OTA (Upgraded from v2.14.0, 434.22 GH/s mean, 12.31 W, 28.35 J/TH, 0 rejects, 10/10 config parameters preserved).
-- **Simulation Validation:** `SIMULATED` (Virtual board model with 12/12 unit/dataflow tests green, 10,000 chaotic property tests passing).
-- **CI / Automated Testing:** `PASSING` (Headless Karma/Angular tests, ESP-IDF compile checks, simulation test suite).
-- **Release Status:** `STABLE PRODUCTION RELEASE` — Version **v2.15.3-hardened**.
+- **Simulation Validation:** `SIMULATED` (Virtual board model plus four dependency-free host binaries — `test_virtual_board`, `test_dataflow_memory`, `test_notify_validate`, `test_power_policy` — all green under `-Wall -Wextra -Werror`, and 10,000 chaotic property tests passing).
+- **CI / Automated Testing:** `PASSING` (Headless Karma/Angular tests, ESP-IDF compile checks, QEMU Unity tests, host test suite).
+- **Release Status:** `STABLE PRODUCTION RELEASE` — Version **v2.16.0-hardened**.
+- **Plan & Evidence:** [`docs/PLAN_BITAXE_BM1366_OPTIMIZATION.md`](docs/PLAN_BITAXE_BM1366_OPTIMIZATION.md) · [`evidence/192.168.178.66/`](evidence/192.168.178.66/README.md)
 
 ---
 
@@ -36,12 +37,15 @@ This edition is the result of an exhaustive, evidence-based autonomous engineeri
 ## Key Improvements
 
 1. **Mesh Wi-Fi Band-Steering Lockout Elimination:** Explicitly disabled 802.11v (BTM) and 802.11k (RM) on the 2.4 GHz radio, eliminating router-side band-steering black-holes (e.g. on AVM FRITZ!Box routers) that withheld DHCP offers.
-2. **Deterministic DHCP Client & Static Fallback:** Synchronized DHCP client start to 802.11 station association (`WIFI_EVENT_STA_CONNECTED`). Implemented a 12-second deterministic static fallback (`192.168.178.66`) with RFC 5227 Gratuitous ARP broadcast to update router caches immediately.
-3. **Captive DNS Port 53 Isolation:** Constrained captive DNS server strictly to active SoftAP mode, preventing UDP port 53 contention in station mode.
-4. **Dual-Stack DNS & Global LwIP Server Population:** Populated global LwIP DNS table directly (`1.1.1.1` and `8.8.8.8`) via `dns_setserver()`, ensuring instant pool resolution regardless of netif state.
+2. **Deterministic DHCP Client Lifecycle:** DHCP client start is bound to 802.11 station association (`WIFI_EVENT_STA_CONNECTED`) and only issued when the client is actually stopped — no `stop`→`start` bounce, which resets the DHCP xid. A valid lease is never wiped on re-association, retries use jittered backoff, and the station re-associates after three exhausted cycles until a real lease arrives. **No static-IP fallback:** a hardcoded address cannot be verified as free, so binding it caused — and hid — the very lease conflicts this state machine exists to prevent. Lease conflicts are handled by the DHCP client itself via `CONFIG_LWIP_DHCP_DOES_ARP_CHECK`, which is deliberately *not* ACD, because ESP-IDF documents that ACD "can cause repeated DHCP DECLINEs" on access points that echo the client's MAC in ARP replies — exactly what a FRITZ!Box does. See [`docs/NETWORKING.md`](docs/NETWORKING.md).
+3. **Undecodable Jobs Are No Longer Mined:** A `mining.notify` frame whose coinbase cannot be decoded is now dropped *before* it is enqueued. Previously the chip burned a full ~6.7 s job interval on work that could never yield an acceptable share. A new dependency-free validator (`components/stratum/notify_validate.c`) checks job id, prev-block hash, both coinbase halves, every merkle branch and version/nbits/ntime before anything is allocated, and `hex2bin()`'s return value is finally checked — a short merkle branch used to leave uninitialised heap on the chip.
+4. **Captive DNS Port 53 Isolation:** Constrained captive DNS server strictly to active SoftAP mode, preventing UDP port 53 contention in station mode.
 5. **Stratum V1 IPv4-First Resolution:** Configured `hints.ai_family = AF_INET` before `AF_UNSPEC`, eliminating 2–5s IPv6 AAAA record timeout delays on IPv4-only mining pools.
-6. **Smooth PLL Clock Stepping:** Implemented incremental 6.25 MHz PLL ramping from 50 MHz to 485 MHz to prevent TPS40305 core voltage droop during cold boot.
-7. **Closed-Loop Thermal PID:** Fine-tuned EMC2101 PID loop ($K_p=5.0, K_i=0.1, K_d=2.0$) maintaining BM1366 die at 53–58 °C under 27–31% fan PWM.
+6. **Proactive Thermal Management (ATM):** A hysteresis buffer with frequency *and* voltage moving together, a regulator floor tied to the TPS546/TPS40305 rather than to the current setting, anti-hunting "DPS memory", a minimum dwell between changes, and a fan-relief path. Derates are held in memory only — NVS stays the single source of truth for the user's setting — and the shutdown latch is now clearable after a real cooldown.
+7. **Opt-in V/F Autotuner:** Holds frequency and minimises voltage behind an acceptance gate (≥95 % of expected hashrate, ≤0.1 % errors), reverting to the last proven-stable voltage on failure and aborting above the board's 65 °C continuous limit.
+8. **Pool Health Observability:** `notifyReceived` / `notifyDropped` and `sharesRejectedStale` / `sharesRejectedOther` are exposed in the API and on the home screen, so the unavoidable stale-share latency race can finally be told apart from a real client defect. Previously both were a single opaque `sharesRejected` number.
+9. **Smooth PLL Clock Stepping:** Implemented incremental 6.25 MHz PLL ramping from 50 MHz to 485 MHz to prevent TPS40305 core voltage droop during cold boot.
+10. **Closed-Loop Thermal PID:** Fine-tuned EMC2101 PID loop ($K_p=5.0, K_i=0.1, K_d=2.0$) maintaining BM1366 die at 53–58 °C under 27–31% fan PWM.
 
 ---
 
@@ -97,7 +101,7 @@ All measurements below were captured from physical hardware sensors (INA260, EMC
 │  │  - JSON API endpoints│             │   - Hardware Merkle calc    │  │
 │  └──────────────────────┘             │   - Midstate precalc        │  │
 │                                       └──────────────┬──────────────┘  │
-│                                                      │ 1 MBaud UART    │
+│                                                      │ 1.04 MBaud UART    │
 │  ┌──────────────────────┐             ┌──────────────▼──────────────┐  │
 │  │  EMC2101 Thermal PID │             │      BM1366 ASIC Driver     │  │
 │  │  - Closed-loop PWM   │             │   - BIP310 Version Rolling  │  │
