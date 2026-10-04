@@ -29,6 +29,11 @@ typedef enum {
     NVS_CONFIG_STATIC_GATEWAY,
     NVS_CONFIG_STATIC_SUBNET,
     NVS_CONFIG_STATIC_DNS,
+
+    /* Last address the DHCP server actually handed out. Remembered so that a
+     * later DHCP outage can fall back onto an address this unit is already known
+     * to hold, which is far safer than a configured one: it was a real lease. */
+    NVS_CONFIG_LAST_DHCP_IP,
     
     NVS_CONFIG_ASIC_FREQUENCY,
     NVS_CONFIG_ASIC_VOLTAGE,

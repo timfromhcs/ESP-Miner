@@ -81,6 +81,10 @@ static Settings settings[NVS_CONFIG_COUNT] = {
     [NVS_CONFIG_STATIC_SUBNET]                         = {.nvs_key_name = "static_mask",     .type = TYPE_STR,   .default_value = {.str = "255.255.255.0"},                             .rest_name = "staticSubnet",                    .min = 0,  .max = 15},
     [NVS_CONFIG_STATIC_DNS]                            = {.nvs_key_name = "static_dns",      .type = TYPE_STR,   .default_value = {.str = ""},                                          .rest_name = "staticDns",                       .min = 0,  .max = 15},
 
+    /* Written by connect.c whenever a lease is bound. Not exposed in the API:
+     * it is device state, not a setting, and must not be hand-editable. */
+    [NVS_CONFIG_LAST_DHCP_IP]                          = {.nvs_key_name = "last_dhcp_ip",    .type = TYPE_STR,   .default_value = {.str = ""},                                          .rest_name = NULL,                               .min = 0,  .max = 15},
+
     [NVS_CONFIG_ASIC_FREQUENCY]                        = {.nvs_key_name = "asicfrequency_f", .type = TYPE_FLOAT, .default_value = {.f   = CONFIG_ASIC_FREQUENCY},                       .rest_name = "frequency",                          .min = 1,  .max = UINT16_MAX},
     [NVS_CONFIG_ASIC_VOLTAGE]                          = {.nvs_key_name = "asicvoltage",     .type = TYPE_U16,   .default_value = {.u16 = CONFIG_ASIC_VOLTAGE},                         .rest_name = "coreVoltage",                        .min = 1,  .max = UINT16_MAX},
     [NVS_CONFIG_OVERCLOCK_ENABLED]                     = {.nvs_key_name = "oc_enabled",      .type = TYPE_BOOL,                                                                         .rest_name = "overclockEnabled",                   .min = 0,  .max = 1},

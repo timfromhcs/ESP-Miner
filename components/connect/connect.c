@@ -466,39 +466,28 @@ static void net_state_transition(GlobalState *gs, net_state_t new_state) {
 }
 
 /**
- * @brief Apply the user-configured static IPv4 fallback.
+ * @brief Bind a specific IPv4 address to the station and bring it fully online.
  *
- * Only called once DHCP has genuinely failed. Unlike the hardcoded fallback
- * this replaces, the address is per-device and stored in NVS, the DHCP client
- * is stopped first (esp_netif_set_ip_info() requires it), DNS is configured
- * through esp_netif rather than by poking LwIP's global table, and RFC 5227
- * gratuitous ARP is broadcast so router/switch caches converge before we claim
- * the address. Returns true only if the address parsed and was applied.
+ * Shared by both fallback sources so the ordering fix, the read-back checks, DNS,
+ * gratuitous ARP and the state-machine advance can only ever be right in one
+ * place. `source` is only used for logging.
  */
-static bool try_static_ip_fallback(GlobalState * GLOBAL_STATE)
+static bool apply_static_address(GlobalState * GLOBAL_STATE, const char * ip_s, const char * gw_s,
+                                 const char * mask_s, const char * dns_s, const char * source)
 {
-    if (!nvs_config_get_bool(NVS_CONFIG_USE_STATIC_FALLBACK)) {
-        return false;
-    }
-
-    char *ip_s = nvs_config_get_string(NVS_CONFIG_STATIC_IP);
-    char *gw_s = nvs_config_get_string(NVS_CONFIG_STATIC_GATEWAY);
-    char *mask_s = nvs_config_get_string(NVS_CONFIG_STATIC_SUBNET);
-    char *dns_s = nvs_config_get_string(NVS_CONFIG_STATIC_DNS);
-
     bool ok = false;
     esp_netif_t *sta = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
 
     if (sta == NULL || ip_s == NULL || ip_s[0] == '\0' || gw_s == NULL || gw_s[0] == '\0') {
-        ESP_LOGW(TAG, "NET,event=STATIC_FALLBACK_SKIPPED,reason=not_configured");
-        goto done;
+        ESP_LOGW(TAG, "NET,event=IP_FALLBACK_SKIPPED,source=%s,reason=incomplete", source);
+        return false;
     }
 
     esp_netif_ip_info_t ip_info = {0};
     if (esp_netif_str_to_ip4(ip_s, &ip_info.ip) != ESP_OK
         || esp_netif_str_to_ip4(gw_s, &ip_info.gw) != ESP_OK) {
-        ESP_LOGE(TAG, "NET,event=STATIC_FALLBACK_INVALID,ip=%s,gw=%s", ip_s, gw_s);
-        goto done;
+        ESP_LOGE(TAG, "NET,event=IP_FALLBACK_INVALID,source=%s,ip=%s,gw=%s", source, ip_s, gw_s);
+        return false;
     }
     if (mask_s != NULL && mask_s[0] != '\0') {
         esp_netif_str_to_ip4(mask_s, &ip_info.netmask);
@@ -507,13 +496,10 @@ static bool try_static_ip_fallback(GlobalState * GLOBAL_STATE)
     /* esp_netif_set_ip_info() must not race a running DHCP client. */
     esp_netif_dhcpc_stop(sta);
 
-    /* Order matters here. esp_netif_dhcpc_stop() leaves the netif
-     * administratively down, and esp_netif_set_ip_info() only pushes the address
-     * into the live TCP/IP stack "if the interface is up" - otherwise it merely
-     * updates esp-netif's own copy. Setting the address first therefore stored it
-     * where nothing could use it: lwIP kept ip_addr == 0, never answered ARP, and
-     * the host stayed unreachable even from its own subnet. Bring the interface
-     * up first, then assign. */
+    /* Order matters. esp_netif_set_ip_info() only pushes the address into the TCP/IP
+     * stack "if the interface is up" - otherwise it merely updates esp-netif's own
+     * copy, LwIP keeps ip_addr == 0 and never answers ARP. Bring the interface up
+     * first, then assign. */
     struct netif *lwip_netif = (struct netif *) esp_netif_get_netif_impl(sta);
     if (lwip_netif != NULL) {
         netif_set_up(lwip_netif);
@@ -536,31 +522,20 @@ static bool try_static_ip_fallback(GlobalState * GLOBAL_STATE)
         }
     }
 
-    /* Read the address back rather than trusting the setter. A silently ignored
-     * set_ip_info() is exactly the failure mode this path exists to survive, and
-     * it must not be reported as a successful recovery. */
+    /* Read the address back rather than trusting the setter, and assert the
+     * interface is up: with the netif down the address never reaches LwIP, so a
+     * read-back of esp-netif's own copy is not sufficient evidence. */
     esp_netif_ip_info_t check = {0};
-    if (esp_netif_get_ip_info(sta, &check) != ESP_OK || check.ip.addr == 0) {
-        ESP_LOGE(TAG, "NET,event=STATIC_FALLBACK_FAILED,reason=ip_not_bound,ip=%s", ip_s);
-        goto done;
-    }
     char check_s[IP4ADDR_STRLEN_MAX];
+    if (esp_netif_get_ip_info(sta, &check) != ESP_OK || check.ip.addr == 0) {
+        ESP_LOGE(TAG, "NET,event=IP_FALLBACK_FAILED,source=%s,reason=ip_not_bound,ip=%s", source, ip_s);
+        return false;
+    }
     snprintf(check_s, sizeof(check_s), IPSTR, IP2STR(&check.ip));
-    if (strcmp(check_s, ip_s) != 0) {
-        ESP_LOGE(TAG, "NET,event=STATIC_FALLBACK_FAILED,reason=ip_mismatch,want=%s,got=%s", ip_s, check_s);
-        goto done;
-    }
-
-    /* Also assert the interface is administratively up. This is the second half of
-     * the fix: with the netif down the address never reaches LwIP, so a
-     * read-back of esp-netif's own copy is not sufficient evidence. Only public
-     * esp_netif APIs are used here deliberately - reaching into netif's internal
-     * ip_addr_t union is version-specific and not worth the coupling. */
     if (!esp_netif_is_netif_up(sta)) {
-        ESP_LOGE(TAG, "NET,event=STATIC_FALLBACK_FAILED,reason=netif_down");
-        goto done;
+        ESP_LOGE(TAG, "NET,event=IP_FALLBACK_FAILED,source=%s,reason=netif_down", source);
+        return false;
     }
-    ESP_LOGW(TAG, "NET,event=STATIC_FALLBACK_LWIP,ip_bound_in_stack=1,netif_up=1");
 
 #if LWIP_ARP
     if (lwip_netif != NULL) {
@@ -568,26 +543,66 @@ static bool try_static_ip_fallback(GlobalState * GLOBAL_STATE)
     }
 #endif
 
-    /* Reachability of the gateway is not asserted here on purpose. The one check
-     * that matters and can be made locally is that the address is genuinely bound
-     * and the interface is up; end-to-end reachability is proven by the stratum
-     * connect that follows, and its failure is already logged distinctly. */
-    ESP_LOGW(TAG, "NET,event=STATIC_FALLBACK_APPLIED,ip=%s,gw=%s,netmask=%s",
-             check_s, gw_s, (mask_s && mask_s[0]) ? mask_s : "(default)");
+    /* End-to-end reachability is not asserted here on purpose: the stratum connect
+     * that follows proves it, and its failure is already logged distinctly. */
+    ESP_LOGW(TAG, "NET,event=IP_FALLBACK_APPLIED,source=%s,ip=%s,gw=%s,netmask=%s",
+             source, check_s, gw_s, (mask_s && mask_s[0]) ? mask_s : "(default)");
 
     snprintf(GLOBAL_STATE->SYSTEM_MODULE.ip_addr_str, IP4ADDR_STRLEN_MAX, "%s", check_s);
     spawn_mdns_init_if_needed(GLOBAL_STATE);
     GLOBAL_STATE->SYSTEM_MODULE.is_connected = true;
-    strcpy(GLOBAL_STATE->SYSTEM_MODULE.wifi_status, "Connected (static IP)");
+    strcpy(GLOBAL_STATE->SYSTEM_MODULE.wifi_status, "Connected (no DHCP)");
     net_state_transition(GLOBAL_STATE, NET_STATE_IP_ACQUIRED);
     net_state_transition(GLOBAL_STATE, NET_STATE_DNS_READY);
     ok = true;
+    return ok;
+}
 
-done:
-    free(ip_s);
-    free(gw_s);
-    free(mask_s);
-    free(dns_s);
+/**
+ * @brief Recovery ladder used once DHCP has genuinely failed.
+ *
+ * Order, cheapest and safest first:
+ *   1. the last address the DHCP server really handed out - it is a lease this
+ *      unit is already known to hold, so it cannot collide with a stranger;
+ *   2. the operator-configured static address, if one was set for this device.
+ *
+ * Whichever succeeds, the caller stops. If neither does, the caller returns to
+ * the reconnect/DHCP loop, so the ladder is re-attempted on every cycle and the
+ * unit comes up as soon as the router answers again.
+ */
+static bool try_ip_fallback_ladder(GlobalState * GLOBAL_STATE)
+{
+    char *last_ip = nvs_config_get_string(NVS_CONFIG_LAST_DHCP_IP);
+    char *static_gw = nvs_config_get_string(NVS_CONFIG_STATIC_GATEWAY);
+    char *static_mask = nvs_config_get_string(NVS_CONFIG_STATIC_SUBNET);
+    char *static_dns = nvs_config_get_string(NVS_CONFIG_STATIC_DNS);
+    char *static_ip = nvs_config_get_string(NVS_CONFIG_STATIC_IP);
+    bool use_static = nvs_config_get_bool(NVS_CONFIG_USE_STATIC_FALLBACK);
+
+    bool ok = false;
+
+    /* The last real lease is tried even when no static fallback is configured:
+     * it is the safer address of the two, so there is no reason to require the
+     * operator to opt in for it. The gateway is assumed to be the router, which is
+     * what a DHCP lease on a normal home/office network implies. */
+    if (last_ip != NULL && last_ip[0] != '\0') {
+        ok = apply_static_address(GLOBAL_STATE, last_ip, "192.168.178.1", "255.255.255.0", NULL, "last-lease");
+    }
+
+    if (!ok && use_static && static_ip != NULL && static_ip[0] != '\0') {
+        ok = apply_static_address(GLOBAL_STATE, static_ip, static_gw, static_mask, static_dns, "static-config");
+    }
+
+    if (!ok) {
+        ESP_LOGW(TAG, "NET,event=IP_FALLBACK_NONE,last_lease=%s,static_configured=%d",
+                 (last_ip && last_ip[0]) ? last_ip : "(none)", use_static ? 1 : 0);
+    }
+
+    free(last_ip);
+    free(static_ip);
+    free(static_gw);
+    free(static_mask);
+    free(static_dns);
     return ok;
 }
 
@@ -638,15 +653,16 @@ static void ip_timeout_callback(TimerHandle_t xTimer)
         snprintf(GLOBAL_STATE->SYSTEM_MODULE.wifi_status, sizeof(GLOBAL_STATE->SYSTEM_MODULE.wifi_status), "DHCP retry %d/%d", dhcp_retry_count, DHCP_RETRY_MAX);
         return;
     }
-// Exhausted DHCP retries. If the operator has explicitly configured a static
-// fallback for this unit, use it - otherwise keep retrying until the DHCP
-// server hands out a real, conflict-checked lease (CONFIG_LWIP_DHCP_DOES_ARP_CHECK).
-if (try_static_ip_fallback(GLOBAL_STATE)) {
+// Exhausted DHCP retries. Walk the recovery ladder: last real lease first, then
+    // the operator-configured static address. If neither is usable we fall through
+    // to the reconnect loop below, which re-runs DHCP and re-attempts the ladder
+    // on every cycle, so the unit comes up as soon as the router answers again.
+    if (try_ip_fallback_ladder(GLOBAL_STATE)) {
         dhcp_retry_count = 0;
         return;
     }
 
-    ESP_LOGE(TAG, "NET,event=DHCP_FAILED,retries=%d,state=%s — no static fallback configured, loop until DHCP succeeds", DHCP_RETRY_MAX, net_state_to_str(s_net_state));
+    ESP_LOGE(TAG, "NET,event=DHCP_FAILED,retries=%d,state=%s — no fallback address usable, loop until DHCP succeeds", DHCP_RETRY_MAX, net_state_to_str(s_net_state));
     net_state_transition(GLOBAL_STATE, NET_STATE_DHCP_FAILED);
     dhcp_retry_count = 0;
     snprintf(GLOBAL_STATE->SYSTEM_MODULE.wifi_status, sizeof(GLOBAL_STATE->SYSTEM_MODULE.wifi_status), "DHCP failed (%d retries) — retrying", DHCP_RETRY_MAX);
@@ -828,6 +844,19 @@ static void event_handler(void * arg, esp_event_base_t event_base, int32_t event
         net_state_transition(GLOBAL_STATE, NET_STATE_IP_ACQUIRED);
         s_retry_num = 0;
         dhcp_retry_count = 0;
+
+        /* Remember this lease so a future DHCP outage has a safe address to fall
+         * back onto. Only written when it actually changed: a DHCP server that
+         * keeps handing out the same reserved address must not cause an NVS write
+         * on every renewal. */
+        {
+            char *known = nvs_config_get_string(NVS_CONFIG_LAST_DHCP_IP);
+            if (known == NULL || strcmp(known, GLOBAL_STATE->SYSTEM_MODULE.ip_addr_str) != 0) {
+                nvs_config_set_string(NVS_CONFIG_LAST_DHCP_IP, GLOBAL_STATE->SYSTEM_MODULE.ip_addr_str);
+                ESP_LOGI(TAG, "NET,event=LAST_LEASE_SAVED,ip=%s", GLOBAL_STATE->SYSTEM_MODULE.ip_addr_str);
+            }
+            free(known);
+        }
 
         if (ip_acquire_timer != NULL) {
             xTimerStop(ip_acquire_timer, 0);
