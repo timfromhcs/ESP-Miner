@@ -61,11 +61,23 @@ static Settings settings[NVS_CONFIG_COUNT] = {
     [NVS_CONFIG_SECONDARY_POOL_INDEX]                  = {.nvs_key_name = "sec_idx",         .type = TYPE_U16,   .default_value = {.u16 = 1},                                           .rest_name = "secondaryPoolIndex",                 .min = 0,  .max = MAX_POOLS - 1},
     [NVS_CONFIG_USE_FALLBACK_STRATUM]                  = {.nvs_key_name = "usefbstartum",    .type = TYPE_BOOL,                                                                         .rest_name = "useFallbackStratum",                 .min = 0,  .max = 1},
 
-    [NVS_CONFIG_USE_STATIC_FALLBACK]                   = {.nvs_key_name = "use_static_ip",   .type = TYPE_BOOL,  .default_value = {.b   = false},                                      .rest_name = "useStaticFallback",                 .min = 0,  .max = 1},
-    [NVS_CONFIG_STATIC_IP]                             = {.nvs_key_name = "static_ip",       .type = TYPE_STR,   .default_value = {.str = ""},                                          .rest_name = "staticIp",                         .min = 0,  .max = 15},
-    [NVS_CONFIG_STATIC_GATEWAY]                        = {.nvs_key_name = "static_gw",       .type = TYPE_STR,   .default_value = {.str = ""},                                          .rest_name = "staticGateway",                    .min = 0,  .max = 15},
+    /* Site provisioning defaults for the 192.168.178.x fleet (FRITZ!Box 7590).
+     *
+     * This unit's address is reserved on the router, so the fallback can never
+     * collide. It is still only ever consulted after DHCP has genuinely failed
+     * - when the router does answer, the real lease wins and this path is never
+     * taken. Every value is editable in AxeOS (Settings -> Advanced Tuning) and
+     * the fallback can be switched off there.
+     *
+     * IMPORTANT: for any deployment on a different network, clear
+     * useStaticFallback (or set staticIp to that network's reserved address).
+     * Enabling this on a network where the address is NOT reserved is exactly
+     * what produces duplicate-IP conflicts. */
+    [NVS_CONFIG_USE_STATIC_FALLBACK]                   = {.nvs_key_name = "use_static_ip",   .type = TYPE_BOOL,  .default_value = {.b   = true},                                       .rest_name = "useStaticFallback",                 .min = 0,  .max = 1},
+    [NVS_CONFIG_STATIC_IP]                             = {.nvs_key_name = "static_ip",       .type = TYPE_STR,   .default_value = {.str = "192.168.178.66"},                          .rest_name = "staticIp",                         .min = 0,  .max = 15},
+    [NVS_CONFIG_STATIC_GATEWAY]                        = {.nvs_key_name = "static_gw",       .type = TYPE_STR,   .default_value = {.str = "192.168.178.1"},                           .rest_name = "staticGateway",                    .min = 0,  .max = 15},
     [NVS_CONFIG_STATIC_SUBNET]                         = {.nvs_key_name = "static_mask",     .type = TYPE_STR,   .default_value = {.str = "255.255.255.0"},                             .rest_name = "staticSubnet",                    .min = 0,  .max = 15},
-    [NVS_CONFIG_STATIC_DNS]                            = {.nvs_key_name = "static_dns",      .type = TYPE_STR,   .default_value = {.str = ""},                                          .rest_name = "staticDns",                       .min = 0,  .max = 15},
+    [NVS_CONFIG_STATIC_DNS]                            = {.nvs_key_name = "static_dns",      .type = TYPE_STR,   .default_value = {.str = "192.168.178.1"},                           .rest_name = "staticDns",                       .min = 0,  .max = 15},
 
     [NVS_CONFIG_ASIC_FREQUENCY]                        = {.nvs_key_name = "asicfrequency_f", .type = TYPE_FLOAT, .default_value = {.f   = CONFIG_ASIC_FREQUENCY},                       .rest_name = "frequency",                          .min = 1,  .max = UINT16_MAX},
     [NVS_CONFIG_ASIC_VOLTAGE]                          = {.nvs_key_name = "asicvoltage",     .type = TYPE_U16,   .default_value = {.u16 = CONFIG_ASIC_VOLTAGE},                         .rest_name = "coreVoltage",                        .min = 1,  .max = UINT16_MAX},
