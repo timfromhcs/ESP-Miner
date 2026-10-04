@@ -63,9 +63,13 @@ Driven by a 41-minute ring-buffer capture from the production Bitaxe Ultra at
 
 ### Added
 - **Per-device static IPv4 fallback** (`useStaticFallback`, `staticIp`,
-  `staticGateway`, `staticSubnet`, `staticDns`), off unless configured for a
-  router-reserved address, editable in AxeOS, and applied only after DHCP has
-  genuinely failed and the retry/recovery cycles are exhausted. Supersedes the
+  `staticGateway`, `staticSubnet`, `staticDns`). **Defaults to off with no
+  address baked in** - a default that names a specific address would make every
+  unit built from this firmware claim an address it was never given, which on a
+  network where that address is reserved is exactly the duplicate-IP conflict the
+  feature exists to survive. Enable it per device, for an address reserved on that
+  device's router, via AxeOS or `PATCH /api/system`. Consulted only after DHCP
+  has genuinely failed and the retry/recovery cycles are exhausted. Supersedes the
   removed hardcoded fallback.
 - **components/stratum/notify_validate.{h,c}** — dependency-free `mining.notify`
   field validator (job id, prev-block, both coinbase halves, every merkle branch,

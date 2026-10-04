@@ -285,11 +285,13 @@ And the original is corrected rather than resurrected:
 * RFC 5227 gratuitous ARP, mDNS re-registration, `is_connected`, and the net state
   machine all advanced, so stratum and the web UI actually come up.
 
-For the `192.168.178.x` fleet the reserved values ship as NVS defaults (the
-address is reserved on the router, and DHCP still wins whenever the router
-answers). They are ordinary NVS entries, editable and disableable in AxeOS.
-**On any other network, clear `useStaticFallback`** — enabling it where the
-address is not reserved is exactly what creates duplicate-IP conflicts.
+**Defaults are off, with no address baked in.** Shipping a default that names a
+specific address is wrong on every other network: it makes every unit built from
+this firmware claim an address it was never given. That was not hypothetical
+here - a site-specific default pointing at 192.168.178.66 would have made a
+second Bitaxe (.61) claim the first one's reserved lease. So the capability is
+enabled per device, for an address reserved on that device's router, via AxeOS
+(Settings -> Advanced Tuning) or PATCH /api/system.
 
 The diagnostic that made this tractable without packet capture:
 `DHCP_CLIENT_START err=ESP_OK` plus `status=1 link_up=1` on every retry proves the
