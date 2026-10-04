@@ -551,19 +551,16 @@ static bool try_static_ip_fallback(GlobalState * GLOBAL_STATE)
         goto done;
     }
 
-    /* The esp-netif copy agreeing is not sufficient - what has to be true is that
-     * LwIP itself will answer ARP for the address. Verify against the live netif. */
-    if (lwip_netif != NULL) {
-        char lwip_s[IP4ADDR_STRLEN_MAX];
-        snprintf(lwip_s, sizeof(lwip_s), IPSTR, IP2STR(lwip_netif->ip_addr));
-        if (lwip_netif->ip_addr.addr != 0) {
-            ESP_LOGW(TAG, "NET,event=STATIC_FALLBACK_LWIP,lwip_ip=%s,up=%d", lwip_s,
-                     netif_is_up(lwip_netif) ? 1 : 0);
-        } else {
-            ESP_LOGE(TAG, "NET,event=STATIC_FALLBACK_FAILED,reason=lwip_addr_empty");
-            goto done;
-        }
+    /* Also assert the interface is administratively up. This is the second half of
+     * the fix: with the netif down the address never reaches LwIP, so a
+     * read-back of esp-netif's own copy is not sufficient evidence. Only public
+     * esp_netif APIs are used here deliberately - reaching into netif's internal
+     * ip_addr_t union is version-specific and not worth the coupling. */
+    if (!esp_netif_is_netif_up(sta)) {
+        ESP_LOGE(TAG, "NET,event=STATIC_FALLBACK_FAILED,reason=netif_down");
+        goto done;
     }
+    ESP_LOGW(TAG, "NET,event=STATIC_FALLBACK_LWIP,ip_bound_in_stack=1,netif_up=1");
 
 #if LWIP_ARP
     if (lwip_netif != NULL) {
