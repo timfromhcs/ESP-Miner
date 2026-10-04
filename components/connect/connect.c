@@ -1,4 +1,5 @@
 #include <string.h>
+#include <stdlib.h>
 #include "esp_event.h"
 #include "esp_log.h"
 #include "esp_netif.h"
@@ -506,6 +507,12 @@ static bool try_static_ip_fallback(GlobalState * GLOBAL_STATE)
     esp_netif_dhcpc_stop(sta);
 
     esp_netif_set_ip_info(sta, &ip_info);
+
+    /* Bring the interface up explicitly. Stopping the DHCP client can leave the
+     * netif administratively down, in which case the address above is stored but
+     * never becomes live: the stack does not answer ARP for it and the host is
+     * unreachable even from the same subnet. */
+    esp_netif_set_up(sta, true);
     esp_netif_set_default_netif(sta);
 
     if (dns_s != NULL && dns_s[0] != '\0') {
@@ -515,6 +522,26 @@ static bool try_static_ip_fallback(GlobalState * GLOBAL_STATE)
             esp_netif_set_dns_info(sta, ESP_NETIF_DNS_MAIN, &dns_main);
             esp_netif_set_dns_info(NULL, ESP_NETIF_DNS_MAIN, &dns_main);
         }
+        esp_netif_dns_info_t dns_fallback = {0};
+        dns_fallback.ip.type = ESP_IPADDR_TYPE_V4;
+        if (esp_netif_str_to_ip4(gw_s, &dns_fallback.ip.u_addr.ip4) == ESP_OK) {
+            esp_netif_set_dns_info(NULL, ESP_NETIF_DNS_FALLBACK, &dns_fallback);
+        }
+    }
+
+    /* Read the address back rather than trusting the setter. A silently ignored
+     * set_ip_info() is exactly the failure mode this path exists to survive, and
+     * it must not be reported as a successful recovery. */
+    esp_netif_ip_info_t check = {0};
+    if (esp_netif_get_ip_info(sta, &check) != ESP_OK || check.ip.addr == 0) {
+        ESP_LOGE(TAG, "NET,event=STATIC_FALLBACK_FAILED,reason=ip_not_bound,ip=%s", ip_s);
+        goto done;
+    }
+    char check_s[IP4ADDR_STRLEN_MAX];
+    snprintf(check_s, sizeof(check_s), IPSTR, IP2STR(&check.ip));
+    if (strcmp(check_s, ip_s) != 0) {
+        ESP_LOGE(TAG, "NET,event=STATIC_FALLBACK_FAILED,reason=ip_mismatch,want=%s,got=%s", ip_s, check_s);
+        goto done;
     }
 
 #if LWIP_ARP
@@ -524,10 +551,14 @@ static bool try_static_ip_fallback(GlobalState * GLOBAL_STATE)
     }
 #endif
 
-    snprintf(GLOBAL_STATE->SYSTEM_MODULE.ip_addr_str, IP4ADDR_STRLEN_MAX, "%s", ip_s);
+    /* Reachability of the gateway is not asserted here on purpose. The one check
+     * that matters and can be made locally is that the address is genuinely bound
+     * and the interface is up; end-to-end reachability is proven by the stratum
+     * connect that follows, and its failure is already logged distinctly. */
     ESP_LOGW(TAG, "NET,event=STATIC_FALLBACK_APPLIED,ip=%s,gw=%s,netmask=%s",
-             ip_s, gw_s, (mask_s && mask_s[0]) ? mask_s : "(default)");
+             check_s, gw_s, (mask_s && mask_s[0]) ? mask_s : "(default)");
 
+    snprintf(GLOBAL_STATE->SYSTEM_MODULE.ip_addr_str, IP4ADDR_STRLEN_MAX, "%s", check_s);
     spawn_mdns_init_if_needed(GLOBAL_STATE);
     GLOBAL_STATE->SYSTEM_MODULE.is_connected = true;
     strcpy(GLOBAL_STATE->SYSTEM_MODULE.wifi_status, "Connected (static IP)");
