@@ -574,15 +574,19 @@ static void event_handler(void * arg, esp_event_base_t event_base, int32_t event
                 // client to be stopped first, and wiping a still-valid lease forces a
                 // full renegotiation on every re-association (roaming, AP reboot),
                 // which drops the stratum socket and the web UI for no benefit.
-                // esp_netif_dhcpc_start() is idempotent: if the client is already
-                // running it returns ESP_ERR_INVALID_STATE and we simply wait for
-                // IP_EVENT_STA_GOT_IP. Bouncing stop->start here would reset the
-                // DHCP xid and is exactly what makes some routers hand out a
-                // conflicting lease.
+                // Bouncing stop->start here would reset the DHCP xid and is exactly
+                // what makes some routers hand out a conflicting lease, so the
+                // client is only ever started, never restarted.
                 esp_netif_dhcp_status_t dhcp_status;
                 if (esp_netif_dhcpc_get_status(sta_netif, &dhcp_status) == ESP_OK) {
                     ESP_LOGD(TAG, "NET,event=DHCP_STATUS,status=%d", (int)dhcp_status);
-                    if (dhcp_status == ESP_NETIF_DHCP_STOPPED) {
+                    // INIT is the state a freshly booted client sits in ("not yet
+                    // started"), so it must be started here too - testing only for
+                    // STOPPED means the client never starts on a cold boot and no
+                    // lease is ever requested. STARTED is left alone: that is the
+                    // re-association case, and restarting it would reset the DHCP
+                    // xid for no reason.
+                    if (dhcp_status == ESP_NETIF_DHCP_INIT || dhcp_status == ESP_NETIF_DHCP_STOPPED) {
                         esp_netif_dhcpc_start(sta_netif);
                     }
                 }
