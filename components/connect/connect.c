@@ -16,6 +16,7 @@
 #include "lwip/sockets.h"
 #include "lwip/dns.h"
 #include "lwip/etharp.h"
+#include "lwip/netif.h"
 #include "esp_netif.h"
 #include "esp_netif_net_stack.h"
 #include "netif/etharp.h"
@@ -507,13 +508,20 @@ static bool try_static_ip_fallback(GlobalState * GLOBAL_STATE)
     esp_netif_dhcpc_stop(sta);
 
     esp_netif_set_ip_info(sta, &ip_info);
-
-    /* Bring the interface up explicitly. Stopping the DHCP client can leave the
-     * netif administratively down, in which case the address above is stored but
-     * never becomes live: the stack does not answer ARP for it and the host is
-     * unreachable even from the same subnet. */
-    esp_netif_set_up(sta, true);
     esp_netif_set_default_netif(sta);
+
+    /* Bring the LwIP interface back up explicitly.
+     *
+     * esp_netif_dhcpc_stop() leaves the netif administratively down, and there is
+     * no public esp_netif_set_up() in IDF 6.x - so without this the address is
+     * stored but never becomes live: the stack does not answer ARP for it and the
+     * host is unreachable even from its own subnet. This is precisely why the
+     * earlier hardcoded fallback "succeeded" and then could not be pinged. */
+    struct netif *lwip_netif = (struct netif *) esp_netif_get_netif_impl(sta);
+    if (lwip_netif != NULL) {
+        netif_set_up(lwip_netif);
+        netif_set_default_netif(lwip_netif);
+    }
 
     if (dns_s != NULL && dns_s[0] != '\0') {
         esp_netif_dns_info_t dns_main = {0};
@@ -545,7 +553,6 @@ static bool try_static_ip_fallback(GlobalState * GLOBAL_STATE)
     }
 
 #if LWIP_ARP
-    struct netif *lwip_netif = (struct netif *) esp_netif_get_netif_impl(sta);
     if (lwip_netif != NULL) {
         etharp_gratuitous(lwip_netif);
     }
@@ -601,6 +608,15 @@ static void ip_timeout_callback(TimerHandle_t xTimer)
         int backoff_ms = DHCP_RETRY_BASE_MS + (dhcp_retry_count * 1200) + (esp_random() % 600);
         ESP_LOGW(TAG, "NET,event=DHCP_TIMEOUT,retry=%d/%d,backoff=%d,state=%s", dhcp_retry_count, DHCP_RETRY_MAX, backoff_ms, net_state_to_str(s_net_state));
         net_state_transition(GLOBAL_STATE, NET_STATE_DHCP_RETRY);
+        /* Report the live client state alongside the retry count. A client stuck
+         * in INIT was never started, which looks identical from the outside but
+         * has a completely different cause than a server that never answers. */
+        esp_netif_t *dbg = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+        esp_netif_dhcp_status_t st_now = ESP_NETIF_DHCP_INIT;
+        if (dbg != NULL && esp_netif_dhcpc_get_status(dbg, &st_now) == ESP_OK) {
+            ESP_LOGW(TAG, "NET,event=DHCP_CLIENT_STATUS,status=%d,link_up=%d", (int)st_now,
+                     esp_netif_is_netif_up(dbg) ? 1 : 0);
+        }
         // ESP-IDF LwIP DHCP already retransmits internally per RFC2131 — do NOT bounce dhcpc here (would reset xid and break server).
         // Just wait; external IP_EVENT will handle success. Log hostname for diagnostics only.
         char *hn = nvs_config_get_string(NVS_CONFIG_HOSTNAME);
@@ -691,7 +707,7 @@ static void event_handler(void * arg, esp_event_base_t event_base, int32_t event
                 // Bouncing stop->start here would reset the DHCP xid and is exactly
                 // what makes some routers hand out a conflicting lease, so the
                 // client is only ever started, never restarted.
-                esp_netif_dhcp_status_t dhcp_status;
+                esp_netif_dhcp_status_t dhcp_status = ESP_NETIF_DHCP_INIT;
                 if (esp_netif_dhcpc_get_status(sta_netif, &dhcp_status) == ESP_OK) {
                     ESP_LOGD(TAG, "NET,event=DHCP_STATUS,status=%d", (int)dhcp_status);
                     // INIT is the state a freshly booted client sits in ("not yet
@@ -701,8 +717,13 @@ static void event_handler(void * arg, esp_event_base_t event_base, int32_t event
                     // re-association case, and restarting it would reset the DHCP
                     // xid for no reason.
                     if (dhcp_status == ESP_NETIF_DHCP_INIT || dhcp_status == ESP_NETIF_DHCP_STOPPED) {
-                        esp_netif_dhcpc_start(sta_netif);
+                        esp_err_t start_err = esp_netif_dhcpc_start(sta_netif);
+                        ESP_LOGI(TAG, "NET,event=DHCP_CLIENT_START,err=%s", esp_err_to_name(start_err));
+                    } else {
+                        ESP_LOGI(TAG, "NET,event=DHCP_CLIENT_ALREADY_RUNNING,status=%d", (int)dhcp_status);
                     }
+                } else {
+                    ESP_LOGE(TAG, "NET,event=DHCP_STATUS_FAILED");
                 }
                 // Diagnostics only, and only while we are waiting for a lease.
                 esp_log_level_set("dhcp", ESP_LOG_DEBUG);
