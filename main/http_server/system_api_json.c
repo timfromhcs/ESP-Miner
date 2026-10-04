@@ -240,6 +240,23 @@ static void system_api_add_config(cJSON *root, GlobalState *g) {
     //   autotuneVoltage: hold frequency, let the closed loop minimise Vcore.
     cJSON_AddNumberToObject(root, "asicFastUart", nvs_config_get_bool(NVS_CONFIG_ASIC_FAST_UART) ? 1 : 0);
     cJSON_AddNumberToObject(root, "autotuneVoltage", nvs_config_get_bool(NVS_CONFIG_AUTOTUNE_VOLTAGE) ? 1 : 0);
+
+    // Operator-configured static IPv4 fallback. Off by default and empty unless
+    // explicitly set, because binding an address that cannot be proven free is
+    // what causes lease conflicts. Applied only after DHCP has genuinely failed.
+    cJSON_AddNumberToObject(root, "useStaticFallback", nvs_config_get_bool(NVS_CONFIG_USE_STATIC_FALLBACK) ? 1 : 0);
+    char *static_ip = nvs_config_get_string(NVS_CONFIG_STATIC_IP);
+    char *static_gw = nvs_config_get_string(NVS_CONFIG_STATIC_GATEWAY);
+    char *static_mask = nvs_config_get_string(NVS_CONFIG_STATIC_SUBNET);
+    char *static_dns = nvs_config_get_string(NVS_CONFIG_STATIC_DNS);
+    cJSON_AddStringToObject(root, "staticIp", static_ip ? static_ip : "");
+    cJSON_AddStringToObject(root, "staticGateway", static_gw ? static_gw : "");
+    cJSON_AddStringToObject(root, "staticSubnet", static_mask ? static_mask : "");
+    cJSON_AddStringToObject(root, "staticDns", static_dns ? static_dns : "");
+    free(static_ip);
+    free(static_gw);
+    free(static_mask);
+    free(static_dns);
     char *disp_name = nvs_config_get_string(NVS_CONFIG_DISPLAY);
     cJSON_AddStringToObject(root, "display", disp_name ? disp_name : "");
     free(disp_name);

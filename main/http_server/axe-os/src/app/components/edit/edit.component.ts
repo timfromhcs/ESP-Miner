@@ -46,8 +46,10 @@ export class EditComponent implements OnInit, OnDestroy, OnChanges {
   // Advanced tuning toggles (see docs/PLAN_BITAXE_BM1366_OPTIMIZATION.md)
   public asicFastUart: boolean = false;
   public autotuneVoltage: boolean = false;
+  public useStaticFallback: boolean = false;
   public fastUartSaving: boolean = false;
   public autotuneSaving: boolean = false;
+  public staticFallbackSaving: boolean = false;
 
   @Input() uri = '';
 
@@ -176,6 +178,38 @@ export class EditComponent implements OnInit, OnDestroy, OnChanges {
     });
   }
 
+  /**
+   * Last-resort static IPv4 fallback. Deliberately guarded: enabling it without a
+   * reserved address on the router is precisely what creates duplicate-IP conflicts,
+   * so an empty address is refused rather than half-applied.
+   */
+  public toggleUseStaticFallback() {
+    const deviceUri = this.uri || '';
+    if (!this.useStaticFallback) {
+      const ip = (this.form.get('staticIp')?.value ?? '').toString().trim();
+      const gw = (this.form.get('staticGateway')?.value ?? '').toString().trim();
+      if (!ip || !gw) {
+        this.toastr.error('Set a static IP and gateway before enabling the fallback.');
+        return;
+      }
+    }
+    const next = this.useStaticFallback ? 0 : 1;
+    this.staticFallbackSaving = true;
+    this.systemService.updateSystem(deviceUri, { useStaticFallback: next }).subscribe({
+      next: () => {
+        this.useStaticFallback = next === 1;
+        this.staticFallbackSaving = false;
+        this.toastr.info(next === 1
+          ? 'Static IP fallback enabled. It is only used if DHCP keeps failing.'
+          : 'Static IP fallback disabled.');
+      },
+      error: (err) => {
+        this.staticFallbackSaving = false;
+        this.toastr.error(`Failed to save static fallback setting: ${getHttpErrorMessage(err, this.uri)}`);
+      }
+    });
+  }
+
   ngOnInit(): void {
     this.loadDeviceSettings();
   }
@@ -222,6 +256,7 @@ export class EditComponent implements OnInit, OnDestroy, OnChanges {
 
       this.asicFastUart = info.asicFastUart === 1;
       this.autotuneVoltage = info.autotuneVoltage === 1;
+      this.useStaticFallback = info.useStaticFallback === 1;
 
         this.form = this.fb.group({
           display: [info.display, [Validators.required]],
@@ -239,6 +274,10 @@ export class EditComponent implements OnInit, OnDestroy, OnChanges {
           manualFanSpeed: [info.manualFanSpeed, [Validators.required]],
           temptarget: [info.temptarget, [Validators.required]],
           overheat_mode: [info.overheat_mode, [Validators.required]],
+          staticIp: [info.staticIp ?? '', [Validators.maxLength(15)]],
+          staticGateway: [info.staticGateway ?? '', [Validators.maxLength(15)]],
+          staticSubnet: [info.staticSubnet ?? '255.255.255.0', [Validators.maxLength(15)]],
+          staticDns: [info.staticDns ?? '', [Validators.maxLength(15)]],
           statsFrequency: [info.statsFrequency, [
             Validators.required,
             Validators.min(0),

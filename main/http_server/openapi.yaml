@@ -508,6 +508,25 @@ components:
             hashrate with at most 0.1 % errors, reverting to the last proven-stable
             voltage otherwise. Never drops below the regulator floor. Disables itself
             when it reaches the floor or exhausts its attempt budget.
+        useStaticFallback:
+          type: integer
+          description: >-
+            Last-resort static IPv4 fallback, used only after DHCP has genuinely
+            failed and retry cycles are exhausted. Off by default: binding an
+            address that cannot be proven free is what causes lease conflicts, so
+            this must only be enabled for an address reserved on the router.
+        staticIp:
+          type: string
+          description: Static IPv4 address to fall back to, e.g. 192.168.178.66
+        staticGateway:
+          type: string
+          description: Static IPv4 gateway to fall back to, e.g. 192.168.178.1
+        staticSubnet:
+          type: string
+          description: Static IPv4 netmask to fall back to, e.g. 255.255.255.0
+        staticDns:
+          type: string
+          description: DNS server for the static fallback. Empty means use the static gateway.
         useCustomWWW:
           type: integer
           description: Whether to serve files from the SPIFFS www partition instead of the embedded Web UI (0=embedded, 1=custom/SPIFFS)

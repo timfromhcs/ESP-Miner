@@ -14,6 +14,7 @@
 #include "lwip/sys.h"
 #include "lwip/sockets.h"
 #include "lwip/dns.h"
+#include "lwip/etharp.h"
 #include "esp_netif.h"
 #include "esp_netif_net_stack.h"
 #include "netif/etharp.h"
@@ -462,6 +463,86 @@ static void net_state_transition(GlobalState *gs, net_state_t new_state) {
     // kept compatible: actual flag set in IP_EVENT handlers
 }
 
+/**
+ * @brief Apply the user-configured static IPv4 fallback.
+ *
+ * Only called once DHCP has genuinely failed. Unlike the hardcoded fallback
+ * this replaces, the address is per-device and stored in NVS, the DHCP client
+ * is stopped first (esp_netif_set_ip_info() requires it), DNS is configured
+ * through esp_netif rather than by poking LwIP's global table, and RFC 5227
+ * gratuitous ARP is broadcast so router/switch caches converge before we claim
+ * the address. Returns true only if the address parsed and was applied.
+ */
+static bool try_static_ip_fallback(GlobalState * GLOBAL_STATE)
+{
+    if (!nvs_config_get_bool(NVS_CONFIG_USE_STATIC_FALLBACK)) {
+        return false;
+    }
+
+    char *ip_s = nvs_config_get_string(NVS_CONFIG_STATIC_IP);
+    char *gw_s = nvs_config_get_string(NVS_CONFIG_STATIC_GATEWAY);
+    char *mask_s = nvs_config_get_string(NVS_CONFIG_STATIC_SUBNET);
+    char *dns_s = nvs_config_get_string(NVS_CONFIG_STATIC_DNS);
+
+    bool ok = false;
+    esp_netif_t *sta = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+
+    if (sta == NULL || ip_s == NULL || ip_s[0] == '\0' || gw_s == NULL || gw_s[0] == '\0') {
+        ESP_LOGW(TAG, "NET,event=STATIC_FALLBACK_SKIPPED,reason=not_configured");
+        goto done;
+    }
+
+    esp_netif_ip_info_t ip_info = {0};
+    if (esp_netif_str_to_ip4(ip_s, &ip_info.ip) != ESP_OK
+        || esp_netif_str_to_ip4(gw_s, &ip_info.gw) != ESP_OK) {
+        ESP_LOGE(TAG, "NET,event=STATIC_FALLBACK_INVALID,ip=%s,gw=%s", ip_s, gw_s);
+        goto done;
+    }
+    if (mask_s != NULL && mask_s[0] != '\0') {
+        esp_netif_str_to_ip4(mask_s, &ip_info.netmask);
+    }
+
+    /* esp_netif_set_ip_info() must not race a running DHCP client. */
+    esp_netif_dhcpc_stop(sta);
+
+    esp_netif_set_ip_info(sta, &ip_info);
+    esp_netif_set_default_netif(sta);
+
+    if (dns_s != NULL && dns_s[0] != '\0') {
+        esp_netif_dns_info_t dns_main = {0};
+        dns_main.ip.type = ESP_IPADDR_TYPE_V4;
+        if (esp_netif_str_to_ip4(dns_s, &dns_main.ip.u_addr.ip4) == ESP_OK) {
+            esp_netif_set_dns_info(sta, ESP_NETIF_DNS_MAIN, &dns_main);
+            esp_netif_set_dns_info(NULL, ESP_NETIF_DNS_MAIN, &dns_main);
+        }
+    }
+
+#if LWIP_ARP
+    struct netif *lwip_netif = (struct netif *) esp_netif_get_netif_impl(sta);
+    if (lwip_netif != NULL) {
+        etharp_gratuitous(lwip_netif);
+    }
+#endif
+
+    snprintf(GLOBAL_STATE->SYSTEM_MODULE.ip_addr_str, IP4ADDR_STRLEN_MAX, "%s", ip_s);
+    ESP_LOGW(TAG, "NET,event=STATIC_FALLBACK_APPLIED,ip=%s,gw=%s,netmask=%s",
+             ip_s, gw_s, (mask_s && mask_s[0]) ? mask_s : "(default)");
+
+    spawn_mdns_init_if_needed(GLOBAL_STATE);
+    GLOBAL_STATE->SYSTEM_MODULE.is_connected = true;
+    strcpy(GLOBAL_STATE->SYSTEM_MODULE.wifi_status, "Connected (static IP)");
+    net_state_transition(GLOBAL_STATE, NET_STATE_IP_ACQUIRED);
+    net_state_transition(GLOBAL_STATE, NET_STATE_DNS_READY);
+    ok = true;
+
+done:
+    free(ip_s);
+    free(gw_s);
+    free(mask_s);
+    free(dns_s);
+    return ok;
+}
+
 static void ip_timeout_callback(TimerHandle_t xTimer)
 {
     GlobalState *GLOBAL_STATE = (GlobalState *)pvTimerGetTimerID(xTimer);
@@ -500,13 +581,15 @@ static void ip_timeout_callback(TimerHandle_t xTimer)
         snprintf(GLOBAL_STATE->SYSTEM_MODULE.wifi_status, sizeof(GLOBAL_STATE->SYSTEM_MODULE.wifi_status), "DHCP retry %d/%d", dhcp_retry_count, DHCP_RETRY_MAX);
         return;
     }
-// Exhausted DHCP retries — enter DHCP_FAILED. No fake NETWORK_READY.
-    // There is deliberately NO static-IP fallback: a hardcoded address cannot be
-    // verified as free, so binding it would reintroduce exactly the IP conflicts
-    // this state machine exists to avoid (see docs/NETWORKING.md). Instead we keep
-    // retrying until the DHCP server hands out a real, conflict-checked lease
-    // (CONFIG_LWIP_DHCP_DOES_ARP_CHECK).
-    ESP_LOGE(TAG, "NET,event=DHCP_FAILED,retries=%d,state=%s — no static fallback, loop until DHCP succeeds", DHCP_RETRY_MAX, net_state_to_str(s_net_state));
+// Exhausted DHCP retries. If the operator has explicitly configured a static
+// fallback for this unit, use it - otherwise keep retrying until the DHCP
+// server hands out a real, conflict-checked lease (CONFIG_LWIP_DHCP_DOES_ARP_CHECK).
+if (try_static_ip_fallback(GLOBAL_STATE)) {
+        dhcp_retry_count = 0;
+        return;
+    }
+
+    ESP_LOGE(TAG, "NET,event=DHCP_FAILED,retries=%d,state=%s — no static fallback configured, loop until DHCP succeeds", DHCP_RETRY_MAX, net_state_to_str(s_net_state));
     net_state_transition(GLOBAL_STATE, NET_STATE_DHCP_FAILED);
     dhcp_retry_count = 0;
     snprintf(GLOBAL_STATE->SYSTEM_MODULE.wifi_status, sizeof(GLOBAL_STATE->SYSTEM_MODULE.wifi_status), "DHCP failed (%d retries) — retrying", DHCP_RETRY_MAX);

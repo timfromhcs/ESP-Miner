@@ -221,6 +221,45 @@
             {{ autotuneVoltage ? 'Running' : 'Off' }}
           </button>
         </div>
+
+        <div class="flex items-center justify-between gap-4">
+          <div>
+            <span class="block font-medium">Static IP fallback</span>
+            <span class="text-secondary text-sm">
+              Last resort for when the router stops answering DHCP. Leave this off unless the
+              address below is <strong>reserved on your router</strong> — binding an address
+              that is already in use is what causes the duplicate-IP conflicts this feature
+              exists to survive. Applies only after DHCP has genuinely failed.
+            </span>
+          </div>
+          <button type="button" class="btn" [class.btn-secondary]="!useStaticFallback"
+            (click)="toggleUseStaticFallback()" [disabled]="staticFallbackSaving">
+            {{ useStaticFallback ? 'Enabled' : 'Disabled' }}
+          </button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+        <label class="flex flex-col gap-1">
+          <span class="text-secondary text-sm">Static IP</span>
+          <input type="text" name="staticIp" formControlName="staticIp" placeholder="192.168.178.66"
+                 class="input" />
+        </label>
+        <label class="flex flex-col gap-1">
+          <span class="text-secondary text-sm">Gateway</span>
+          <input type="text" name="staticGateway" formControlName="staticGateway" placeholder="192.168.178.1"
+                 class="input" />
+        </label>
+        <label class="flex flex-col gap-1">
+          <span class="text-secondary text-sm">Netmask</span>
+          <input type="text" name="staticSubnet" formControlName="staticSubnet" placeholder="255.255.255.0"
+                 class="input" />
+        </label>
+        <label class="flex flex-col gap-1">
+          <span class="text-secondary text-sm">DNS (optional)</span>
+          <input type="text" name="staticDns" formControlName="staticDns" placeholder="leave empty to use the gateway"
+                 class="input" />
+        </label>
       </div>
     </div>
   </form>

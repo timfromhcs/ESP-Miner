@@ -14,6 +14,21 @@ typedef enum {
     NVS_CONFIG_PRIMARY_POOL_INDEX,
     NVS_CONFIG_SECONDARY_POOL_INDEX,
     NVS_CONFIG_USE_FALLBACK_STRATUM,
+
+    /* Optional last-resort static IPv4 configuration.
+     *
+     * Deliberately NOT hardcoded in the firmware: a globally baked-in address
+     * is claimed by every unit on every network, and binding an address that
+     * cannot be proven free is what causes the very lease conflicts this
+     * fallback is meant to survive. It is per-device, off by default, and only
+     * applied after DHCP has genuinely failed - and even then the address is
+     * verified (gateway reachability + RFC 5227 gratuitous ARP) before the
+     * device is allowed to declare itself online. */
+    NVS_CONFIG_USE_STATIC_FALLBACK,
+    NVS_CONFIG_STATIC_IP,
+    NVS_CONFIG_STATIC_GATEWAY,
+    NVS_CONFIG_STATIC_SUBNET,
+    NVS_CONFIG_STATIC_DNS,
     
     NVS_CONFIG_ASIC_FREQUENCY,
     NVS_CONFIG_ASIC_VOLTAGE,
