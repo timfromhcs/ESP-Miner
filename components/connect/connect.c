@@ -507,20 +507,20 @@ static bool try_static_ip_fallback(GlobalState * GLOBAL_STATE)
     /* esp_netif_set_ip_info() must not race a running DHCP client. */
     esp_netif_dhcpc_stop(sta);
 
-    esp_netif_set_ip_info(sta, &ip_info);
-    esp_netif_set_default_netif(sta);
-
-    /* Bring the LwIP interface back up explicitly.
-     *
-     * esp_netif_dhcpc_stop() leaves the netif administratively down, and there is
-     * no public esp_netif_set_up() in IDF 6.x - so without this the address is
-     * stored but never becomes live: the stack does not answer ARP for it and the
-     * host is unreachable even from its own subnet. This is precisely why the
-     * earlier hardcoded fallback "succeeded" and then could not be pinged. */
+    /* Order matters here. esp_netif_dhcpc_stop() leaves the netif
+     * administratively down, and esp_netif_set_ip_info() only pushes the address
+     * into the live TCP/IP stack "if the interface is up" - otherwise it merely
+     * updates esp-netif's own copy. Setting the address first therefore stored it
+     * where nothing could use it: lwIP kept ip_addr == 0, never answered ARP, and
+     * the host stayed unreachable even from its own subnet. Bring the interface
+     * up first, then assign. */
     struct netif *lwip_netif = (struct netif *) esp_netif_get_netif_impl(sta);
     if (lwip_netif != NULL) {
         netif_set_up(lwip_netif);
     }
+
+    esp_netif_set_ip_info(sta, &ip_info);
+    esp_netif_set_default_netif(sta);
 
     if (dns_s != NULL && dns_s[0] != '\0') {
         esp_netif_dns_info_t dns_main = {0};
@@ -549,6 +549,20 @@ static bool try_static_ip_fallback(GlobalState * GLOBAL_STATE)
     if (strcmp(check_s, ip_s) != 0) {
         ESP_LOGE(TAG, "NET,event=STATIC_FALLBACK_FAILED,reason=ip_mismatch,want=%s,got=%s", ip_s, check_s);
         goto done;
+    }
+
+    /* The esp-netif copy agreeing is not sufficient - what has to be true is that
+     * LwIP itself will answer ARP for the address. Verify against the live netif. */
+    if (lwip_netif != NULL) {
+        char lwip_s[IP4ADDR_STRLEN_MAX];
+        snprintf(lwip_s, sizeof(lwip_s), IPSTR, IP2STR(lwip_netif->ip_addr));
+        if (lwip_netif->ip_addr.addr != 0) {
+            ESP_LOGW(TAG, "NET,event=STATIC_FALLBACK_LWIP,lwip_ip=%s,up=%d", lwip_s,
+                     netif_is_up(lwip_netif) ? 1 : 0);
+        } else {
+            ESP_LOGE(TAG, "NET,event=STATIC_FALLBACK_FAILED,reason=lwip_addr_empty");
+            goto done;
+        }
     }
 
 #if LWIP_ARP
