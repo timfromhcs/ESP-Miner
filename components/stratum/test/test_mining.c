@@ -95,7 +95,7 @@ TEST_CASE("Validate bm job construction", "[mining]")
     uint8_t merkle_root[32];
     hex2bin("cd1be82132ef0d12053dcece1fa0247fcfdb61d4dbd3eb32ea9ef9b4c604a846", merkle_root, 32);
     bm_job job = { 0 };
-    construct_bm_job(&notify_message, merkle_root, 0, 1000, &job);
+    construct_bm_job(&notify_message, merkle_root, 0, 1000, false, &job);
 
     uint8_t expected_midstate_bin[32];
     hex2bin("91DFEA528A9F73683D0D495DD6DD7415E1CA21CB411759E3E05D7D5FF285314D", expected_midstate_bin, 32);
@@ -181,7 +181,7 @@ TEST_CASE("Test nonce diff checking", "[mining test_nonce][not-on-qemu]")
     uint8_t merkle_root[32];
     hex2bin("6d0359c451434605c52a5a9ce074340be47c2c63840731f9edf1db3f26b1cdd9", merkle_root, 32);
     bm_job job = { 0 };
-    construct_bm_job(&notify_message, merkle_root, 0, 1000, &job);
+    construct_bm_job(&notify_message, merkle_root, 0, 1000, false, &job);
 
     uint32_t nonce = 0x276E8947;
     uint32_t version_bits = 0;
@@ -229,7 +229,7 @@ TEST_CASE("Test nonce diff checking 2", "[mining test_nonce][not-on-qemu]")
     TEST_ASSERT_EQUAL_STRING("5bdc1968499c3393873edf8e07a1c3a50a97fc3a9d1a376bbf77087dd63778eb", merkle_root);
 
     bm_job job = { 0 };
-    construct_bm_job(&notify_message, merkle_root_hash, 0, 1000, &job);
+    construct_bm_job(&notify_message, merkle_root_hash, 0, 1000, false, &job);
 
     uint32_t nonce = 0x0a029ed1;
     uint32_t version_bits = 0;
@@ -267,5 +267,82 @@ TEST_CASE("Validate extranonce_2 uniqueness and formatting", "[mining]")
         if (hash0[i] != hash1[i]) diff_bytes++;
     }
     TEST_ASSERT_GREATER_THAN(0, diff_bytes);
+}
+
+/* The rolled midstates (BIP310 version rolls) are only ever transmitted by the
+ * BM1397 job frame. Every other family rolls the version inside the chip and
+ * hardcodes num_midstates = 1, so construct_bm_job() must not claim four
+ * midstates it will never send - and must not spend three SHA-256 compressions
+ * computing them. Both branches are asserted here so the distinction cannot
+ * silently regress. */
+TEST_CASE("construct_bm_job honours the rolled_midstates request", "[mining]")
+{
+    mining_notify notify_message = {
+        .job_id = "1",
+        .prev_block_hash = "0000000000000000000000000000000000000000000000000000000000000000",
+        .coinbase_1 = "",
+        .coinbase_2 = "",
+        .version = 0x20000000,
+        .target = 0x1705dd01,
+        .ntime = 0x64658bd8,
+    };
+
+    uint8_t merkle_root[32] = { 0 };
+    const uint32_t mask = 0x1fffe000;
+
+    /* BM1370-class chip: one midstate, no rolled variants computed. */
+    bm_job flat = { 0 };
+    construct_bm_job(&notify_message, merkle_root, mask, 1000, false, &flat);
+    TEST_ASSERT_EQUAL_UINT8(1, flat.num_midstates);
+    /* The base midstate must still be correct - skipping the rolled variants is
+     * an optimisation, not a licence to skip the real work. */
+    TEST_ASSERT_NOT_EQUAL(0, flat.midstate[0] + flat.midstate[31]);
+
+    /* BM1397-class chip: base midstate plus the three rolled variants. */
+    bm_job rolled = { 0 };
+    construct_bm_job(&notify_message, merkle_root, mask, 1000, true, &rolled);
+    TEST_ASSERT_EQUAL_UINT8(4, rolled.num_midstates);
+
+    /* Each rolled variant must be a genuinely different midstate, and all four
+     * must share the unchanged part of the header. A mask of 0x1fffe000 rolls
+     * 0xFFFF distinct versions, so no two of these can collide. */
+    TEST_ASSERT_TRUE(0 != memcmp(rolled.midstate, rolled.midstate1, 32));
+    TEST_ASSERT_TRUE(0 != memcmp(rolled.midstate1, rolled.midstate2, 32));
+    TEST_ASSERT_TRUE(0 != memcmp(rolled.midstate2, rolled.midstate3, 32));
+    TEST_ASSERT_TRUE(0 != memcmp(rolled.midstate, rolled.midstate3, 32));
+
+    /* Golden check: midstate1 must be the midstate of the first rolled
+     * version, recomputed here from the same BIP310 arithmetic the chip
+     * performs in hardware. That property is what version_bits
+     * reconstruction depends on, so it is asserted against an independent
+     * computation rather than against whatever the function wrote.
+     *
+     * The rolled versions live only inside the midstates; bm_job.version
+     * keeps the base version the pool sent. */
+    TEST_ASSERT_EQUAL_HEX32(0x20000000, rolled.version);
+
+    uint8_t prev_block_hash[32];
+    hex2bin(notify_message.prev_block_hash, prev_block_hash, 32);
+    reverse_endianness_per_word(prev_block_hash);
+    uint8_t pbh_wire[32];
+    reverse_32bit_words(prev_block_hash, pbh_wire);
+
+    uint32_t expect_version = increment_bitmask(notify_message.version, mask);
+    uint8_t expect_data[64];
+    memcpy(expect_data, &expect_version, 4);
+    memcpy(expect_data + 4, pbh_wire, 32);
+    memcpy(expect_data + 36, merkle_root, 28);
+
+    uint8_t expect_midstate[32];
+    midstate_sha256_bin(expect_data, 64, expect_midstate);
+    uint8_t expect_wire[32];
+    reverse_32bit_words(expect_midstate, expect_wire);
+    TEST_ASSERT_TRUE(0 == memcmp(expect_wire, rolled.midstate1, 32));
+
+    /* A zero mask means AsicBoost is off: one midstate, no matter what the chip
+     * could have done with more. */
+    bm_job no_roll = { 0 };
+    construct_bm_job(&notify_message, merkle_root, 0, 1000, true, &no_roll);
+    TEST_ASSERT_EQUAL_UINT8(1, no_roll.num_midstates);
 }
 

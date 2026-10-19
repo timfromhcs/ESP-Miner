@@ -85,6 +85,39 @@ void create_jobs_task(void *pvParameters)
             last_job_id_num = UINT32_MAX;
         }
 
+        /* Apply pending chip configuration changes BEFORE blocking on the queue.
+         *
+         * Both of these used to live inside the `if (new_work != NULL)` branch
+         * further down, which meant a mining.set_difficulty or
+         * mining.set_version_mask that arrived while the queue was empty - or on
+         * an SV2 standard channel, where work is never re-dequeued at all - sat
+         * unapplied until the next mining.notify. On a pool that notifies only
+         * every ~60 s that is a full block cycle of the chip mining against the
+         * wrong ticket mask, i.e. flooding the UART with nonces the host discards.
+         *
+         * The flags are cleared here, and only when the ASIC is actually up, so a
+         * configuration that arrives during ASIC init stays pending and is applied
+         * as soon as the chip is ready. */
+        if (GLOBAL_STATE->ASIC_initalized) {
+            if (GLOBAL_STATE->new_set_mining_difficulty_msg) {
+                ESP_LOGI(TAG, "New pool difficulty %.2f", GLOBAL_STATE->pool_difficulty);
+                difficulty = GLOBAL_STATE->pool_difficulty;
+                /* Keep the chip's ticket mask (register 0x14) in step with the
+                 * pool. Without this the chip keeps reporting nonces at the
+                 * init-time family default, which floods the UART with results we
+                 * are about to discard. */
+                ASIC_set_ticket_mask(GLOBAL_STATE, difficulty);
+                GLOBAL_STATE->new_set_mining_difficulty_msg = false;
+            }
+
+            if (GLOBAL_STATE->new_stratum_version_rolling_msg) {
+                ESP_LOGI(TAG, "Set chip version rolls %u",
+                         (unsigned)((GLOBAL_STATE->version_mask & ASIC_VERSION_ROLL_MASK) >> 13));
+                ASIC_set_version_mask(GLOBAL_STATE, GLOBAL_STATE->version_mask);
+                GLOBAL_STATE->new_stratum_version_rolling_msg = false;
+            }
+        }
+
         uint64_t start_time = esp_timer_get_time();
         void *new_work = queue_dequeue_timeout(&GLOBAL_STATE->stratum_queue, timeout_ms);
         timeout_ms -= (esp_timer_get_time() - start_time) / 1000;
@@ -131,22 +164,9 @@ void create_jobs_task(void *pvParameters)
 
             current_work = new_work;
 
-            if (GLOBAL_STATE->new_set_mining_difficulty_msg) {
-                ESP_LOGI(TAG, "New pool difficulty %.2f", GLOBAL_STATE->pool_difficulty);
-                difficulty = GLOBAL_STATE->pool_difficulty;
-                // Keep the chip's ticket mask (register 0x14) in step with the
-                // pool. Without this the chip keeps reporting nonces at the
-                // init-time family default, which floods the UART with results
-                // we are about to discard.
-                ASIC_set_ticket_mask(GLOBAL_STATE, difficulty);
-                GLOBAL_STATE->new_set_mining_difficulty_msg = false;
-            }
-
-            if (GLOBAL_STATE->new_stratum_version_rolling_msg && GLOBAL_STATE->ASIC_initalized) {
-                ESP_LOGI(TAG, "Set chip version rolls %i", (int)(GLOBAL_STATE->version_mask >> 13));
-                ASIC_set_version_mask(GLOBAL_STATE, GLOBAL_STATE->version_mask);
-                GLOBAL_STATE->new_stratum_version_rolling_msg = false;
-            }
+            // Pending pool configuration was already applied above, before we
+            // blocked on the queue, so the chip never mines a whole notify
+            // interval against a superseded ticket mask or version mask.
 
             // Check clean_jobs flag and job ID changes
             bool clean;
@@ -268,7 +288,8 @@ static void generate_work(GlobalState *GLOBAL_STATE, mining_notify *notification
         return;
     }
 
-    construct_bm_job(notification, merkle_root, GLOBAL_STATE->version_mask, difficulty, next_job);
+    construct_bm_job(notification, merkle_root, GLOBAL_STATE->version_mask, difficulty,
+                     ASIC_family_uses_rolled_midstates(GLOBAL_STATE), next_job);
 
     next_job->extranonce2 = strdup(extranonce_2_str);
     next_job->jobid = strdup(notification->job_id);

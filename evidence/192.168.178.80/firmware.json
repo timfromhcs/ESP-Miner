@@ -1,0 +1,10 @@
+﻿{
+    "file":  "dist/tim2/esp-miner-tim2.bin",
+    "sha256":  "4bd7bdbaf787df957cd04a7a404d9ba48d602e8f22513d7f2b0aaa1472432461",
+    "size":  2749312,
+    "version":  "v4.0.1-stable-tim2",
+    "board":  "601",
+    "asic":  "BM1370",
+    "partition":  "ota_0",
+    "flashedOver":  "wifi-ota"
+}

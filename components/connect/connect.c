@@ -1,5 +1,6 @@
 #include <string.h>
 #include <stdlib.h>
+#include <stdatomic.h>
 #include "esp_event.h"
 #include "esp_log.h"
 #include "esp_netif.h"
@@ -20,6 +21,7 @@
 #include "lwip/netif.h"
 #include "esp_netif.h"
 #include "esp_netif_net_stack.h"
+#include "esp_netif_defaults.h"
 #include "netif/etharp.h"
 #include "nvs_flash.h"
 #include "esp_wifi_types_generic.h"
@@ -27,12 +29,20 @@
 #include "esp_random.h"
 
 #include "connect.h"
+#include "net_recovery_policy.h"
 #include "global_state.h"
 #include "nvs_config.h"
 #include "esp_app_desc.h"
 
-// Maximum number of access points to scan
+/* Access points retained from a UI-initiated scan. The scan buffer is static, so
+ * this is a hard cap that the driver's reported count must be clamped to - the
+ * driver will happily report far more than this. */
 #define MAX_AP_COUNT 20
+
+/* Upper bound for the per-outage mesh survey. The records live in heap there, so
+ * this bounds an allocation rather than a fixed buffer, but it still has to be
+ * enforced before the array is sized. */
+#define MESH_SURVEY_MAX_RECORDS 32
 
 #if CONFIG_ESP_WPA3_SAE_PWE_HUNT_AND_PECK
 #define ESP_WIFI_SAE_MODE WPA3_SAE_PWE_HUNT_AND_PECK
@@ -80,10 +90,20 @@ static bool mdns_init_in_progress = false;
 static const char *get_wifi_reason_string(int reason);
 static void wifi_softap_on(void);
 static void wifi_softap_off(void);
+/* Used from the gateway-probe callback, which runs before this is defined. */
+static void ensure_config_ap(void);
 static void event_handler(void * arg, esp_event_base_t event_base, int32_t event_id, void * event_data);
 
 esp_err_t wifi_apply_hostname(const char *hostname)
 {
+    /* A per-device build may pin the name that goes out in DHCP option 12. Some
+     * servers drop a DISCOVER whose option 12 is empty or that they cannot parse,
+     * and that is indistinguishable from "the network is down" on the device: the
+     * radio is associated, the client is running, and no offer ever comes back. */
+    if (ESP_MINER_DHCP_HOSTNAME[0] != '\0') {
+        hostname = ESP_MINER_DHCP_HOSTNAME;
+    }
+
     if (hostname == NULL || hostname[0] == '\0') {
         return ESP_ERR_INVALID_ARG;
     }
@@ -416,6 +436,15 @@ static uint32_t s_dhcp_generation = 0;
 static uint32_t s_stratum_generation = 0;
 static int dhcp_retry_count = 0;
 
+/* True while the current address came from the fallback ladder rather than from a
+ * DHCP server.
+ *
+ * Without this an address *we* chose gets written to NVS as the remembered lease,
+ * and the next outage replays it as rung 1 - so a fallback becomes permanent and
+ * silently outranks the address the operator actually configured. That is how a
+ * unit ends up stuck on an address nobody chose, with no log line saying so. */
+static bool s_addr_is_fallback = false;
+
 /* Used by the DHCP retry ladder; defined further down. */
 static void wifi_connect_pinned(void);
 /* Retry budget kept deliberately short. Each rung of the ladder is attempted as
@@ -448,21 +477,24 @@ static void wifi_connect_pinned(void);
  * A static address is not stable on its own: esp-netif clears it when the DHCP
  * client times out, the default STA_CONNECTED handler overwrites it via
  * esp_netif_set_old_ip_info(), and the IP lost timer zeroes it once the netif has
- * been down long enough. Rather than restart DHCP and fight all three, this
- * re-applies the bind whenever the address is gone.
+ * been down long enough. So a fallback address is re-applied when it vanishes.
  *
- * One esp_netif_get_ip_info() per second, which is a struct copy. Real work happens
- * only when the address is actually missing, and a genuine lease still supersedes
- * this because the lease calls esp_netif_set_ip_info() itself. */
-static bool s_have_fallback = false;
-static char s_fb_ip[IP4ADDR_STRLEN_MAX];
-static char s_fb_gw[IP4ADDR_STRLEN_MAX];
-static char s_fb_mask[IP4ADDR_STRLEN_MAX];
-static char s_fb_dns[IP4ADDR_STRLEN_MAX];
+ * The state and the decision live in net_recovery_policy, which is pure and
+ * host-tested. `have_fallback` is a latch describing *now* - it is cleared the
+ * moment a genuine lease arrives, by net_policy_lease_wins() below. That clearing
+ * is the whole point: while it stayed set for the rest of the boot, this task
+ * kept stopping the DHCP client on every window in which the interface
+ * legitimately had no address (between DISCOVER and OFFER, and on every renewal),
+ * so a unit that fell back once could never obtain a lease again. The policy
+ * refuses to act while the client is running, which is what keeps the fallback
+ * from becoming a one-way door. */
+static net_reassert_state_t s_reassert;
 
+/* One esp_netif_get_ip_info() per second, which is a struct copy. Real work
+ * happens only when the address is actually missing. */
 static void ip_reassert_check(void)
 {
-    if (!s_have_fallback) {
+    if (!s_reassert.have_fallback) {
         return;
     }
 
@@ -472,19 +504,44 @@ static void ip_reassert_check(void)
     }
 
     esp_netif_ip_info_t cur = {0};
+    char cur_s[IP4ADDR_STRLEN_MAX] = "";
     if (esp_netif_get_ip_info(sta, &cur) == ESP_OK && cur.ip.addr != 0) {
+        snprintf(cur_s, sizeof(cur_s), IPSTR, IP2STR(&cur.ip));
+    }
+
+    /* Whether the client is running is part of the decision, not an afterthought:
+     * reasserting while it runs would stop it and destroy the recovery path. */
+    /* esp_netif_dhcp_status_t only distinguishes INIT / STARTED / STOPPED in
+     * ESP-IDF v6 - there is no BOUND state - so "still running" is simply
+     * "not stopped". INIT counts as running: the client has been created and is
+     * ours to leave alone. */
+    esp_netif_dhcp_status_t dhcp_status = ESP_NETIF_DHCP_STOPPED;
+    bool dhcp_running = (esp_netif_dhcpc_get_status(sta, &dhcp_status) == ESP_OK)
+                        && (dhcp_status != ESP_NETIF_DHCP_STOPPED);
+
+    net_reassert_decision_t d = net_policy_should_reassert(&s_reassert, cur_s, dhcp_running);
+    if (!d.should_reassert) {
+        ESP_LOGD(TAG, "NET,event=IP_FALLBACK_WATCH,reason=%s,gen=%lu",
+                 d.reason, (unsigned long) d.generation);
         return;
     }
 
-    ESP_LOGW(TAG, "NET,event=IP_FALLBACK_LOST,ip=%s,reasserting=1", s_fb_ip);
+    ESP_LOGW(TAG, "NET,event=IP_FALLBACK_LOST,ip=%s,reasserting=1,gen=%lu",
+             s_reassert.bound.ip, (unsigned long) s_reassert.fallback_generation);
     esp_netif_ip_info_t want = {0};
-    esp_netif_str_to_ip4(s_fb_ip, &want.ip);
-    esp_netif_str_to_ip4(s_fb_gw, &want.gw);
-    esp_netif_str_to_ip4(s_fb_mask, &want.netmask);
+    esp_netif_str_to_ip4(s_reassert.bound.ip, &want.ip);
+    esp_netif_str_to_ip4(s_reassert.bound.gw, &want.gw);
+    esp_netif_str_to_ip4(s_reassert.bound.mask, &want.netmask);
 
-    /* DHCP must stay stopped: esp_netif_set_ip_info() rejects the call with
-     * ESP_ERR_ESP_NETIF_DHCP_NOT_STOPPED while a client is running. */
-    esp_netif_dhcpc_stop(sta);
+    /* The policy only returns true when no client is running, so this cannot
+     * interrupt an in-flight negotiation. */
+    esp_err_t stop_err = esp_netif_dhcpc_stop(sta);
+    if (stop_err != ESP_OK && stop_err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STOPPED) {
+        ESP_LOGE(TAG, "NET,event=IP_FALLBACK_LOST,ip=%s,reassert=DHCP_STOP_FAILED,err=%s",
+                 s_reassert.bound.ip, esp_err_to_name(stop_err));
+        return;
+    }
+
     struct netif *gn = (struct netif *) esp_netif_get_netif_impl(sta);
     if (gn != NULL && !(gn->flags & NETIF_FLAG_UP)) {
         netif_set_up(gn);
@@ -495,21 +552,21 @@ static void ip_reassert_check(void)
     esp_err_t err = esp_netif_set_ip_info(sta, &want);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "NET,event=IP_FALLBACK_LOST,ip=%s,reassert=FAILED,err=%s",
-                 s_fb_ip, esp_err_to_name(err));
+                 s_reassert.bound.ip, esp_err_to_name(err));
         return;
     }
 
-    if (s_fb_dns[0] != '\0') {
+    if (s_reassert.bound.dns[0] != '\0') {
         esp_netif_dns_info_t dns = {0};
         dns.ip.type = ESP_IPADDR_TYPE_V4;
-        if (esp_netif_str_to_ip4(s_fb_dns, &dns.ip.u_addr.ip4) == ESP_OK) {
+        if (esp_netif_str_to_ip4(s_reassert.bound.dns, &dns.ip.u_addr.ip4) == ESP_OK) {
             esp_netif_set_dns_info(sta, ESP_NETIF_DNS_MAIN, &dns);
             esp_netif_set_dns_info(NULL, ESP_NETIF_DNS_MAIN, &dns);
         }
     }
 
     ESP_LOGW(TAG, "NET,event=IP_FALLBACK_REASSERTED,ip=%s,gw=%s,mask=%s",
-             s_fb_ip, s_fb_gw, s_fb_mask);
+             s_reassert.bound.ip, s_reassert.bound.gw, s_reassert.bound.mask);
 }
 
 static void ip_reassert_task(void * arg)
@@ -521,13 +578,17 @@ static void ip_reassert_task(void * arg)
     }
 }
 
-/* While online on a fallback address, re-check it periodically so a dropped link
- * is healed. This deliberately does NOT restart the DHCP client: starting it with
- * no server available clears the interface address, which takes the unit offline -
- * exactly the outage the fallback exists to prevent. A DHCP client is also only
- * consulted for rungs that came *from* DHCP in the first place. Migrating back to
- * a router-issued lease therefore happens naturally whenever the lease is lost and
- * DHCP is restarted (i.e. on reconnect or reboot), which is the safe moment. */
+/* How often a unit that came up on a fallback address asks DHCP for a real lease
+ * again.
+ *
+ * Starting a client with no server available clears the interface address, which
+ * is why the fallback address stays bound and only the OFFER is requested. The
+ * address is therefore at risk for the few hundred milliseconds a negotiation
+ * takes; a lease arriving in that window supersedes the fallback outright and
+ * never touches it, and a negotiation that fails simply leaves the existing
+ * address in place. That is the safe direction: a failed probe costs one
+ * renegotiation, whereas the previous behaviour - re-running the ladder - could
+ * never leave the static address once it had bound it. */
 #define DHCP_PROBE_INTERVAL_MS 300000
 static uint32_t s_dhcp_probe_due_ms = 0;
 
@@ -595,6 +656,11 @@ static void on_ping_end(esp_ping_handle_t hdl, void *args)
     if (recv == 0) {
         ESP_LOGE(TAG, "NET,event=GATEWAY_PROBE,result=UNREACHABLE,sent=%lu,received=0",
                  (unsigned long) sent);
+        /* An address is bound but the gateway does not answer. The unit is
+         * associated and has an IP and still cannot reach anything, so the local
+         * web-login fallback is the only route left to it - bring it up. Without
+         * this a unit in this state is unreachable by every means at once. */
+        ensure_config_ap();
     } else {
         ESP_LOGW(TAG, "NET,event=GATEWAY_PROBE,result=OK,sent=%lu,received=%lu",
                  (unsigned long) sent, (unsigned long) recv);
@@ -779,11 +845,15 @@ static bool apply_static_address(GlobalState * GLOBAL_STATE, const char * ip_s, 
                  source, ip_s2, gw_s2, mask_s2, dns_s, dns_s2, esp_netif_is_netif_up(sta) ? 1 : 0);
     }
 
-    snprintf(s_fb_ip, sizeof(s_fb_ip), "%s", check_s);
-    snprintf(s_fb_gw, sizeof(s_fb_gw), "%s", gw_s);
-    snprintf(s_fb_mask, sizeof(s_fb_mask), "%s", (mask_s && mask_s[0]) ? mask_s : "255.255.255.0");
-    snprintf(s_fb_dns, sizeof(s_fb_dns), "%s", dns_s ? dns_s : "");
-    s_have_fallback = true;
+    /* Publish the bound address to the re-assert watchdog. Every field is a
+     * validated, non-empty string at this point. */
+    snprintf(s_reassert.bound.ip, sizeof(s_reassert.bound.ip), "%s", check_s);
+    snprintf(s_reassert.bound.gw, sizeof(s_reassert.bound.gw), "%s", gw_s);
+    snprintf(s_reassert.bound.mask, sizeof(s_reassert.bound.mask), "%s",
+             (mask_s && mask_s[0]) ? mask_s : "255.255.255.0");
+    snprintf(s_reassert.bound.dns, sizeof(s_reassert.bound.dns), "%s", dns_s ? dns_s : "");
+    s_reassert.have_fallback = true;
+    s_reassert.fallback_generation++;
 
     /* Do NOT restart the DHCP client here. Once a fallback address is ours,
      * restarting the client hands it straight back to the DHCP machine, and three
@@ -857,47 +927,70 @@ static bool apply_static_address(GlobalState * GLOBAL_STATE, const char * ip_s, 
  */
 static bool try_ip_fallback_ladder(GlobalState * GLOBAL_STATE)
 {
+    /* Which rung to take, and whether it is usable at all, is decided by
+     * net_recovery_policy (components/connect/net_recovery_policy.c). That file is
+     * pure logic and is differential-tested on the host; this function is only
+     * responsible for reading NVS, handing the answer to apply_static_address(),
+     * and freeing what it read. */
+    net_recovery_inputs_t in;
+    memset(&in, 0, sizeof(in));
+
     char *last_ip = nvs_config_get_string(NVS_CONFIG_LAST_DHCP_IP);
     char *last_dns = nvs_config_get_string(NVS_CONFIG_LAST_DHCP_DNS);
+    char *last_gw = nvs_config_get_string(NVS_CONFIG_LAST_DHCP_GW);
+    char *last_mask = nvs_config_get_string(NVS_CONFIG_LAST_DHCP_MASK);
     char *static_gw = nvs_config_get_string(NVS_CONFIG_STATIC_GATEWAY);
     char *static_mask = nvs_config_get_string(NVS_CONFIG_STATIC_SUBNET);
     char *static_dns = nvs_config_get_string(NVS_CONFIG_STATIC_DNS);
     char *static_ip = nvs_config_get_string(NVS_CONFIG_STATIC_IP);
-    bool use_static = nvs_config_get_bool(NVS_CONFIG_USE_STATIC_FALLBACK);
+
+    in.use_operator_static = nvs_config_get_bool(NVS_CONFIG_USE_STATIC_FALLBACK);
+
+    /* The remembered lease is only usable if the address is there. The gateway and
+     * netmask are checked by the policy: an address alone cannot be replayed
+     * without inventing them, and an invented pair is wrong on every network but
+     * the one it was guessed from. */
+    /* net_addr_config_t fields are fixed-size arrays, not pointers: copy through a
+     * bounded helper rather than assigning, and treat NULL as "unset" so an empty
+     * NVS string stays an empty string instead of becoming a wild pointer. */
+    net_addr_set(in.last_lease.addr.ip, last_ip);
+    net_addr_set(in.last_lease.addr.gw, last_gw);
+    net_addr_set(in.last_lease.addr.mask, last_mask);
+    net_addr_set(in.last_lease.addr.dns, last_dns);
+    in.last_lease.valid = net_ipv4_is_usable(in.last_lease.addr.ip);
+
+    net_addr_set(in.operator_static.ip, static_ip);
+    net_addr_set(in.operator_static.gw, static_gw);
+    net_addr_set(in.operator_static.mask, static_mask);
+    net_addr_set(in.operator_static.dns, static_dns);
+
+    net_fallback_choice_t choice = net_policy_select_fallback(&in);
 
     bool ok = false;
-    /* The gateway is the router, which on a normal network is also the resolver. */
-    const char *fallback_gw = "192.168.178.1";
-
-    /* Rung 1: the last real lease, with the DNS server that lease handed out.
-     * Tried even without opting into the static fallback, because it is the safer
-     * of the two addresses. DNS is essential here - an address with no resolver
-     * binds fine and then fails every name lookup, which is how this path first
-     * presented as "connected but no shares". */
-    if (last_ip != NULL && last_ip[0] != '\0') {
-        const char *dns = NULL;
-        if (last_dns != NULL && last_dns[0] != '\0') {
-            dns = last_dns;
-        } else if (static_dns != NULL && static_dns[0] != '\0') {
-            dns = static_dns;
-        } else {
-            dns = fallback_gw;
-        }
-        ok = apply_static_address(GLOBAL_STATE, last_ip, fallback_gw, "255.255.255.0", dns, "last-lease");
-    }
-
-    if (!ok && use_static && static_ip != NULL && static_ip[0] != '\0') {
-        const char *dns = (static_dns != NULL && static_dns[0] != '\0') ? static_dns : static_gw;
-        ok = apply_static_address(GLOBAL_STATE, static_ip, static_gw, static_mask, dns, "static-config");
+    if (choice.rung != NET_FALLBACK_NONE) {
+        const char *source = (choice.rung == NET_FALLBACK_LAST_LEASE) ? "last-lease" : "static-config";
+        ESP_LOGW(TAG, "NET,event=IP_FALLBACK_ATTEMPT,rung=%s,ip=%s,gw=%s,mask=%s,dns=%s",
+                 source, choice.bind.ip, choice.bind.gw, choice.bind.mask, choice.bind.dns);
+        /* Set *before* the address is applied: apply_static_address() makes LwIP report
+         * IP_ACQUIRED synchronously, so a flag set afterwards is always one event
+         * too late and the address we chose gets remembered as a lease. */
+        s_addr_is_fallback = true;
+        ok = apply_static_address(GLOBAL_STATE, choice.bind.ip, choice.bind.gw,
+                                  choice.bind.mask, choice.bind.dns, source);
+        s_addr_is_fallback = ok;
     }
 
     if (!ok) {
-        ESP_LOGW(TAG, "NET,event=IP_FALLBACK_NONE,last_lease=%s,static_configured=%d",
-                 (last_ip && last_ip[0]) ? last_ip : "(none)", use_static ? 1 : 0);
+        ESP_LOGW(TAG, "NET,event=IP_FALLBACK_NONE,last_lease=%s,lease_complete=%d,static_configured=%d",
+                 in.last_lease.valid ? in.last_lease.addr.ip : "(none)",
+                 (net_ipv4_is_usable(in.last_lease.addr.gw) && net_ipv4_is_mask(in.last_lease.addr.mask)) ? 1 : 0,
+                 in.use_operator_static ? 1 : 0);
     }
 
     free(last_ip);
     free(last_dns);
+    free(last_gw);
+    free(last_mask);
     free(static_ip);
     free(static_gw);
     free(static_mask);
@@ -906,15 +999,186 @@ static bool try_ip_fallback_ladder(GlobalState * GLOBAL_STATE)
 }
 
 /**
- * @brief Schedule the periodic re-assertion of the fallback address.
+ * @brief Schedule the next attempt to win back a genuine DHCP lease.
  *
- * Only armed when we came up on a fallback. Re-binding is safe and idempotent, so
- * this heals a dropped link without ever risking the address we are holding.
+ * Only armed when we came up on a fallback address. This is a liveness mechanism
+ * for the migration path, not a rebind: the address stays bound and DHCP is
+ * simply asked to offer again.
  */
 static void arm_dhcp_probe(void)
 {
     s_dhcp_probe_due_ms = (uint32_t) (esp_timer_get_time() / 1000) + (DHCP_PROBE_INTERVAL_MS / 1000);
-    ESP_LOGI(TAG, "NET,event=FALLBACK_REASSERT_ARMED,in=%ds", DHCP_PROBE_INTERVAL_MS / 1000);
+    ESP_LOGI(TAG, "NET,event=DHCP_REPROBE_ARMED,in=%ds", DHCP_PROBE_INTERVAL_MS / 1000);
+}
+
+/* Survey the visible mesh once per outage and log what is out there.
+ *
+ * Every node in a mesh broadcasts the same SSID, so this is the only way to see
+ * that the station landed on a repeater instead of the router: a station that
+ * associates but never appears in the router's own device list is talking to a
+ * node that does not relay it. The scan runs while disconnected, because
+ * esp_wifi_scan_start() does not complete reliably on an associated station and a
+ * silent scan would hide exactly what we are looking for.
+ *
+ * This is a diagnostic, not a control path: nothing here changes what the firmware
+ * does next. It therefore runs on its own task rather than inside the DHCP retry
+ * timer callback, which runs in the timer service task - a blocking scan plus two
+ * delays in there stalls every other software timer in the system. */
+
+/* One survey at a time: the scan disconnects the station, so two overlapping ones
+ * would fight over the same radio. The task clears the flag before deleting
+ * itself, so a completed survey and a failed xTaskCreate both leave it correct. */
+static atomic_bool s_mesh_survey_running;
+
+/* Cleared when a lease is actually bound, so a later outage is surveyed again. */
+static bool s_mesh_survey_done_this_outage = false;
+
+/* Has a real DHCP lease ever been bound this boot? Distinguishes "no address yet"
+ * from "on a fallback address", and is what keeps the config AP from being the
+ * normal way to reach a unit that is perfectly well connected. */
+static bool s_ever_had_lease = false;
+
+/* Remember a lease that a DHCP server really handed out.
+ *
+ * Only writes what changed: a server that keeps reissuing the same reserved
+ * address must not cause an NVS write per renewal, and NVS writes are finite. */
+static void capture_lease_to_nvs(const net_lease_capture_t *cap)
+{
+    if (cap->persist_ip) {
+        char *known = nvs_config_get_string(NVS_CONFIG_LAST_DHCP_IP);
+        if (known == NULL || strcmp(known, cap->addr.ip) != 0) {
+            nvs_config_set_string(NVS_CONFIG_LAST_DHCP_IP, cap->addr.ip);
+        }
+        free(known);
+    }
+    if (cap->persist_gw) {
+        char *known = nvs_config_get_string(NVS_CONFIG_LAST_DHCP_GW);
+        if (known == NULL || strcmp(known, cap->addr.gw) != 0) {
+            nvs_config_set_string(NVS_CONFIG_LAST_DHCP_GW, cap->addr.gw);
+        }
+        free(known);
+    }
+    if (cap->persist_mask) {
+        char *known = nvs_config_get_string(NVS_CONFIG_LAST_DHCP_MASK);
+        if (known == NULL || strcmp(known, cap->addr.mask) != 0) {
+            nvs_config_set_string(NVS_CONFIG_LAST_DHCP_MASK, cap->addr.mask);
+        }
+        free(known);
+    }
+    if (cap->persist_dns) {
+        char *known = nvs_config_get_string(NVS_CONFIG_LAST_DHCP_DNS);
+        if (known == NULL || strcmp(known, cap->addr.dns) != 0) {
+            nvs_config_set_string(NVS_CONFIG_LAST_DHCP_DNS, cap->addr.dns);
+        }
+        free(known);
+    }
+}
+
+/* Bring up the local configuration AP so a unit that cannot reach the LAN can
+ * still be reached - at http://192.168.4.1 - from any phone or laptop nearby.
+ *
+ * This has to do all three parts, not just the mode. Switching the driver to
+ * APSTA alone comes up with no AP netif, no DHCP server and no usable SSID: a
+ * client can associate and then gets nothing. That is not a fallback, it only
+ * looks like one - which is exactly how this device ended up associated, holding
+ * an address, and unreachable by every route at the same time.
+ *
+ * Deliberately independent of GlobalState: the AP SSID is derived from the AP MAC
+ * and nothing else, and this has to be callable from the gateway-probe callback,
+ * which has no business carrying a global pointer. */
+static void ensure_config_ap(void)
+{
+    esp_netif_t *ap_netif = esp_netif_get_handle_from_ifkey("WIFI_AP_DEF");
+
+    if (ap_netif == NULL) {
+        ap_netif = esp_netif_create_default_wifi_ap();
+        ESP_LOGI(TAG, "NET,event=CONFIG_AP_NETIF,created=%d", ap_netif != NULL);
+    }
+    if (ap_netif == NULL) {
+        return;
+    }
+
+    wifi_softap_on();
+
+    uint8_t mac[6] = {0};
+    esp_wifi_get_mac(WIFI_IF_AP, mac);
+
+    wifi_config_t ap_cfg = {0};
+    ap_cfg.ap.ssid_len = snprintf((char *) ap_cfg.ap.ssid, sizeof(ap_cfg.ap.ssid),
+                                  "Bitaxe_%02X%02X", mac[4], mac[5]);
+    ap_cfg.ap.channel = 1;
+    ap_cfg.ap.max_connection = 4;
+    ap_cfg.ap.authmode = WIFI_AUTH_OPEN;
+    ap_cfg.ap.pmf_cfg.required = false;
+
+    esp_err_t cerr = esp_wifi_set_config(WIFI_IF_AP, &ap_cfg);
+    ESP_LOGI(TAG, "NET,event=CONFIG_AP_READY,ssid=%s,err=%s",
+             (const char *) ap_cfg.ap.ssid, esp_err_to_name(cerr));
+}
+
+static void mesh_survey_task(void * arg)
+{
+    GlobalState *GLOBAL_STATE = (GlobalState *)arg;
+
+    esp_wifi_disconnect();
+    vTaskDelay(pdMS_TO_TICKS(400));
+
+    wifi_scan_config_t sc = {
+        .ssid = (uint8_t *) GLOBAL_STATE->SYSTEM_MODULE.ssid,
+        .bssid = NULL, .channel = 0, .show_hidden = false,
+    };
+    if (esp_wifi_scan_start(&sc, true) == ESP_OK) {
+        uint16_t n = 0;
+        esp_wifi_scan_get_ap_num(&n);
+        /* Clamped before the buffer is sized and before it is filled. The count
+         * comes from the driver and can exceed any array we choose here. */
+        if (n > MESH_SURVEY_MAX_RECORDS) {
+            n = MESH_SURVEY_MAX_RECORDS;
+        }
+        /* n == 0 is a result, not an allocation failure: malloc(0) may return NULL,
+         * and reporting that as NO_MEMORY would blame the heap for an empty scan
+         * and hide the thing this survey exists to show. */
+        if (n == 0) {
+            ESP_LOGW(TAG, "NET,event=MESH_SCAN_DONE,nodes=0,ssid_seen=no_match");
+        } else {
+            wifi_ap_record_t *recs = (wifi_ap_record_t *)malloc(sizeof(wifi_ap_record_t) * n);
+            if (recs == NULL) {
+                ESP_LOGE(TAG, "NET,event=MESH_SCAN_DONE,result=NO_MEMORY,nodes=%d", n);
+            } else if (esp_wifi_scan_get_ap_records(&n, recs) == ESP_OK) {
+                for (uint16_t i = 0; i < n; i++) {
+                    ESP_LOGW(TAG, "NET,event=MESH_NODE,bssid=%02x:%02x:%02x:%02x:%02x:%02x,"
+                                  "channel=%d,rssi=%d,auth=%d",
+                             recs[i].bssid[0], recs[i].bssid[1], recs[i].bssid[2],
+                             recs[i].bssid[3], recs[i].bssid[4], recs[i].bssid[5],
+                             recs[i].primary, recs[i].rssi, recs[i].authmode);
+                }
+                ESP_LOGW(TAG, "NET,event=MESH_SCAN_DONE,nodes=%d", n);
+                free(recs);
+            } else {
+                ESP_LOGE(TAG, "NET,event=MESH_SCAN_DONE,result=RECORDS_FAILED");
+                free(recs);
+            }
+        }
+    } else {
+        ESP_LOGE(TAG, "NET,event=MESH_SCAN_DONE,result=START_FAILED");
+    }
+
+    wifi_connect_pinned();
+    atomic_store(&s_mesh_survey_running, false);
+    vTaskDelete(NULL);
+}
+
+static void mesh_survey_task_create(GlobalState * GLOBAL_STATE)
+{
+    /* One at a time. The survey disconnects the station, so two overlapping ones
+     * would fight each other over the same radio. */
+    if (atomic_exchange(&s_mesh_survey_running, true)) {
+        return;
+    }
+    if (xTaskCreate(mesh_survey_task, "mesh_survey", 4096, GLOBAL_STATE, 3, NULL) != pdPASS) {
+        atomic_store(&s_mesh_survey_running, false);
+        ESP_LOGE(TAG, "NET,event=MESH_SCAN_DONE,result=TASK_CREATE_FAILED");
+    }
 }
 
 static void ip_timeout_callback(TimerHandle_t xTimer)
@@ -926,24 +1190,23 @@ static void ip_timeout_callback(TimerHandle_t xTimer)
         if (s_net_state == NET_STATE_DHCP_RUNNING || s_net_state == NET_STATE_DHCP_RETRY) {
             net_state_transition(GLOBAL_STATE, NET_STATE_IP_ACQUIRED);
         }
-        /* Online on a fallback address: periodically re-assert it. Re-binding is
-         * idempotent and cannot lose connectivity, unlike restarting DHCP. */
+        /* Online on a fallback address: periodically ask DHCP for a real lease
+         * again. It does NOT re-run the fallback ladder - that only ever re-bound
+         * the same static address, so a unit that fell back once could never
+         * migrate back to a lease for the rest of the boot. Instead the client is
+         * nudged to re-offer, and the interface keeps the fallback address until a
+         * lease actually arrives and supersedes it via IP_EVENT_STA_GOT_IP. */
         if (s_dhcp_probe_due_ms != 0) {
             uint32_t now_ms = (uint32_t) (esp_timer_get_time() / 1000);
             if ((int32_t) (now_ms - s_dhcp_probe_due_ms) >= 0) {
-                ESP_LOGI(TAG, "NET,event=FALLBACK_REASSERT,action=REBIND");
                 s_dhcp_probe_due_ms = 0;
-                if (try_ip_fallback_ladder(GLOBAL_STATE)) {
-                    arm_dhcp_probe();
-                    xTimerChangePeriod(xTimer, pdMS_TO_TICKS(30000), 0);
-                } else {
-                    /* Nothing left to fall back to: fall through to the DHCP
-                     * retry path so the normal recovery loop takes over. */
-                    dhcp_retry_count = 0;
-                    GLOBAL_STATE->SYSTEM_MODULE.is_connected = false;
+                esp_netif_t *sta = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+                if (sta != NULL) {
+                    esp_err_t start_err = esp_netif_dhcpc_start(sta);
+                    ESP_LOGW(TAG, "NET,event=DHCP_REPROBE,action=REQUEST_LEASE,ip=%s,err=%s",
+                             s_reassert.bound.ip, esp_err_to_name(start_err));
                 }
-                xTimerStart(xTimer, 0);
-                return;
+                arm_dhcp_probe();
             }
             xTimerChangePeriod(xTimer, pdMS_TO_TICKS(30000), 0);
             xTimerStart(xTimer, 0);
@@ -1000,43 +1263,23 @@ static void ip_timeout_callback(TimerHandle_t xTimer)
                      esp_netif_is_netif_up(dbg) ? 1 : 0);
         }
 
-        /* Survey the mesh once per outage, before the ladder can return early.
+        /* Survey the mesh once per outage, but only as a genuine last resort.
          *
-         * Every node in a mesh broadcasts the same SSID, so this is the only way to
-         * see that the station landed on a repeater instead of the router: a
-         * station that associates but never appears in the router's own device list
-         * is talking to a node that does not relay it. It has to run here, because
-         * the ladder below returns as soon as any address binds.
+         * The survey disconnects the station to run a blocking scan, so running it
+         * while the recovery ladder below could still produce an address destroys
+         * the very path that would have brought the unit up: the reconnect fires
+         * WIFI_EVENT_STA_CONNECTED, which starts the DHCP client, and esp-netif then
+         * clears the static fallback address that had just been bound. The unit
+         * oscillates between "has an address" and "has none" and never settles - it
+         * looks alive in the log but is unreachable and never mines.
          *
-         * The scan runs while disconnected, since esp_wifi_scan_start() does not
-         * complete reliably on an associated station, and a silent scan would hide
-         * exactly what we are looking for. Once per outage, so its cost is
-         * irrelevant next to the outage it diagnoses. */
-        if (dhcp_retry_count == 1) {
-            esp_wifi_disconnect();
-            vTaskDelay(pdMS_TO_TICKS(400));
-            wifi_scan_config_t sc = {
-                .ssid = (uint8_t *) GLOBAL_STATE->SYSTEM_MODULE.ssid,
-                .bssid = NULL, .channel = 0, .show_hidden = false,
-            };
-            if (esp_wifi_scan_start(&sc, true) == ESP_OK) {
-                uint16_t n = 0;
-                esp_wifi_scan_get_ap_num(&n);
-                if (n > 32) { n = 32; }
-                wifi_ap_record_t recs[32];
-                if (esp_wifi_scan_get_ap_records(&n, recs) == ESP_OK) {
-                    for (uint16_t i = 0; i < n; i++) {
-                        ESP_LOGW(TAG, "NET,event=MESH_NODE,bssid=%02x:%02x:%02x:%02x:%02x:%02x,"
-                                      "channel=%d,rssi=%d,auth=%d",
-                                 recs[i].bssid[0], recs[i].bssid[1], recs[i].bssid[2],
-                                 recs[i].bssid[3], recs[i].bssid[4], recs[i].bssid[5],
-                                 recs[i].primary, recs[i].rssi, recs[i].authmode);
-                    }
-                    ESP_LOGW(TAG, "NET,event=MESH_SCAN_DONE,nodes=%d", n);
-                }
-            }
-            wifi_connect_pinned();
-        }
+         * It is a diagnostic, not a control path, so it runs only once the ladder
+         * has produced nothing at all. It also has to happen here - the ladder
+         * returns as soon as any address binds - but not in this callback: the
+         * survey disconnects, waits, runs a blocking scan and reconnects, and this
+         * runs in the FreeRTOS timer service task. Blocking there stalls every
+         * software timer, and the record array it used to hold was far larger than
+         * that task's 2 KB stack. */
 
         /* Consult the ladder early. Rung 1 (the last real lease) costs nothing to
          * attempt and cannot collide with a stranger, so there is no value in
@@ -1045,6 +1288,29 @@ static void ip_timeout_callback(TimerHandle_t xTimer)
             dhcp_retry_count = 0;
             arm_dhcp_probe();
             return;
+        }
+
+        /* No rung produced an address, so there is nothing left to protect. Once
+         * per outage: the flag is cleared when a lease is actually bound. */
+        if (!s_mesh_survey_done_this_outage) {
+            s_mesh_survey_done_this_outage = true;
+            mesh_survey_task_create(GLOBAL_STATE);
+        }
+
+        /* Local web-login fallback.
+         *
+         * The configuration access point used to come up only when the SSID was
+         * empty or after ten *association* failures. Neither can happen here: this
+         * unit associates perfectly and then never gets a lease, so s_retry_num
+         * stays at zero forever and the one interface that would still reach the
+         * unit - the open AP at 192.168.4.1 - is never brought up. The device is
+         * then unreachable by every route at once: no LAN, no web UI, no API.
+         *
+         * Being stuck without an address is exactly the situation the config AP
+         * exists for, so it is enabled on the DHCP path too. A genuine lease
+         * turns it off again below. */
+        if (ESP_MINER_CONFIG_AP_STUCK == 1 || (ESP_MINER_CONFIG_AP_STUCK == 2 && !s_ever_had_lease)) {
+            wifi_softap_on();
         }
 
         /* Escalation: change *how* we ask, not just how often. */
@@ -1112,14 +1378,35 @@ static void wifi_connect_pinned(void)
                   &mac[0], &mac[1], &mac[2], &mac[3], &mac[4], &mac[5]) == 6) {
         wifi_config_t cfg = {0};
         if (esp_wifi_get_config(WIFI_IF_STA, &cfg) == ESP_OK) {
-            if (memcmp(cfg.sta.bssid, mac, 6) != 0) {
+            if (memcmp(cfg.sta.bssid, mac, 6) != 0 || !cfg.sta.bssid_set) {
                 memcpy(cfg.sta.bssid, mac, 6);
+                /* Both halves are needed: the address to match and bssid_set to say
+                 * the address is meant. Setting only the address is what made this
+                 * pin a no-op - it looked applied and changed nothing. */
+                cfg.sta.bssid_set = true;
+                cfg.sta.scan_method = WIFI_ALL_CHANNEL_SCAN;
                 esp_wifi_set_config(WIFI_IF_STA, &cfg);
             }
             have = true;
         }
     }
     free(pin);
+
+    /* Read the BSSID back after writing it. esp_wifi_set_config() returning ESP_OK
+     * is not evidence that the pin is in effect - it has accepted and silently
+     * dropped the field before, which left a unit that logged "pinned" on every
+     * boot and connected to the wrong access point anyway. Log what the driver
+     * actually holds, so a pin that does not take is visible instead of assumed. */
+    if (have) {
+        wifi_config_t check = {0};
+        if (esp_wifi_get_config(WIFI_IF_STA, &check) == ESP_OK) {
+            ESP_LOGW(TAG, "NET,event=WIFI_BSSID_EFFECTIVE,bssid=%02x:%02x:%02x:%02x:%02x:%02x,"
+                     "expected=%02x:%02x:%02x:%02x:%02x:%02x",
+                     check.sta.bssid[0], check.sta.bssid[1], check.sta.bssid[2],
+                     check.sta.bssid[3], check.sta.bssid[4], check.sta.bssid[5],
+                     mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+        }
+    }
 
     esp_err_t err = esp_wifi_connect();
     if (err != ESP_OK && have) {
@@ -1129,6 +1416,7 @@ static void wifi_connect_pinned(void)
         if (esp_wifi_get_config(WIFI_IF_STA, &cfg) == ESP_OK) {
             uint8_t zero[6] = {0};
             memcpy(cfg.sta.bssid, zero, 6);
+            cfg.sta.bssid_set = false;
             esp_wifi_set_config(WIFI_IF_STA, &cfg);
         }
         esp_wifi_connect();
@@ -1141,10 +1429,22 @@ static void event_handler(void * arg, esp_event_base_t event_base, int32_t event
     if (event_base == WIFI_EVENT)
     {
         if (event_id == WIFI_EVENT_SCAN_DONE) {
+            /* Clamped before anything reads or writes ap_info. The count comes
+             * from the driver and reflects however many SSIDs are visible, which
+             * on a normal urban network is far more than MAX_AP_COUNT - the
+             * unclamped call wrote past the end of a static array and corrupted
+             * every static declared after it, including the network state
+             * machine's own variables. */
             esp_wifi_scan_get_ap_num(&ap_number);
+            if (ap_number > MAX_AP_COUNT) {
+                ESP_LOGW(TAG, "Wi-Fi scan found %u APs, reporting the first %d",
+                         (unsigned) ap_number, MAX_AP_COUNT);
+                ap_number = MAX_AP_COUNT;
+            }
             ESP_LOGI(TAG, "Wi-Fi Scan Done");
             if (esp_wifi_scan_get_ap_records(&ap_number, ap_info) != ESP_OK) {
                 ESP_LOGI(TAG, "Failed esp_wifi_scan_get_ap_records");
+                ap_number = 0;
             }
             is_scanning = false;
         }
@@ -1289,36 +1589,77 @@ static void event_handler(void * arg, esp_event_base_t event_base, int32_t event
         net_state_transition(GLOBAL_STATE, NET_STATE_IP_ACQUIRED);
         s_retry_num = 0;
         dhcp_retry_count = 0;
-        /* A real lease supersedes any fallback: stop probing so we do not keep
-         * poking the DHCP client for an address we already hold legitimately. */
+
+        /* Whether the configured resolver came from this lease has to be decided
+         * before the latch is cleared, because the answer is "no" whenever we are
+         * still holding a fallback of our own. */
+        bool had_fallback = s_reassert.have_fallback;
+        bool dns_from_lease = !had_fallback;
+
+        /* A genuine lease supersedes any fallback. Clearing the latch here is what
+         * restores DHCP recovery: while it stayed set, the 1 Hz watchdog kept
+         * stopping the client and the unit could never come back to a real lease
+         * for the rest of the boot. */
+        if (had_fallback) {
+            ESP_LOGW(TAG, "NET,event=IP_FALLBACK_SUPERSEDED,by=DHCP,ip=%s,prev_fallback_gen=%lu",
+                     GLOBAL_STATE->SYSTEM_MODULE.ip_addr_str,
+                     (unsigned long) s_reassert.fallback_generation);
+        }
+        net_policy_lease_wins(&s_reassert);
         s_dhcp_probe_due_ms = 0;
 
-        /* Remember this lease so a future DHCP outage has a safe address to fall
-         * back onto. Only written when it actually changed: a DHCP server that
-         * keeps reissuing the same reserved address must not cause an NVS write
-         * per renewal. The resolver handed out with the lease is remembered too -
-         * an address with no DNS server binds fine and then fails every name
-         * lookup, which is precisely how the first fallback attempt presented. */
+        /* Remember this lease, in full, so a future DHCP outage can replay it.
+         *
+         * What gets written is decided by net_policy_capture_lease(), which
+         * enforces two rules the previous code broke: a field is only written when
+         * the lease actually supplied it, and a resolver is only written when a
+         * DHCP server handed it out. The second matters because esp_netif keeps
+         * whatever resolver is configured, including the one our own fallback
+         * installed - persisting that would make a single outage permanent.
+         *
+         * The address comes from event->ip_info, not from the shared
+         * SYSTEM_MODULE buffer, so a concurrent write there cannot persist an
+         * empty string as "last good lease". */
         {
-            char *known = nvs_config_get_string(NVS_CONFIG_LAST_DHCP_IP);
-            if (known == NULL || strcmp(known, GLOBAL_STATE->SYSTEM_MODULE.ip_addr_str) != 0) {
-                nvs_config_set_string(NVS_CONFIG_LAST_DHCP_IP, GLOBAL_STATE->SYSTEM_MODULE.ip_addr_str);
-
-                /* Read back the resolver this lease provided, via esp-netif: that
-                 * is the value that demonstrably worked. */
-                char dns_s[IP4ADDR_STRLEN_MAX] = "";
-                esp_netif_t *sta = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
-                esp_netif_dns_info_t dns_info = {0};
-                if (sta != NULL && esp_netif_get_dns_info(sta, ESP_NETIF_DNS_MAIN, &dns_info) == ESP_OK) {
-                    snprintf(dns_s, sizeof(dns_s), IPSTR, IP2STR(&dns_info.ip.u_addr.ip4));
-                }
-                if (dns_s[0] != '\0') {
-                    nvs_config_set_string(NVS_CONFIG_LAST_DHCP_DNS, dns_s);
-                }
-                ESP_LOGI(TAG, "NET,event=LAST_LEASE_SAVED,ip=%s,dns=%s",
-                         GLOBAL_STATE->SYSTEM_MODULE.ip_addr_str, dns_s[0] ? dns_s : "(none)");
+            net_addr_config_t lease;
+            memset(&lease, 0, sizeof(lease));
+            snprintf(lease.ip, sizeof(lease.ip), IPSTR, IP2STR(&event->ip_info.ip));
+            if (!ip4_addr_isany_val(event->ip_info.gw)) {
+                snprintf(lease.gw, sizeof(lease.gw), IPSTR, IP2STR(&event->ip_info.gw));
             }
-            free(known);
+            if (!ip4_addr_isany_val(event->ip_info.netmask)) {
+                snprintf(lease.mask, sizeof(lease.mask), IPSTR, IP2STR(&event->ip_info.netmask));
+            }
+
+            /* dns_from_lease was decided above, before the latch was cleared. */
+            esp_netif_t *sta = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+            esp_netif_dns_info_t dns_info = {0};
+            if (sta != NULL && esp_netif_get_dns_info(sta, ESP_NETIF_DNS_MAIN, &dns_info) == ESP_OK
+                && !ip4_addr_isany_val(dns_info.ip.u_addr.ip4)) {
+                snprintf(lease.dns, sizeof(lease.dns), IPSTR, IP2STR(&dns_info.ip.u_addr.ip4));
+            }
+
+            net_lease_capture_t cap = net_policy_capture_lease(&lease, dns_from_lease);
+            /* The outage is over: a mesh survey may be useful again next time. */
+            s_mesh_survey_done_this_outage = false;
+
+            /* Nothing was learned if the address in hand is one we chose. The
+             * address still has to reach LwIP (that happens above, in the netif
+             * handler) - it just must not be remembered as a lease. */
+            if (s_addr_is_fallback) {
+                ESP_LOGW(TAG, "NET,event=LAST_LEASE_SKIPPED,reason=fallback_address,ip=%s", cap.addr.ip);
+                s_addr_is_fallback = false;
+            } else {
+                s_ever_had_lease = true;
+                /* A real lease means the unit is reachable over the LAN; the local
+                 * web-login fallback has done its job and can go away. */
+                wifi_softap_off();
+                capture_lease_to_nvs(&cap);
+                ESP_LOGI(TAG, "NET,event=LAST_LEASE_SAVED,ip=%s,gw=%s,mask=%s,dns=%s,dns_from_lease=%d",
+                         cap.addr.ip, cap.persist_gw ? cap.addr.gw : "(kept)",
+                         cap.persist_mask ? cap.addr.mask : "(kept)",
+                         cap.persist_dns ? cap.addr.dns : "(kept)", dns_from_lease ? 1 : 0);
+            }
         }
 
         if (ip_acquire_timer != NULL) {
@@ -1354,16 +1695,40 @@ static void event_handler(void * arg, esp_event_base_t event_base, int32_t event
         memset(GLOBAL_STATE->SYSTEM_MODULE.ip_addr_str, 0, sizeof(GLOBAL_STATE->SYSTEM_MODULE.ip_addr_str));
         s_stratum_generation++;
         net_state_transition(GLOBAL_STATE, NET_STATE_DHCP_RECOVERY);
-        // Invalidate stratum — will reconnect on next IP
         snprintf(GLOBAL_STATE->SYSTEM_MODULE.wifi_status, sizeof(GLOBAL_STATE->SYSTEM_MODULE.wifi_status), "IP lost, renewing...");
-        // Bounce DHCP client for renewal (minimal recovery)
+        esp_log_level_set("dhcp", ESP_LOG_DEBUG);
+
+        /* A lease was lost, so the fallback latch is no longer describing the
+         * present. Clearing it here means that if the recovery below fails and the
+         * ladder binds a fallback, the watchdog can heal that one; and if a fresh
+         * lease arrives it supersedes cleanly. */
+        if (s_reassert.have_fallback) {
+            ESP_LOGW(TAG, "NET,event=IP_FALLBACK_CLEARED,reason=LEASE_LOST,gen=%lu",
+                     (unsigned long) s_reassert.fallback_generation);
+            net_policy_lease_wins(&s_reassert);
+        }
+        s_dhcp_probe_due_ms = 0;
+        dhcp_retry_count = 0;
+
+        /* Bounce the client for renewal. Both rungs are explicitly tolerated: a
+         * stopped client still has to be started, and a running one must not be
+         * restarted, because restarting resets the transaction id and that is what
+         * makes some routers hand out a conflicting lease. */
         esp_netif_t *sta = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
         if (sta) {
-            esp_netif_dhcpc_stop(sta);
-esp_netif_dhcpc_start(sta);
+            esp_err_t stop_err = esp_netif_dhcpc_stop(sta);
+            if (stop_err != ESP_OK && stop_err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STOPPED) {
+                ESP_LOGW(TAG, "NET,event=DHCP_STOP_FAILED,err=%s", esp_err_to_name(stop_err));
+            }
+            esp_err_t start_err = esp_netif_dhcpc_start(sta);
+            ESP_LOGW(TAG, "NET,event=DHCP_RENEW_START,stop=%s,start=%s",
+                     esp_err_to_name(stop_err), esp_err_to_name(start_err));
         }
+
+        /* Bring the watchdog back to the DHCP retry period so recovery is driven
+         * from here rather than waiting out a long stale period. */
         if (ip_acquire_timer) {
-            xTimerChangePeriod(ip_acquire_timer, pdMS_TO_TICKS(DHCP_RETRY_BASE_MS), 0);
+            xTimerChangePeriod(ip_acquire_timer, pdMS_TO_TICKS(8000), 0);
             xTimerStart(ip_acquire_timer, 0);
         }
     }
@@ -1577,7 +1942,23 @@ esp_netif_t * wifi_init_sta(const char * wifi_ssid, const char * wifi_pass)
             if (sscanf(pin, "%2hhx:%2hhx:%2hhx:%2hhx:%2hhx:%2hhx",
                        &mac[0], &mac[1], &mac[2], &mac[3], &mac[4], &mac[5]) == 6) {
                 memcpy(wifi_sta_config.sta.bssid, mac, 6);
-                ESP_LOGW(TAG, "NET,event=WIFI_BSSID_PINNED,bssid=%s", pin);
+                /* bssid_set is what actually arms the pin.
+                 *
+                 * In ESP-IDF 6.x a bssid alone is inert: esp_wifi_set_config()
+                 * accepts it, reports ESP_OK, and the station still associates with
+                 * whichever node it likes best. sta.bssid_set is the flag that tells
+                 * the driver to honour it - "it needs to be 1 only when users need
+                 * to check the MAC address of the AP" (esp_wifi_types_generic.h).
+                 * Without it the unit logged "pinned" on every boot and landed on
+                 * the repeater anyway, which is the exact failure this pin exists
+                 * to prevent. */
+                wifi_sta_config.sta.bssid_set = true;
+                /* A pin and FAST_SCAN do not work together: the scan cache is
+                 * populated independently of the pin and the driver then connects
+                 * to whichever cached node matches the SSID, ignoring the BSSID
+                 * that was just written. */
+                wifi_sta_config.sta.scan_method = WIFI_ALL_CHANNEL_SCAN;
+                ESP_LOGW(TAG, "NET,event=WIFI_BSSID_PINNED,bssid=%s,scan=all_channel", pin);
             } else {
                 ESP_LOGE(TAG, "NET,event=WIFI_BSSID_INVALID,value=%s", pin);
             }
@@ -1593,6 +1974,34 @@ esp_netif_t * wifi_init_sta(const char * wifi_ssid, const char * wifi_pass)
     // wifi_sta_config.sta.password[63] = '\0';
 
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_sta_config));
+
+    /* Station MAC override.
+     *
+     * This has to be set on WIFI_IF_STA *before* esp_wifi_start(), which is what
+     * wifi_init() does next, so that the address is in place for the very first
+     * association and not just for the second boot onwards. A per-device release
+     * sets it when the unit has to be recognised by a reservation, an ACL or a
+     * bridge rule: the efuse MAC is fixed but is not something the operator can
+     * pre-register, and a unit whose address changes identity is a unit that
+     * silently never gets a lease.
+     *
+     * A malformed value is logged and ignored - falling back to the efuse MAC is
+     * always better than advertising a half-parsed address. */
+    if (ESP_MINER_STA_MAC[0] != '\0') {
+        uint8_t want[6];
+        if (sscanf(ESP_MINER_STA_MAC, "%2hhx:%2hhx:%2hhx:%2hhx:%2hhx:%2hhx",
+                   &want[0], &want[1], &want[2], &want[3], &want[4], &want[5]) == 6) {
+            esp_err_t merr = esp_wifi_set_mac(WIFI_IF_STA, want);
+            if (merr == ESP_OK) {
+                ESP_LOGW(TAG, "NET,event=WIFI_MAC_PINNED,mac=%s", ESP_MINER_STA_MAC);
+            } else {
+                ESP_LOGE(TAG, "NET,event=WIFI_MAC_PIN_FAILED,mac=%s,err=%s",
+                         ESP_MINER_STA_MAC, esp_err_to_name(merr));
+            }
+        } else {
+            ESP_LOGE(TAG, "NET,event=WIFI_MAC_PIN_INVALID,value=%s", ESP_MINER_STA_MAC);
+        }
+    }
 
     // IPv6 link-local address will be created after WiFi connection
     // DHCP client for IPv4 will be started automatically by esp_netif_action_connected upon association
@@ -1614,9 +2023,16 @@ void wifi_init(GlobalState * GLOBAL_STATE)
 
     esp_event_handler_instance_t instance_any_id;
     esp_event_handler_instance_t instance_got_ip;
+    esp_event_handler_instance_t instance_lost_ip;
     esp_event_handler_instance_t instance_got_ip6;
     ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler, GLOBAL_STATE, &instance_any_id));
     ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler, GLOBAL_STATE, &instance_got_ip));
+    /* This one was implemented but never registered, so the entire DHCP-loss
+     * recovery path was dead code: esp-netif posted the event to nobody. Losing a
+     * lease therefore left the unit believing it was still online until the 8 s
+     * watchdog noticed, and the stratum socket was never invalidated at the point
+     * the loss actually happened. */
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_LOST_IP, &event_handler, GLOBAL_STATE, &instance_lost_ip));
     ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT, IP_EVENT_GOT_IP6, &event_handler, GLOBAL_STATE, &instance_got_ip6));
 
     /* Initialize Wi-Fi */
@@ -1648,7 +2064,22 @@ void wifi_init(GlobalState * GLOBAL_STATE)
         }
     }
 
-    GLOBAL_STATE->SYSTEM_MODULE.ssid = nvs_config_get_string(NVS_CONFIG_WIFI_SSID);
+    /* main.c has already loaded this and validated it. wifi_init overwrote the
+     * pointer without freeing it and then called strlen() on the result, which is
+     * NULL whenever the allocation failed. Take ownership of the existing value
+     * and only replace it when NVS actually has one. */
+    {
+        char *ssid = nvs_config_get_string(NVS_CONFIG_WIFI_SSID);
+        if (ssid != NULL && ssid[0] != '\0') {
+            free(GLOBAL_STATE->SYSTEM_MODULE.ssid);
+            GLOBAL_STATE->SYSTEM_MODULE.ssid = ssid;
+        } else {
+            free(ssid);
+            if (GLOBAL_STATE->SYSTEM_MODULE.ssid == NULL) {
+                GLOBAL_STATE->SYSTEM_MODULE.ssid = strdup("");
+            }
+        }
+    }
 
     /* Only initialize and enable SoftAP if no SSID is configured */
     if (strlen(GLOBAL_STATE->SYSTEM_MODULE.ssid) == 0) {
@@ -1685,15 +2116,20 @@ void wifi_init(GlobalState * GLOBAL_STATE)
 
         char * hostname  = nvs_config_get_string(NVS_CONFIG_HOSTNAME);
 
-        /* Set Hostname */
-        esp_err_t err = esp_netif_set_hostname(esp_netif_sta, hostname);
-        if (err != ERR_OK) {
-            ESP_LOGW(TAG, "esp_netif_set_hostname failed: %s", esp_err_to_name(err));
+        /* esp_netif_set_hostname() copies from the pointer with no way to report a
+         * NULL source, so an unset key must not be passed straight through. */
+        if (hostname != NULL && hostname[0] != '\0') {
+            esp_err_t err = esp_netif_set_hostname(esp_netif_sta, hostname);
+            if (err != ESP_OK) {
+                ESP_LOGW(TAG, "esp_netif_set_hostname failed: %s", esp_err_to_name(err));
+            } else {
+                ESP_LOGI(TAG, "ESP_WIFI setting hostname to: %s", hostname);
+            }
         } else {
-            ESP_LOGI(TAG, "ESP_WIFI setting hostname to: %s", hostname);
+            ESP_LOGW(TAG, "ESP_WIFI no hostname configured, leaving the driver default");
         }
 
-free(hostname);
+        free(hostname);
 
     /* Start Wi-Fi */
     ESP_ERROR_CHECK(esp_wifi_start());

@@ -16,6 +16,19 @@ static inline void asic_init_core_register_delay(void)
 
 static const double NONCE_SPACE = 4294967296.0; //  2^32
 
+/* BIP310 version rolling only covers bits [13:28] of the header's version
+ * field. The chip is told how many rolls to perform through register 0xA4,
+ * and that register is 16 bits wide, so the roll count is
+ * `version_mask >> 13` and the reachable mask is exactly this constant.
+ *
+ * Bits above 28 are BIP9 signalling. They are not rollable, so `mask = 0xFFFF`
+ * from a pool (or the `ffffffff` this firmware requests in mining.configure)
+ * must not be fed straight into increment_bitmask(): it would walk versions
+ * outside the space the chip can reach, and every resulting share would be
+ * rejected by the pool. Masking the negotiated mask with this constant keeps
+ * the host's arithmetic inside the chip's range. */
+#define ASIC_VERSION_ROLL_MASK 0x1FFFE000u
+
 typedef enum
 {
     REGISTER_INVALID = 0,

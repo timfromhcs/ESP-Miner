@@ -2,6 +2,7 @@
 #define MINING_H_
 
 #include <stdint.h>
+#include <stdbool.h>
 
 typedef struct mining_notify mining_notify;
 
@@ -38,7 +39,13 @@ void calculate_coinbase_tx_hash_bin(const uint8_t *prefix, size_t prefix_len,
 
 void calculate_merkle_root_hash(const uint8_t coinbase_tx_hash[32], const uint8_t merkle_branches[][32], const int num_merkle_branches, uint8_t dest[32]);
 
-void construct_bm_job(mining_notify *params, const uint8_t merkle_root[32], const uint32_t version_mask, const double difficulty, bm_job* new_job);
+/* Convert a mining.notify plus the computed merkle root into a bm_job.
+ *
+ * rolled_midstates asks for midstate1..3 (the BIP310 version-roll variants of
+ * the base midstate). Only the BM1397 job frame can carry them; the other
+ * families roll the version inside the chip and hardcode num_midstates = 1, so
+ * computing them there is wasted work per job. */
+void construct_bm_job(mining_notify *params, const uint8_t merkle_root[32], const uint32_t version_mask, const double difficulty, bool rolled_midstates, bm_job* new_job);
 
 // Convert a 256-bit value (block hash or pool target, little-endian) to
 // difficulty (pdiff = truediffone / value). Shared by SV1 (test_nonce_value)

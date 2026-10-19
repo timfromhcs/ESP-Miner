@@ -63,7 +63,7 @@ int ASIC_set_max_baud(GlobalState * GLOBAL_STATE, bool fast_uart)
         case BM1368:
             return BM1368_set_max_baud();
         case BM1370:
-            return BM1370_set_max_baud();
+            return BM1370_set_max_baud(fast_uart);
         case BM1373:
             return BM1373_set_max_baud();
     }
@@ -100,9 +100,16 @@ void ASIC_set_ticket_mask(GlobalState * GLOBAL_STATE, double difficulty)
         case BM1366:
             BM1366_set_ticket_mask(masked);
             break;
+        case BM1370:
+            BM1370_set_ticket_mask(masked);
+            break;
         default:
-            // Other families already program their mask from the init-time
-            // family difficulty; only BM1366 tracked a live pool difficulty.
+            // The remaining families program their mask once during init from
+            // the family default and expose no runtime hook of their own.
+            // BM1366 and BM1370 both track the live pool difficulty, and on
+            // the BM1370 that matters roughly 3.5x as much: the Supra sustains
+            // ~1530 GH/s against ~444 GH/s for an Ultra, over the same UART, so
+            // an under-set mask costs proportionally more wasted frames.
             ESP_LOGD(TAG, "ASIC id %d does not support runtime ticket mask",
                      GLOBAL_STATE->DEVICE_CONFIG.family.asic.id);
             break;
@@ -131,6 +138,18 @@ void ASIC_send_work(GlobalState * GLOBAL_STATE, bm_job * next_job)
             ESP_LOGE(TAG, "Unknown ASIC id %d — cannot send work", GLOBAL_STATE->DEVICE_CONFIG.family.asic.id);
             break;
     }
+}
+
+bool ASIC_family_uses_rolled_midstates(GlobalState * GLOBAL_STATE)
+{
+    if (GLOBAL_STATE == NULL) {
+        return false;
+    }
+    /* bm1397.c is the only driver that reads next_bm_job->midstate1..3 and the
+     * only one that forwards num_midstates to the chip. Every other driver
+     * hardcodes 0x01 in its job packet, so the chip would ignore the extra
+     * midstates even if they were sent. */
+    return GLOBAL_STATE->DEVICE_CONFIG.family.asic.id == BM1397;
 }
 
 void ASIC_set_version_mask(GlobalState * GLOBAL_STATE, uint32_t mask)
@@ -185,6 +204,16 @@ void ASIC_set_nonce_space(GlobalState * GLOBAL_STATE)
     int cores = GLOBAL_STATE->DEVICE_CONFIG.family.asic.core_count;
     int asic_count = GLOBAL_STATE->DEVICE_CONFIG.family.asic_count;
     float frequency = GLOBAL_STATE->POWER_MANAGEMENT_MODULE.actual_frequency;
+
+    /* set_nonce_space() derives the HCN register from frequency. A failed PLL
+     * solve reports actual_frequency == 0, which makes hcn_max NaN, and casting
+     * NaN to uint32_t is undefined - whatever lands in register 0x10 then
+     * decides how much of the nonce space the chip searches. Refuse instead. */
+    if (!(frequency > 0.0f)) {
+        ESP_LOGE(TAG, "Refusing to size the nonce space: no valid frequency "
+                 "(actual_frequency=%.1f)", (double) frequency);
+        return;
+    }
 
     switch (GLOBAL_STATE->DEVICE_CONFIG.family.asic.id) {
         case BM1397:

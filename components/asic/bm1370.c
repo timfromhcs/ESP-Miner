@@ -12,12 +12,19 @@
 #include "frequency_transition_bmXX.h"
 #include "pll.h"
 
+#include <inttypes.h>
+#include <math.h>
 #include <stdint.h>
 #include <string.h>
 #include <arpa/inet.h>
 
 #define BM1370_CHIP_ID 0x1370
 #define BM1370_CHIP_ID_RESPONSE_LENGTH 11
+
+/* BM13xx derives its UART rate from the on-chip 25 MHz reference:
+ *     baud = fCLKI / ((BT8D + 1) * 8)
+ * with BT8D living in bits [15:8] of register 0x28. */
+#define BM1370_FCLK_HZ 25000000u
 
 #define TYPE_JOB 0x20
 #define TYPE_CMD 0x40
@@ -159,13 +166,69 @@ static void _set_chip_address(uint8_t chipAddr)
     _send_BM1370((TYPE_CMD | GROUP_SINGLE | CMD_SETADDRESS), read_address, 2, BM1370_SERIALTX_DEBUG);
 }
 
-void BM1370_set_version_mask(uint32_t version_mask) 
+/**
+ * @brief Program the number of BIP310 version rolls the chip should sweep.
+ *
+ * Register 0xA4 holds a 16 bit roll count in bits [15:0], preceded by the fixed
+ * 0x90 0x00 pattern the BM13xx family expects. The count is `mask >> 13`,
+ * clamped to 16 bits.
+ *
+ * The clamp is not cosmetic. This firmware asks the pool for
+ * "version-rolling.mask":"ffffffff" (see STRATUM_V1_configure_version_rolling),
+ * and a pool that grants it hands back 0xFFFFFFFF. That is 0x1FFFF rolls, which
+ * does not fit in 16 bits. The previous code narrowed `versions_to_roll >> 8`
+ * into a uint8_t, which silently dropped the 17th bit and sent 0xFFFF anyway -
+ * the right number by accident, but the host still believed it had 0x1FFFF rolls
+ * and create_jobs_task logged that number. Explicitly clamping here means the
+ * host and the chip can never disagree about the roll range, which is what makes
+ * version_bits reconstruction in asic_result_task correct.
+ */
+void BM1370_set_version_mask(uint32_t version_mask)
 {
-    int versions_to_roll = version_mask >> 13;
-    uint8_t version_byte0 = (versions_to_roll >> 8);
-    uint8_t version_byte1 = (versions_to_roll & 0xFF); 
-    uint8_t version_cmd[] = {0x00, 0xA4, 0x90, 0x00, version_byte0, version_byte1};
+    uint32_t versions_to_roll = (version_mask & ASIC_VERSION_ROLL_MASK) >> 13;
+
+    uint8_t version_cmd[] = {0x00, 0xA4, 0x90, 0x00,
+                             (uint8_t)(versions_to_roll >> 8),
+                             (uint8_t)(versions_to_roll & 0xFF)};
     _send_BM1370(TYPE_CMD | GROUP_ALL | CMD_WRITE, version_cmd, 6, BM1370_SERIALTX_DEBUG);
+
+    if (versions_to_roll != (version_mask >> 13)) {
+        ESP_LOGW(TAG, "Version mask %08" PRIX32 " exceeds the chip's 16 bit roll counter; "
+                      "clamped to %" PRIu32 " rolls (mask %08" PRIX32 ")",
+                 version_mask, versions_to_roll, ASIC_VERSION_ROLL_MASK);
+    } else {
+        ESP_LOGI(TAG, "Version mask %08" PRIX32 " -> %" PRIu32 " rolls",
+                 version_mask, versions_to_roll);
+    }
+}
+
+/**
+ * @brief Write the ticket mask (register 0x14) that decides when the chip
+ *        reports a nonce back over UART.
+ *
+ * This is the single knob that controls how much UART traffic a given hashrate
+ * produces: the chip only forwards a nonce whose (reversed) hash satisfies the
+ * mask, so a mask of N means roughly hashrate/N nonces per second on the wire.
+ *
+ * BM1370_init() writes this register from DEVICE_CONFIG.family.asic.difficulty,
+ * a static family default of 256 that never tracks the difficulty the pool
+ * actually assigned. On a Bitaxe Supra that default is badly wrong: at 750 MHz
+ * the chip sustains ~1530 GH/s against ~444 GH/s for a BM1366 Ultra at 485 MHz,
+ * so a mask inherited from the slower part over-reports by roughly 3.5x. Every
+ * over-reported nonce still costs the ESP32 a full double-SHA256 in
+ * test_nonce_value() before being discarded, so the waste is CPU and UART ring
+ * pressure, not just log spam.
+ *
+ * @param difficulty pool-assigned difficulty. get_difficulty_mask() rounds it
+ *        down to the next power of two, because a non-power-of-two mask would
+ *        leave holes in the search space.
+ */
+void BM1370_set_ticket_mask(double difficulty)
+{
+    uint8_t difficulty_mask[6];
+    get_difficulty_mask(difficulty, difficulty_mask);
+    ESP_LOGI(TAG, "Setting ticket mask for pool difficulty %.2f", difficulty);
+    _send_BM1370(TYPE_CMD | GROUP_ALL | CMD_WRITE, difficulty_mask, 6, BM1370_SERIALTX_DEBUG);
 }
 
 void BM1370_set_hash_counting_number(uint32_t hcn) {
@@ -270,16 +333,20 @@ uint8_t BM1370_init(GlobalState * GLOBAL_STATE)
     BM1370_write_clock_delay_ctrl(0x00, (TYPE_CMD | GROUP_ALL | CMD_WRITE));
     asic_init_core_register_delay();
 
-    // Present in the S21 XP init between core register control and analog mux.
-    _send_BM1370((TYPE_CMD | GROUP_ALL | CMD_WRITE), (uint8_t[]){0x00, 0x14, 0x00, 0x00, 0x00, 0xFF}, 6, BM1370_SERIALTX_DEBUG);
-    asic_init_core_register_delay();
-
-    uint16_t difficulty = GLOBAL_STATE->DEVICE_CONFIG.family.asic.difficulty;
-    
-    //set difficulty mask
-    uint8_t difficulty_mask[6];
-    get_difficulty_mask(difficulty, difficulty_mask);
-    _send_BM1370((TYPE_CMD | GROUP_ALL | CMD_WRITE), difficulty_mask, 6, BM1370_SERIALTX_DEBUG);
+    // Ticket mask (register 0x14). This used to be written twice from the static
+    // family default of 256 - once as a literal S21-XP dump byte sequence and
+    // once via get_difficulty_mask() - and both writes produced the identical
+    // payload {0x00, 0x14, 0x00, 0x00, 0x00, 0xFF}, so the register never moved
+    // for the life of the device. On a Supra that is a serious mismatch: the chip
+    // hashes at roughly 1.5 TH/s and a 256 mask asks it to report several million
+    // nonces per second over a 1 Mbaud link, so nearly all of them are lost while
+    // still costing the ESP32 a double-SHA256 each. Seed it from the difficulty
+    // the pool has actually assigned and let create_jobs_task keep it current.
+    double pool_difficulty = GLOBAL_STATE->pool_difficulty;
+    if (!(pool_difficulty >= 1.0)) {
+        pool_difficulty = GLOBAL_STATE->DEVICE_CONFIG.family.asic.difficulty;
+    }
+    BM1370_set_ticket_mask(pool_difficulty);
     asic_init_core_register_delay();
 
     //Analog Mux Control
@@ -321,12 +388,29 @@ uint8_t BM1370_init(GlobalState * GLOBAL_STATE)
     asic_init_core_register_delay();
 
     //ramp up the hash frequency
+    float requested = GLOBAL_STATE->POWER_MANAGEMENT_MODULE.frequency_value;
     do_frequency_transition(GLOBAL_STATE, BM1370_send_hash_frequency);
 
-    float frequency = GLOBAL_STATE->POWER_MANAGEMENT_MODULE.frequency_value;
+    /* do_frequency_transition() records the frequency the chip was actually
+     * programmed at in actual_frequency (0.0 when the PLL solve failed and the
+     * register write was refused). Nonce space (HCN) decides how much of its
+     * slice the chip burns before it needs a fresh job, so it must be sized from
+     * the clock the chip really runs at - this used to use the requested value,
+     * which silently diverges as soon as the PLL cannot land exactly. Same
+     * reasoning and same mismatch warning as BM1366. */
+    float applied = GLOBAL_STATE->POWER_MANAGEMENT_MODULE.actual_frequency;
     int cores = GLOBAL_STATE->DEVICE_CONFIG.family.asic.core_count;
 
-    BM1370_set_nonce_space(1.0, frequency, asic_count, cores);
+    if (applied <= 0.0f) {
+        applied = requested;
+    }
+    if (fabsf(applied - requested) > 0.5f) {
+        ESP_LOGW(TAG, "nonce space: requested=%.2f MHz applied=%.2f MHz MISMATCH", requested, applied);
+    } else {
+        ESP_LOGI(TAG, "nonce space: requested=%.2f MHz applied=%.2f MHz", requested, applied);
+    }
+
+    BM1370_set_nonce_space(1.0, applied, asic_count, cores);
 
     return chip_counter;
 }
@@ -339,14 +423,46 @@ uint8_t BM1370_init(GlobalState * GLOBAL_STATE)
 //     _send_BM1370((TYPE_CMD | GROUP_ALL | CMD_READ), read_address, 2, BM1370_SERIALTX_DEBUG);
 // }
 
-int BM1370_set_max_baud(void)
+/**
+ * @brief Select the chip's UART rate and return the exact rate to program on
+ *        the host so both ends agree.
+ *
+ * The BM13xx derives its baud rate from the 25 MHz chip clock:
+ *     baud = fCLKI / ((BT8D + 1) * 8)
+ * with BT8D living in bits [15:8] of the "Fast UART Configuration" register
+ * 0x28.
+ *
+ * The previous code here wrote BT8D = 2 but returned 1 000 000 to the host. The
+ * chip was therefore clocked at 25e6 / (3 * 8) = 1 041 666.67 bps while the
+ * ESP32 UART ran at 1 000 000 - a systematic 4.17 % mismatch. The receiver then
+ * samples the bit stream on the wrong grid and the error accumulates across a
+ * frame until a stop bit lands where a payload bit should be. On a BM1366 the
+ * same defect was found, documented and fixed; it was never carried over to the
+ * BM1370, which sustains roughly 3.5x the hashrate of an Ultra over the same
+ * link and so reaches the same failure mode much sooner.
+ *
+ * BT8D = 1 yields 1 562 500 bps exactly and BT8D = 0 yields 3 125 000 bps
+ * exactly, both integers, so there is no reason to keep a fractional rate. We
+ * keep BT8D = 2 as the default (the proven configuration) but return the true
+ * 1 041 667 so the link is bit-accurate; the higher rates are opt-in via
+ * `fast_uart` once they have been validated with a logic analyser.
+ *
+ * @return host baud rate to program, or 0 on failure (caller keeps the
+ *         previously working rate).
+ */
+int BM1370_set_max_baud(bool fast_uart)
 {
-    // divider of 0 for 3,125,000
-    ESP_LOGI(TAG, "Setting max baud of 1000000 ⁠​‌‌​​​‌​​‌‌​‌​​‌​‌‌‌​‌​​​‌‌​​​​‌​‌‌‌‌​​​​‌‌​​‌​‌⁠");
+    uint8_t bt8d = fast_uart ? 1 : 2;
+    uint32_t reg28 = 0x11300200u | ((uint32_t) bt8d << 8);
+    int host_baud = (int)(BM1370_FCLK_HZ / ((bt8d + 1u) * 8u));
 
-    unsigned char fast_uart[] = {0x00, FAST_UART_CONFIGURATION, 0x11, 0x30, 0x02, 0x00};
-    _send_BM1370((TYPE_CMD | GROUP_ALL | CMD_WRITE), fast_uart, 6, BM1370_SERIALTX_DEBUG);
-    return 1000000;
+    ESP_LOGI(TAG, "Setting chip UART BT8D=%u -> %d baud (host programmed to match)", bt8d, host_baud);
+
+    uint8_t reg_cmd[6] = {0x00, FAST_UART_CONFIGURATION,
+                          (uint8_t)(reg28 >> 24), (uint8_t)(reg28 >> 16),
+                          (uint8_t)(reg28 >> 8), (uint8_t) reg28};
+    _send_BM1370(TYPE_CMD | GROUP_ALL | CMD_WRITE, reg_cmd, 6, BM1370_SERIALTX_DEBUG);
+    return host_baud;
 }
 
 static uint8_t id = 0;

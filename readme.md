@@ -1,96 +1,177 @@
-# ESP-Miner (Hardening & Physical Validation Edition)
+# ESP-Miner — Hardening & Physical Validation Edition
 
-ESP-Miner is the open-source firmware powering the Bitaxe family of Bitcoin ASIC miners, running on an ESP32-S3 dual-core microcontroller and driving Bitmain BM13xx ASIC hashing engines.
+ESP-Miner is the open-source firmware powering the [Bitaxe](https://bitaxe.org) family of Bitcoin ASIC miners. It runs on an ESP32-S3 and drives Bitmain BM13xx hashing engines over a single UART link.
 
-This edition is the result of an exhaustive, evidence-based autonomous engineering and hardening cycle conducted directly on physical silicon (Bitaxe Ultra Board 201) under the strict **Truth Contract**. Every claim in this repository is classified by verification state: **PROVEN**, **PARTIALLY PROVEN**, **PLAUSIBLE**, or **NOT PROVEN**, backed by raw telemetry and reproducible tests.
+This edition is a hardening fork. Every change starts from a defect that can be pointed at in the source, and every claim is labelled by what was actually done to earn it — read in silicon, read in the code, or merely reasoned about. Where a previous diagnosis in this repository was wrong, it is retracted in place rather than quietly deleted.
 
----
-
-## Current Status
-
-- **Hardware Validation:** `HARDWARE VALIDATED`
-  - **`timsminer` (`192.168.178.61`, MAC `74:4D:BD:77:DD:3C`):** verified on physical Bitaxe Ultra Board 201, ESP32-S3 rev 0.2, BM1366 ASIC. Flashed over USB (COM3), then **3/3 clean cold boots** on `v4.0.0-stable-timsminer` (single `rst:0x` per cycle, no panic, no stack overflow). Mining 412 GH/s at 485 MHz, 52 shares accepted, **0 rejected**.
-  - **`blackharkminer` (`192.168.178.66`, MAC `74:4D:BD:77:99:80`):** verified on a second physical Bitaxe Ultra Board 201. Upgraded over **Wi-Fi OTA** (`POST /api/system/OTA`) from `v3.0.0-stable-blackharkminer` to `v4.0.0-stable-blackharkminer`. Mining 419 GH/s at 485 MHz, 20 shares accepted, **0 rejected**.
-  - Note the identity change: earlier revisions of this file listed `.66` as "Device A" and `.61` as "Device B". The addresses are bound to the hostnames above.
-- **Memory Stability:** `HARDWARE VALIDATED` — two independent defects that both caused reboot loops were found, fixed and verified. See [docs/MEMORY_STRATEGY_PLAN.md](docs/MEMORY_STRATEGY_PLAN.md).
-- **Simulation Validation:** `SIMULATED` (Virtual board model plus four dependency-free host binaries — `test_virtual_board`, `test_dataflow_memory`, `test_notify_validate`, `test_power_policy` — all green under `-Wall -Wextra -Werror`, and 10,000 chaotic property tests passing).
-- **CI / Automated Testing:** `PASSING` (Headless Karma/Angular tests, ESP-IDF compile checks, QEMU Unity tests, host test suite).
-- **Release Status:** `STABLE PRODUCTION RELEASE` — Version **v4.0.0-stable**. The `general` variant carries no baked-in address; `timsminer` and `blackharkminer` are per-device variants.
-- **Known Issue (open):** the DHCP re-assert watchdog in `components/connect/connect.c` can re-apply the fallback address while a valid DHCP lease is already up, which produces two brief IP flaps shortly after boot and can delay pool DNS resolution by ~30 s. It is self-healing and does not stop mining, but it should only re-assert when the interface has actually lost its address.
-- **Plan & Evidence:** [`docs/MEMORY_STRATEGY_PLAN.md`](docs/MEMORY_STRATEGY_PLAN.md) · [`docs/PLAN_V2_17_STALE_AND_LIMITS.md`](docs/PLAN_V2_17_STALE_AND_LIMITS.md) · [`evidence/192.168.178.66/`](evidence/192.168.178.66/README.md)
+**Platforms covered:** Bitaxe Ultra (Board 201, BM1366) and Bitaxe Supra (Board 601, BM1370).
 
 ---
 
-## Verified Hardware
+## Status
 
-| Hardware Component | Specification | Verification Status |
+| Unit | Board | ASIC | Firmware | State |
+|---|---|---|---|---|
+| `timsminer` — `192.168.178.61` | 201 | BM1366 | `v4.0.0-stable-timsminer` | `HARDWARE VALIDATED` — 353 h continuous, 185 918 shares, 0.299 % stale |
+| `blackharkminer` — `192.168.178.66` | 201 | BM1366 | `v4.0.0-stable-blackharkminer` | `HARDWARE VALIDATED` — 353 h continuous, 189 101 shares, 0.290 % stale |
+| `bitaxe-tim2` — `192.168.178.80` | **601** | **BM1370** | `v4.0.1-stable-tim2` | `HARDWARE VALIDATED` — updated over Wi-Fi OTA, 1 531 GH/s, 14.9 h, 7 630 shares |
+
+The `.61` and `.66` units are deliberately **left on their previous firmware** and
+served as the reference baseline for this release. Changes that touch shared code
+are marked as such in the [changelog](CHANGELOG.md); the BM1370-specific work is
+the only part proven on new silicon so far.
+
+---
+
+## What is actually different in this fork
+
+The dominant failure mode in mining firmware is **code that only runs on its error path**. On a healthy miner the error path is never taken, so the defect is invisible in normal operation and surfaces as a symptom with no obvious cause. Three of the highest-impact fixes below were exactly that shape, and two of them had been shipping for months.
+
+### AsicBoost (BIP310 version rolling)
+
+AsicBoost here is **overt** version rolling: the miner asks the pool for it in `mining.configure`, the pool replies with a mask, and the chip sweeps the version itself. Nothing covert, no claim of unverified silicon behaviour.
+
+The rollable window is **bits [13:28]** of the block header's version field — 16 bits. Everything above bit 28 is BIP9 signalling and is not rollable. Four defects sat around that window:
+
+1. **The BM1370 had no version-roll bookkeeping to speak of and the wrong host/chip agreement.** Register `0xA4` is only 16 bits wide, so the roll count is `mask >> 13` and a larger mask does not fit. This firmware asks the pool for `"version-rolling.mask":"ffffffff"`; a pool that grants it returns `0xFFFFFFFF`, i.e. 0x1FFFF rolls. The old code narrowed the high byte into a `uint8_t`, which silently dropped the 17th bit — the chip received 0xFFFF while the host believed 0x1FFFF and logged that number. Now clamped explicitly through a single definition (`ASIC_VERSION_ROLL_MASK`), so host and chip cannot disagree.
+
+2. **The submitted version bits were recovered by XOR.** `rolled_version ^ job->version` only yields the rolled bits while the pool's version field happens to have none of them set — and BIP9 signalling occupies bits [25:27], inside the rollable window. Against such a pool the XOR cancelled exactly those bits and the share went out with a version the pool reconstructs differently: a rejection with no local symptom. Now masked with the roll range, which is correct either way.
+
+3. **Chip configuration could wait a whole block cycle.** The handlers for `mining.set_difficulty` and `mining.set_version_mask` sat inside the `if (new_work != NULL)` branch of the job loop. A change arriving while the queue was empty — or on an SV2 standard channel, where work is never re-dequeued at all — was not applied until the next `mining.notify`. On the pool these units mine against, that is a full block. Moved ahead of the blocking dequeue; the pending flags still wait for the ASIC to actually be up.
+
+4. **Three midstates were computed per job and never transmitted.** `construct_bm_job()` produced `midstate`/`midstate1`/`midstate2`/`midstate3` whenever a mask was set, but only the BM1397 job frame can carry more than one — the other four drivers hardcode `num_midstates = 0x01`. That is three wasted SHA-256 compressions and 96 bytes of dead payload per job, plus a `num_midstates = 4` claim that is wrong for four of five ASIC families. Now gated on `ASIC_family_uses_rolled_midstates()`, with tests for both branches and a golden check that the rolled midstate matches an independent recomputation.
+
+### UART integrity
+
+Register `0x28` selects the chip's baud rate, which it derives from a 25 MHz on-chip reference:
+
+```
+baud = 25 000 000 / ((BT8D + 1) * 8)
+```
+
+- **The BM1370 wrote BT8D = 2 but returned 1 000 000 to the host** — a systematic 4.17 % mismatch, with the receiver sampling the wrong bit grid. This exact defect was found, documented and fixed on the BM1366 in v2.16.0 and never carried over. It matters considerably more on the Supra, which sustains roughly 3.5× the hashrate of an Ultra over the same link.
+- **A zeroed PLL divider set is never written.** No valid solution for the requested frequency means register `0x08` is left alone; writing zeros leaves the PLL unlocked and the chip idle until a reboot.
+
+### The ticket mask — where a mining firmware quietly wastes its CPU
+
+Register `0x14` decides when the chip forwards a nonce. A mask of *N* means roughly `hashrate / N` nonces per second on the wire. **Every** nonce that arrives costs the ESP32 a full double-SHA256 in `test_nonce_value()` before it is either submitted or discarded, so an under-set mask costs real CPU, not just log volume.
+
+The BM1366 driver already tracked the live pool difficulty. **The BM1370 driver had no runtime hook at all** — `BM1370_init()` wrote the register twice, both times from the static family default of 256, and never touched it again. On a ~1.5 TH/s chip a 256 mask asks for several million reports per second across a 1 Mbaud link, and the mask was simply inherited from the much slower Ultra. It is now seeded from the pool difficulty at init and re-programmed on every `mining.set_difficulty`.
+
+### Observability that was switched off
+
+- **Notify counters and the pool clock sync only ran on the coinbase-decode-failure path.** `notify_received`, `work_received` and `SYSTEM_notify_new_ntime()` were all incremented inside that one `if` block. A miner whose notifies decode cleanly — that is, a *working* miner — therefore reported `notifyReceived: 0`, `workReceived: 0`, `notifyDropped: 0` for the entire session and never called `settimeofday()` at all. Confirmed on all three fleet members before the fix. Stratum V2 already did this correctly. The counters exist precisely to make `received + dropped == well-formed notifications` observable, and a unit reporting three zeros is indistinguishable from a pool that stopped sending jobs.
+- **A per-nonce `ESP_LOGI` was drowning the log ring.** `asic_result` logged one INFO line per reported nonce — thousands per second on a Supra. The 128 KB ring buffer, and with it the entire boot trace and any real warning, was overwritten within seconds. **A device in a bad state consequently looked clean in its own logs.** Demoted to `ESP_LOGD`. This one change is what made the ticket-mask defect diagnosable at all: the boot trace only became readable after it.
+
+### Networking
+
+- **Deterministic DHCP lifecycle.** The client start is bound to 802.11 station association and only issued when the client is actually stopped — no `stop`→`start` bounce, which resets the DHCP xid. A valid lease is never wiped on re-association, retries use jittered backoff, and the station re-associates after three exhausted cycles until a real lease arrives. Lease conflicts are left to the DHCP client via `CONFIG_LWIP_DHCP_DOES_ARP_CHECK`, which is deliberately *not* ACD, because ESP-IDF documents that ACD "can cause repeated DHCP DECLINEs" on access points that echo the client's MAC in ARP replies — exactly what a FRITZ!Box does.
+- **Operator-configured static fallback, off by default.** If DHCP genuinely fails there is an optional last-resort static IPv4 address: stored per-device in NVS, editable in AxeOS, applied only after the retry cycles are exhausted. There is deliberately **no site-specific default** — a default naming a specific address would make every unit built from this firmware claim an address it was never given, which is precisely how duplicate-IP conflicts start. Per-device builds bake in their own values.
+- **The recovery ladder is unit-tested, not just described.** It was lifted out of `connect.c` into `net_recovery_policy.c` so the rungs — lease replay, resolver preference, fallback binding, and the rule that the fallback must not fight a running DHCP client — can be exercised on the host. 79 checks, all green.
+
+### Memory
+
+Two independent defects produced identical reboot loops and both are fixed and verified on hardware:
+
+- **A silent 512 KB buffer in internal DRAM.** `main/log_buffer.c` declares its ring `EXT_RAM_NOINIT_ATTR`, which is *conditional*: unless `CONFIG_SPIRAM_ALLOW_NOINIT_SEG_EXTERNAL_MEMORY` is set, ESP-IDF silently degrades it to `__NOINIT_ATTR` and the buffer lands in internal `.noinit`. The ESP32-S3 caps `dram0_0_seg` at 341 KB, so the link failed with `region 'dram0_0_seg' overflowed`. `main/CMakeLists.txt` now aborts the build with an explicit message if either PSRAM segment option is not `y`, because `sdkconfig` is not versioned and a drifted local copy reproduced this on *every* commit. Internal DRAM reserve went from −363 KB to +176 KB. The ring was also right-sized from 512 KB to 128 KB.
+- **Idle task stack.** `CONFIG_FREERTOS_IDLE_TASK_STACKSIZE` sat at the IDF default of 1536 B; on this board Wi-Fi coexistence and the scheduler run in the idle context and the canary was overrun reproducibly at ~2.3 s into boot. Raised to 4096 B.
+- **Overload protection** watches the **largest free internal block**, not total free heap, because FreeRTOS allocates task stacks as one contiguous block — 40 KB of fragmented free heap is as unusable for a 4 KB stack as an empty heap. It warns below 24 KB and only after 3 consecutive critical samples does it perform a controlled `esp_restart()`.
+
+### Undecodable jobs
+
+A `mining.notify` whose coinbase cannot be decoded is **kept and mined**. The coinbase is parsed only to show the reward breakdown in the UI; the work itself comes from the job id, prevhash and merkle root, all of which are valid. Dropping such a job costs far more than the missing UI detail: the pool has already retired the job and issues a new `job_id` only every ~60 s, so every share submitted before the next notification is rejected as stale. Measured at 12–14 % rejection on a pool with an unhandled coinbase layout, with not one share missing from the coinbase detail.
+
+What *is* refused before anything is allocated is a structurally impossible job: `notify_validate.c` checks the job id, prev-block hash, both coinbase halves, every merkle branch and the compact target against the same rules Bitcoin Core uses in `arith_uint256::SetCompact`. The compact-target bounds were wrong at both ends — they accepted exponents Core classifies as a 256-bit overflow and rejected exponents Core accepts — and are now differential-tested against an independent reference decoder over 20 000 random words plus an exhaustive exponent sweep.
+
+---
+
+## Measurements
+
+### Host efficiency — same unit, before and after
+
+Bitaxe Supra `192.168.178.80`, 750 MHz, 1.195 V, mining Zpool SV1. Two 400 s
+captures at 5 s resolution via [`tools/collect_telemetry.ps1`](tools/collect_telemetry.ps1),
+taken on the same hardware with no setting changed. Rates are the delta between
+first and last sample, so they do not depend on the boot counters.
+
+| Metric | `v4.0.0` before | after the fixes | Δ |
+|---|---|---|---|
+| Hashrate (1 h avg) | 1528.9 GH/s | 1516.4 GH/s | −0.8 % |
+| **ESP32 CPU load** | 15.87 % | **14.10 %** | **−11.2 %** |
+| **Share submit latency** (`processTime`) | 2.954 ms | **2.495 ms** | **−15.5 %** |
+| Effective share rate (difficulty-normalised) | 18 018 diff·/min | 19 124 diff·/min | +6.1 % |
+| ASIC error register 0x4C | 1.69 /s | 1.83 /s | within noise |
+| `notifyReceived` / `workReceived` | **0 / 0** | 6 / 6 in 400 s | fixed |
+| Rejected shares | 0 | 0 | — |
+
+The two bold rows are the result the ticket-mask fix predicts and they are the
+ones with a mechanism behind them. A chip masked at 256 while the pool asks for
+2210 makes the ESP32 verify roughly nine times more hashes than it keeps; once
+the mask tracks the pool, that work disappears. CPU load and submit latency both
+drop together, which is what a reduction in wasted per-nonce SHA-256 work looks
+like.
+
+### Stale-share parity against the reference units
+
+A stale rejection (`Invalid job id`, pool error 21) is the job-boundary race: a
+nonce already in flight when the pool retires the job. It is not fully avoidable,
+so the useful question is whether a device produces it at the *inherent* rate or
+at a rate proportional to its own speed.
+
+| Unit | ASIC | Hashrate | Uptime | Shares | Stale | Stale / h | Stale % |
+|---|---|---|---|---|---|---|---|
+| `timsminer` `.61` | BM1366 | 433 GH/s | 353 h | 185 918 | 558 | 1.581 | 0.299 % |
+| `blackharkminer` `.66` | BM1366 | 433 GH/s | 353 h | 189 101 | 550 | 1.558 | 0.290 % |
+| `bitaxe-tim2` `.80` | **BM1370** | **1531 GH/s** | 14.9 h | 7 630 | 24 | **1.614** | **0.314 %** |
+
+The Supra runs at 3.5× the hashrate of the two units that have been validated for
+two weeks, and produces stale shares at the **same absolute rate**. A
+device-specific defect would scale with the device's speed; this does not, so the
+remaining ~0.3 % is the pool-side latency race and not something the firmware
+here can remove.
+
+### Sustained run
+
+`bitaxe-tim2` has run `v4.0.1-stable-tim2` continuously since the OTA: 14.9 h,
+7 630 shares accepted, 24 stale, **0 rejected for any other reason**, die
+temperature held at 59–60 °C, VR temperature 74–77 °C, internal DRAM free heap
+flat at ~78.9 kB with no drift, `notifyReceived` tracking notifies continuously
+with `notifyDropped` at 0.
+
+Energy efficiency on the Supra is **18.8 J/TH** against ~25 J/TH for the BM1366
+Ultras, which is what the newer silicon is expected to do.
+
+### A caveat on `errorPercentage`
+
+The API's `errorPercentage` is derived by treating ASIC register `0x4C` as a
+hash counter and dividing by total hashrate. That register is an error *count*,
+not a hash count, so the resulting percentage is not dimensionally meaningful —
+it moves with the hashrate even when the underlying counter does not. The honest
+metric is the raw register delta, and that one is flat at ~1.7–1.9 per second
+across every run on this device. The `0.00 %` reported by the two BM1366 units
+means their error register never advanced, not that they are more accurate.
+Treating `errorPercentage` as a real figure is left as an open item rather than
+claimed as fixed.
+
+Raw captures, device logs and the firmware hash are in
+[`evidence/192.168.178.80/`](evidence/192.168.178.80/).
+
+---
+
+## Hardware
+
+| Component | Bitaxe Ultra (Board 201) | Bitaxe Supra (Board 601) |
 |---|---|---|
-| **Board Model** | Bitaxe Ultra (Board Version: 201) | `HARDWARE VALIDATED` |
-| **Microcontroller** | ESP32-S3 (QFN56 revision v0.2), Dual-Core Xtensa LX7 @ 240 MHz | `HARDWARE VALIDATED` |
-| **ASIC Hashing Unit** | 1× Bitmain BM1366 (112 core clusters, 894 small hashing engines) | `HARDWARE VALIDATED` |
-| **Flash Memory** | 16 MB SPI Flash (GigaDevice GD25Q128E, Quad-SPI @ 80 MHz) | `HARDWARE VALIDATED` |
-| **PSRAM** | 8 MB Octal SPI PSRAM (AP Memory 64 Mbit @ 80 MHz) | `HARDWARE VALIDATED` |
-| **Power Management** | TPS40305 Synchronous Buck + Maxim DS4432U+ I2C DAC (1.200 V VCore) | `HARDWARE VALIDATED` |
-| **Thermal & Fan Control** | Microchip EMC2101 I2C Thermal Monitor & PWM Controller | `HARDWARE VALIDATED` |
-| **Power Telemetry** | Texas Instruments INA260 Precision Digital Power Monitor | `HARDWARE VALIDATED` |
-| **Display** | SSD1306 (128×32 OLED over I2C) | `HARDWARE VALIDATED` |
-
----
-
-## Key Improvements
-
-1. **Retracted Claim — Mesh Band-Steering Lockout:** this file previously claimed that 802.11v/k band steering on AVM FRITZ!Box routers was withholding DHCP offers, and that disabling it was the fix. That diagnosis was **wrong** and has been retracted; the observed outages were caused by the memory defect described in item 12. The earlier access-point, ARP-conflict and `sent=0` explanations were also wrong — see [docs/PLAN_V2_17_STALE_AND_LIMITS.md](docs/PLAN_V2_17_STALE_AND_LIMITS.md). Kept here so the retracted reasoning is not silently reused.
-2. **Deterministic DHCP Client Lifecycle:** DHCP client start is bound to 802.11 station association (`WIFI_EVENT_STA_CONNECTED`) and only issued when the client is actually stopped — no `stop`→`start` bounce, which resets the DHCP xid. A valid lease is never wiped on re-association, retries use jittered backoff, and the station re-associates after three exhausted cycles until a real lease arrives. Lease conflicts are handled by the DHCP client itself via `CONFIG_LWIP_DHCP_DOES_ARP_CHECK`, which is deliberately *not* ACD, because ESP-IDF documents that ACD "can cause repeated DHCP DECLINEs" on access points that echo the client's MAC in ARP replies — exactly what a FRITZ!Box does. See [docs/NETWORKING.md](docs/NETWORKING.md). **Correction to an earlier claim in this file:** there is no longer "no static-IP fallback" — item 3 describes the mechanism that is actually implemented, and the `general` release keeps it disabled with no address baked in.
-3. **Correct, Operator-Configured Static Fallback:** if DHCP genuinely fails there is an optional last-resort static IPv4 address - stored per-device in NVS, **off by default with no address baked in**, editable in AxeOS, and applied only after the retry/recovery cycles are exhausted. There is deliberately no site-specific default: a default naming a specific address would make every unit built from this firmware claim an address it was never given, which is precisely how duplicate-IP conflicts start. Enable it per device for an address reserved on that device's router. The earlier hardcoded version was removed for the same reason, and the bug that made it unreachable (setting the IP while the netif was down, so it never reached LwIP) is fixed and now asserted at runtime.
-4. **Undecodable Jobs Are No Longer Mined:** A `mining.notify` frame whose coinbase cannot be decoded is now dropped *before* it is enqueued. Previously the chip burned a full ~6.7 s job interval on work that could never yield an acceptable share. A new dependency-free validator (`components/stratum/notify_validate.c`) checks job id, prev-block hash, both coinbase halves, every merkle branch and version/nbits/ntime before anything is allocated, and `hex2bin()`'s return value is finally checked — a short merkle branch used to leave uninitialised heap on the chip.
-5. **Captive DNS Port 53 Isolation:** Constrained captive DNS server strictly to active SoftAP mode, preventing UDP port 53 contention in station mode.
-6. **Stratum V1 IPv4-First Resolution:** Configured `hints.ai_family = AF_INET` before `AF_UNSPEC`, eliminating 2–5s IPv6 AAAA record timeout delays on IPv4-only mining pools.
-7. **Proactive Thermal Management (ATM):** A hysteresis buffer with frequency *and* voltage moving together, a regulator floor tied to the TPS546/TPS40305 rather than to the current setting, anti-hunting "DPS memory", a minimum dwell between changes, and a fan-relief path. Derates are held in memory only — NVS stays the single source of truth for the user's setting — and the shutdown latch is now clearable after a real cooldown.
-8. **Opt-in V/F Autotuner:** Holds frequency and minimises voltage behind an acceptance gate (≥95 % of expected hashrate, ≤0.1 % errors), reverting to the last proven-stable voltage on failure and aborting above the board's 65 °C continuous limit.
-9. **Pool Health Observability:** `notifyReceived` / `notifyDropped` and `sharesRejectedStale` / `sharesRejectedOther` are exposed in the API and on the home screen, so the unavoidable stale-share latency race can finally be told apart from a real client defect. Previously both were a single opaque `sharesRejected` number.
-10. **Smooth PLL Clock Stepping:** Implemented incremental 6.25 MHz PLL ramping from 50 MHz to 485 MHz to prevent TPS40305 core voltage droop during cold boot.
-11. **Closed-Loop Thermal PID:** Fine-tuned EMC2101 PID loop ($K_p=5.0, K_i=0.1, K_d=2.0$) maintaining BM1366 die at 53–58 °C under 27–31% fan PWM.
-12. **Internal DRAM Headroom & Overload Protection:** two independent defects produced identical reboot loops and both are fixed and verified on hardware.
-    - *Defect 1 — silent 512 KB buffer in internal DRAM.* `main/log_buffer.c` declares its log ring as `EXT_RAM_NOINIT_ATTR`. That attribute is **conditional**: unless `CONFIG_SPIRAM_ALLOW_NOINIT_SEG_EXTERNAL_MEMORY` is set, ESP-IDF silently degrades it to `__NOINIT_ATTR` and the buffer lands in internal `.noinit`. The ESP32-S3 caps `dram0_0_seg` at `0x54700` (341 KB), so a 512 KB buffer overflowed it and the link failed with `region 'dram0_0_seg' overflowed by 363232 bytes`. Because `sdkconfig` is not versioned, a locally drifted `sdkconfig` reproduced this on *every* commit and looked like a code regression. `main/CMakeLists.txt` now aborts the build with an explicit message if either PSRAM segment option is not `y`, and `sdkconfig.defaults` documents why. Result: internal DRAM reserve went from **−363 KB to +176 KB**.
-    - *Defect 2 — idle task stack.* `CONFIG_FREERTOS_IDLE_TASK_STACKSIZE` was at the IDF default of 1536 B. On this board Wi-Fi coexistence, the task WDT and the scheduler run in the idle context, and the canary was overrun reproducibly at ~2.3 s into boot (`***ERROR*** A stack overflow in task IDLE1 has been detected.`, then `rst:0xc` in a loop). Raised to 4096 B.
-    - *Right-sizing.* The log ring went from 512 KB to 128 KB. It is fully zeroed and `esp_cache_msync`ed on every cold boot, so the larger buffer was pure boot latency for memory that is rarely read. 128 KB still fits the internal reserve, which makes the build survive even a misconfigured `sdkconfig` instead of failing to link.
-    - *Overload protection.* New `main/memory_guard.c` watches the **largest free internal block**, not total free heap, because FreeRTOS allocates task stacks as one contiguous block — 40 KB of fragmented free heap is as unusable for a 4 KB stack as an empty heap, and that is precisely how the `IDLE1` panics arose. It warns below 24 KB free, and only after 3 consecutive critical samples (15 s hysteresis) does it log a full diagnostic and perform a controlled `esp_restart()` instead of an unexplained panic. Cost is two `heap_caps` calls every 5 s and it is not in the ASIC path.
-    - Full analysis, measurements and the rejected hypotheses (LVGL, NimBLE, data cache) are in [docs/MEMORY_STRATEGY_PLAN.md](docs/MEMORY_STRATEGY_PLAN.md).
-
----
-
-## Real Measurements
-
-All measurements below were captured from physical hardware sensors (INA260, EMC2101, UART, and LwIP socket telemetry):
-
-### 10-Minute Sustained Mining Benchmark (`reports/benchmark_sustained_telemetry.json`)
-- **Evaluation Duration:** 600.0 seconds (117 continuous telemetry samples @ 5s interval).
-- **Mean Sustained Hashrate:** **435.81 GH/s** (Min: 335.00 GH/s, Max: 523.98 GH/s).
-- **Power Consumption:** **12.40 W mean** (Min: 12.02 W, Max: 12.65 W @ 1.206 V actual VCore).
-- **Energy Efficiency:** **28.45 J/TH**.
-- **Die Operating Temperature:** **58.09 °C mean** (Min: 55 °C, Max: 59 °C, setpoint 60.0 °C).
-- **Pool Share Acceptance:** **66 shares submitted and accepted** during the 10-minute run.
-- **Observed Rejections / Duplicates:** **0 rejects, 0 stale submissions, 0 duplicate nonces observed**.
-- **Memory Stability:** Initial Free Heap: 7,632,504 bytes | Final Free Heap: 7,630,036 bytes (variance: 2.4 KiB for JSON serialization buffer; **0 bytes memory leak drift**).
-
-### Device B Sustained Telemetry Benchmark (`evidence/192.168.178.61/benchmark_sustained_telemetry.json`)
-- **Evaluation Duration:** 300.0 seconds (60 continuous telemetry samples @ 5s interval).
-- **Mean Sustained Hashrate:** **434.22 GH/s** (Min: 356.20 GH/s, Max: 515.39 GH/s).
-- **Power Consumption:** **12.31 W mean** (Min: 12.10 W, Max: 12.53 W).
-- **Energy Efficiency:** **28.35 J/TH**.
-- **Die Operating Temperature:** **61.6 °C mean** (setpoint 62.0 °C).
-- **Pool Share Acceptance:** **37 shares submitted and accepted**, **0 rejections** (0.00% rejection rate).
-- **Previous Rejections on v2.14.0:** 253 rejections due to "Invalid job id" (100% resolved on v2.15.3-hardened).
-- **Memory Stability:** Initial: 7,632,208 bytes | Final: 7,632,248 bytes (**0 bytes monotonic leak drift**).
-
-### Cold Boot Startup Pipeline Latencies (`reports/serial_boot_trace_full.log`)
-- $T_0 	o T_1$ (Reset to App Main Init): **1,079 ms**
-- $T_1 	o T_2$ (Wi-Fi AP Association): **976 ms** (2,055 ms total)
-- $T_2 	o T_3$ (DHCP IPv4 Acquisition): **1,654 ms** (3,709 ms total)
-- $T_3 	o T_4$ (ASIC Init & PLL Ramp 50 $	o$ 485 MHz): **8,257 ms** (11,966 ms total)
-- $T_4 	o T_5$ (Stratum DNS Resolution & Socket Handshake): **1,828 ms** (13,794 ms total)
-- $T_5 	o T_6$ (First Job Dequeued to BM1366): **273 ms** (14,067 ms total)
-- $T_0 	o T_7$ (Cold Boot to First Valid Share Accepted): **15,177 ms** (~15.2 seconds).
+| MCU | ESP32-S3 dual-core Xtensa LX7 @ 240 MHz | same |
+| ASIC | 1× BM1366, 112 cores, 894 small cores | 1× BM1370, 128 cores, 2 040 small cores |
+| Hash domains | 4 | 4 |
+| Verified operating point | 485 MHz @ 1.200 V | 750 MHz @ 1.195 V |
+| Flash | 16 MB SPI (GD25Q128E, QSPI @ 80 MHz) | same |
+| PSRAM | 8 MB Octal SPI | same |
+| Core voltage | TPS40305 buck + DS4432U+ I2C DAC | TPS546 |
+| Thermal | EMC2101 + external diode | EMC2101 + external diode |
+| Power telemetry | INA260 | INA260 |
+| Display | SSD1306 128×32 OLED | SSD1306 128×32 OLED |
 
 ---
 
@@ -99,139 +180,151 @@ All measurements below were captured from physical hardware sensors (INA260, EMC
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
 │                              ESP32-S3                                 │
-│                                                                        │
 │  ┌──────────────────────┐             ┌─────────────────────────────┐  │
 │  │   Axe-OS Web App     │             │     Stratum V1 / V2 Client  │  │
-│  │   (Angular 19 SPA)   │             │   - JSON-RPC / Noise Protocol│ │
+│  │   (Angular SPA)      │             │   - JSON-RPC / Noise        │  │
 │  └──────────┬───────────┘             └──────────────┬──────────────┘  │
 │             │ HTTP REST / WebSocket                  │ Jobs            │
 │  ┌──────────▼───────────┐             ┌──────────────▼──────────────┐  │
 │  │     HTTP Server      │             │      Create Jobs Task       │  │
-│  │  - Static ROM assets │             │   - Coinbase tx generation  │  │
-│  │  - JSON API endpoints│             │   - Hardware Merkle calc    │  │
-│  └──────────────────────┘             │   - Midstate precalc        │  │
+│  └──────────────────────┘             │  - coinbase / merkle /      │  │
+│                                       │    midstate (+ version roll)│  │
 │                                       └──────────────┬──────────────┘  │
-│                                                      │ 1.04 MBaud UART    │
+│                                                      │ 1.04 MBaud UART  │
 │  ┌──────────────────────┐             ┌──────────────▼──────────────┐  │
-│  │  EMC2101 Thermal PID │             │      BM1366 ASIC Driver     │  │
-│  │  - Closed-loop PWM   │             │   - BIP310 Version Rolling  │  │
-│  │  - 500ms sample rate │             │   - CRC5 Packet Verification│  │
-│  └──────────┬───────────┘             └──────────────┬──────────────┘  │
-└─────────────┼────────────────────────────────────────┼─────────────────┘
+│  │ EMC2101 Thermal PID  │             │      BM13xx ASIC Driver     │  │
+│  │  - Closed-loop PWM   │             │  - 0xA4 version rolling     │  │
+│  │  - 500ms sample rate │             │  - 0x14 ticket mask         │  │
+│  │                      │             │  - 0x28 UART rate           │  │
+│  └──────────┬───────────┘             │  - CRC5 frame check         │  │
+└─────────────┼─────────────────────────┴──────────────┬─────────────────┘
               │ I2C                                    │ UART
 ┌─────────────▼───────────┐             ┌──────────────▼──────────────┐
-│  EMC2101 / INA260 / DAC │             │      1× BM1366 ASIC         │
-│  (Thermal & Power Stage)│             │      (112 Cores @ 485 MHz)  │
+│ EMC2101 / INA260 / DAC  │             │      1× BM13xx ASIC         │
 └─────────────────────────┘             └─────────────────────────────┘
 ```
 
-Detailed architectural breakdowns:
-- [System Architecture](docs/ARCHITECTURE.md)
-- [Networking & Protocol Engine](docs/NETWORKING.md)
-- [BM1366 ASIC Subsystem](docs/ASIC.md)
-- [Job Planning & Merkle Tree Subsystem](docs/JOB_PLANNING.md)
-- [Memory Management & PSRAM](docs/MEMORY.md)
-- [Performance & Benchmarks](docs/PERFORMANCE.md)
-- [Axe-OS UI/UX Specification](docs/UI_UX.md)
+Further reading: [Architecture](docs/ARCHITECTURE.md) · [Networking](docs/NETWORKING.md) · [ASIC subsystem](docs/ASIC.md) · [Job planning](docs/JOB_PLANNING.md) · [Memory](docs/MEMORY.md) · [Performance](docs/PERFORMANCE.md)
 
 ---
 
 ## Build
 
-### Prerequisites
-- Linux (Ubuntu 22.04 LTS / WSL2)
-- ESP-IDF **v6.0.2** (`. ~/esp/esp-idf/export.sh`)
-- Node.js **v22.x LTS** and npm
+Requires ESP-IDF **v6.0.2** and Node.js **v22+**.
 
-### Compilation
 ```bash
-# 1. Source ESP-IDF environment
 . ~/esp/esp-idf/export.sh
 
-# 2. Build firmware (automatically compiles Axe-OS frontend and static C arrays)
+# The universal image. No baked-in address, no per-device identity.
 idf.py build
+
+# A named, reproducible per-device variant.
+./tools/build_release.sh tim2          # Bitaxe Supra, board 601, BM1370
+./tools/build_release.sh timsminer 192.168.178.61
+./tools/build_release.sh blackharkminer 192.168.178.66
 ```
+
+Each variant builds into its own `build-<variant>/` directory and prints the resolved version, board and ASIC. Per-device values are passed explicitly with `-D` rather than relying on the CMake cache, because a stale cache entry in an existing build directory otherwise keeps the old value silently — including `PROJECT_VER`, which is exactly how a device ends up reporting `v3` while the source says `v4`.
 
 ---
 
 ## Test
 
-### Automated Firmware Unit & Integration Tests
 ```bash
-# Run host simulation & dataflow invariants
+# Host simulation, policy and dataflow invariants — no hardware, no IDF
 cd simulation && make test
 
-# Run C firmware unit tests
+# Firmware unit tests (Unity, in QEMU)
 idf.py build test
 
-# Run Axe-OS Angular frontend tests (Headless Chrome CI)
-cd main/http_server/axe-os
-npm run test:ci
+# AxeOS frontend tests, headless Chrome
+cd main/http_server/axe-os && npm run test:ci
 ```
+
+The host suite covers the virtual board model, the dataflow/memory invariants, the notify validator, the thermal/power policy, the network recovery ladder, and a differential test of the compact-target validator against an independent reference decoder.
 
 ---
 
-## Flash / OTA
+## Flash
 
-### USB Flash (Primary & Recovery Channel)
-To flash the firmware directly via the onboard USB Serial/JTAG port:
+### Over the air — the normal path
+
+The unit must be on station mode and reachable on the LAN. This is the only path used on the units in this repository.
+
 ```bash
-python -m esptool --port COM3 --baud 921600 write_flash 0x710000 build/esp-miner.bin
+curl -f -X POST --data-binary @dist/tim2/esp-miner-tim2.bin \
+     http://192.168.178.80/api/system/OTA
 ```
 
-### Fail-Safe Dual-Partition Layout
-The device uses standard ESP-IDF dual OTA partitions (`ota_0` at `0x710000`, `ota_1` at `0xB10000`) and a dedicated factory recovery image (`factory` at `0x10000`). If an OTA image fails to boot or validate, the bootloader automatically reverts to the previous operational partition.
+The image is written to the next OTA partition, marked bootable, and the device
+reboots into it. `CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE` is off, so there is no
+rollback timer to beat, and the firmware marks the running app valid on boot.
+
+**A per-device OTA must keep the network configuration identical to what the
+unit already runs.** The image carries the static fallback and the station MAC;
+changing either moves the address out from under the router-side DHCP
+reservation. `tools/build_release.sh tim2` exists so those values are
+reproducible rather than reconstructed from a CMake cache.
+
+### USB — recovery only
+
+```bash
+python -m esptool --chip esp32s3 -p COM3 -b 460800 write_flash \
+    0x0     build-tim2/bootloader/bootloader.bin \
+    0x8000  build-tim2/partition_table/partition-table.bin \
+    0x10000 build-tim2/esp-miner.bin \
+    0xf10000 build-tim2/ota_data_initial.bin
+```
+
+### Partition layout
+
+`ota_0` at `0x710000`, `ota_1` at `0xB10000`, plus a `factory` recovery image at
+`0x10000`. A unit that has only ever been factory-flashed has both OTA slots
+empty; the first OTA populates `ota_0` and subsequent ones alternate.
 
 ---
 
-## Evidence & Truth Classification
+## Evidence & truth classification
 
-Every feature and measurement is cataloged in the [Evidence Matrix](docs/EVIDENCE.md) and [Capability Matrix](docs/CAPABILITY_MATRIX.md).
+| Claim | Evidence | Classification |
+|---|---|---|
+| Overt ASICBoost (BIP310) on BM1366 | Register `0xA4` write + accepted rolled shares | **PROVEN** |
+| Overt ASICBoost on BM1370 | Register `0xA4` write at 65 535 rolls, rolled shares accepted | **PROVEN** |
+| BM1370 ticket mask tracks pool difficulty | Live log: 256 → 4 096 → 1 000 across `mining.set_difficulty` | **PROVEN** |
+| Host/chip UART rate agreement | Log: `BT8D=2 -> 1041666 baud (host programmed to match)` | **PROVEN** |
+| Notify counters track notifies | API: `notifyReceived` > 0 and rising; was 0 for the whole prior session | **PROVEN** |
+| Compact-target validation matches Core | 20 550 differential checks incl. 20 000 random words | **PROVEN** (host) |
+| Network recovery ladder | 79 host checks | **PROVEN** (host) |
+| ASIC-side midstate reuse | Unconfirmed in silicon | **NOT PROVEN** |
 
-| Claim | Evidence ID | Classification | Proof Method |
-|---|---|---|---|
-| **Cold Boot Pipeline (<16s)** | `EV-001` | **PROVEN** | Physical boot trace capture |
-| **Wi-Fi Band-Steering Fix** | `EV-006` | **PROVEN** | Continuous FRITZ!Box STA association |
-| **Static IP Fallback + Gratuitous ARP** | `EV-007` | **PROVEN** | RFC 5227 broadcast & ARP table update |
-| **BM1366 485 MHz @ 1.200 V** | `EV-003` | **PROVEN** | INA260 power telemetry & PLL readback |
-| **BIP310 Overt ASICBoost** | `EV-004` | **PROVEN** | Register 0xA4 mask & pool share logs |
-| **Closed-Loop Thermal PID** | `EV-008` | **PROVEN** | Continuous EMC2101 diode telemetry |
-| **Zero Memory Drift in Telemetry** | `EV-011` | **PROVEN** | 10-minute sustained heap monitoring |
-| **ASIC-Side Midstate Reuse** | `EV-005` | **NOT PROVEN** | Unconfirmed in silicon; 80-byte header retransmitted |
+Retracted claims are kept in the repository with the retraction attached — see
+`docs/PLAN_V2_17_STALE_AND_LIMITS.md`. A wrong diagnosis that is silently
+replaced is a wrong diagnosis that gets re-applied.
 
 ---
 
 ## Limitations
 
-1. **Single-ASIC Architecture:** Multi-chip chaining and distributed work balancing are not applicable to Bitaxe Ultra (Board 201), which is a single-chip BM1366 platform.
-2. **Frequency Boundaries:** Operating frequencies above 525 MHz or core voltages above 1.300 V exceed the thermal dissipation capacity of the standard 40mm heatsink and risk electromigration.
-3. **RF Coexistence:** Active BLE advertising during initial Wi-Fi connection can cause packet collision on the single 2.4 GHz radio; BLE is strictly deferred until station association is complete.
+1. **Single-ASIC architecture.** Multi-chip chaining and distributed work
+   balancing do not apply to either platform; both are single-chip designs.
+2. **Version rolling is 16 bits wide.** A mask of `0xffffffff` does not mean "roll
+   everything" — bits above 28 are BIP9 signalling. The firmware clamps to the
+   reachable window rather than pretending otherwise.
+3. **RF coexistence.** BLE advertising during the initial Wi-Fi connection can
+   collide on the single 2.4 GHz radio; BLE is deferred until station
+   association completes.
+4. **Stratum V2 extended channels** have working framing and handshake, but
+   channel multiplexing is still in development.
 
 ---
 
-## Known Experimental Areas
+## Contributing
 
-- **Stratum V2 Binary Channels:** Basic framing and handshake are implemented, but extended channel multiplexing remains in active development.
-- **Automatic Multi-Profile Auto-Tuning:** Dynamic frequency-voltage hill-climbing exists in prototype form (`main/self_test/`), but manual static profiling (485 MHz / 1200 mV) remains recommended for long-term stability.
-
----
-
-## Security
-
-- **Network Access Control:** `is_network_allowed()` restricts administrative API access to RFC 1918 private IPv4 subnets and matching local hostnames (`timsminer.local`).
-- **Secret Redaction:** Wi-Fi pre-shared keys, Stratum pool passwords, and private configuration data are stored in encrypted/protected NVS on-chip and are strictly redacted from public telemetry and logs.
-
----
-
-## Development & Contributing
-
-- Master Autonomous Engineering Specification: [`GEMINI.md`](GEMINI.md)
-- Development Guide: [`AGENTS.md`](AGENTS.md)
-- Full Technical Changelog: [`CHANGELOG.md`](CHANGELOG.md)
-- Final Engineering Report: [`docs/FINAL_ENGINEERING_REPORT.md`](docs/FINAL_ENGINEERING_REPORT.md)
-
----
+- Autonomous engineering specification: [`GEMINI.md`](GEMINI.md)
+- Development guide: [`AGENTS.md`](AGENTS.md)
+- Changelog: [`CHANGELOG.md`](CHANGELOG.md)
+- Evidence index: [`docs/EVIDENCE.md`](docs/EVIDENCE.md)
 
 ## License
 
-This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
+MIT — see [LICENSE](LICENSE).

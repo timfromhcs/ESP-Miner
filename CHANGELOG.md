@@ -5,6 +5,146 @@ This project adheres to [Semantic Versioning](https://semver.org/) and the **Tru
 
 ---
 
+## [4.0.1-stable] - 2026-10-18
+
+Platform bring-up and AsicBoost hardening for the **Bitaxe Supra (Board 601,
+BM1370)**, driven by the unit at `192.168.178.80`. Every item below was traced to
+a specific line of shipped code and, where possible, to a measurement taken from
+that unit before and after the change. The BM1366 devices (`.61`, `.66`) were
+deliberately **not** reflashed; the shared-code items are marked as such.
+
+The recurring theme is code that ran only on its error path. On a healthy miner
+the error path is never taken, so the defect is invisible in normal operation and
+shows up as a symptom with no obvious cause.
+
+### Fixed
+
+- **`notify_received`, `work_received` and the pool clock sync never ran (BM1366
+  and BM1370).** All three were incremented only inside the
+  coinbase-decode-failure branch of the `mining.notify` handler. A miner whose
+  notifies decode cleanly — that is, a working miner — therefore reported
+  `notifyReceived: 0`, `workReceived: 0`, `notifyDropped: 0` for the entire
+  session, and never called `settimeofday()` at all. Confirmed on all three
+  fleet members before the fix. The counters exist precisely to make
+  `received + dropped == well-formed notifications` observable; a unit reporting
+  three zeros looks indistinguishable from a pool that stopped sending jobs.
+  Stratum V2 already did this correctly; V1 was the odd one out.
+- **The BM1370 never re-programmed its ticket mask (P0).** Register `0x14` —
+  the knob that sets how many nonces per second the chip pushes over UART — was
+  written twice during `BM1370_init()`, both times with the static family default
+  of 256, and never again. `ASIC_set_ticket_mask()` had no `case BM1370:` at all.
+  On a ~1.5 TH/s chip a 256 mask asks for several million reports per second
+  across a 1 Mbaud link; every one of them that arrives costs the ESP32 a full
+  double-SHA256 in `test_nonce_value()` before being discarded. The BM1366 path
+  was already correct. BM1370 now seeds the register from the pool difficulty at
+  init and follows every `mining.set_difficulty`.
+- **4.17 % UART baud mismatch on the BM1370 (P0).** `BM1370_set_max_baud()` wrote
+  BT8D = 2, which clocks the chip at `25e6 / (3 * 8)` = 1 041 666.67 baud, but
+  returned 1 000 000 to the host. The receiver sampled the wrong bit grid. This
+  exact defect was found, documented and fixed on the BM1366 in v2.16.0 and never
+  carried over; it matters more on the Supra, which produces roughly 2.5x the
+  result rate over the same link. Both drivers now derive the host rate from the
+  same expression they program into the chip, and `fast_uart` is plumbed through.
+- **Per-nonce `ESP_LOGI` was drowning the log ring.** `asic_result_task` logged
+  one INFO line per reported nonce. On a Supra that is thousands of lines per
+  second, so the 128 KB ring buffer — and with it the entire boot trace and any
+  real warning — was overwritten within seconds. A device in a bad state
+  consequently looked clean in its own logs. Demoted to `ESP_LOGD`. This one
+  change is what made the fault above diagnosable at all.
+- **`version_bits` was recovered by XOR.** `rolled_version ^ job->version` only
+  yields the rolled bits while the pool's version field happens to have none of
+  them set. BIP9 signalling occupies bits [25:27], inside the rollable window, so
+  a pool sending a signalling version made the XOR cancel exactly those bits and
+  the share was submitted with a version the pool reconstructs differently — a
+  rejection with no local symptom. Now masked with `ASIC_VERSION_ROLL_MASK`,
+  which is correct in both cases.
+- **The version-roll count was silently truncated.** `uint8_t hi = rolls >> 8`
+  dropped the 17th bit. The firmware asks the pool for
+  `"version-rolling.mask":"ffffffff"`, and a pool that grants it returns
+  `0xFFFFFFFF` = 0x1FFFF rolls, which does not fit in the 16-bit register. Host
+  and chip silently disagreed while the log reported 131071 rolls. Now clamped
+  explicitly, with a warning when the clamp actually bites.
+- **Chip configuration could wait a whole block cycle.** The
+  `mining.set_difficulty` / `mining.set_version_mask` handlers sat inside the
+  `if (new_work != NULL)` branch, so a change arriving while the queue was empty
+  — or on an SV2 standard channel, where work is never re-dequeued at all — was
+  not applied until the next `mining.notify`. On a pool that notifies every ~60 s
+  that is the chip mining against a superseded ticket mask for a full block.
+  Moved ahead of the blocking dequeue; the flags still stay pending until the
+  ASIC is actually up.
+- **Nonce space was sized from the requested frequency (BM1370).** The BM1366
+  driver used `actual_frequency` with a fallback and a mismatch warning; the
+  BM1370 used `frequency_value`. `ASIC_set_nonce_space()` additionally now
+  refuses outright when the frequency is not positive, because the HCN register
+  derivation divides by it and `NaN` → `uint32_t` is undefined — a failed PLL
+  solve would otherwise write an arbitrary nonce-space size into register 0x10.
+- **A version bump could be silently ignored.** `PROJECT_VER` is a CMake cache
+  entry, so an existing build directory keeps whatever version it was first
+  configured with and a bump in the source has no effect — which presents exactly
+  like a failed OTA. Forced from the source default.
+- **Three midstates were computed per job and never sent.** `construct_bm_job()`
+  produced `midstate`/`midstate1`/`midstate2`/`midstate3` whenever a version mask
+  was set, but only the BM1397 job frame can carry more than one; the other four
+  drivers hardcode `num_midstates = 0x01`. That is three wasted SHA-256
+  compressions and 96 bytes of dead payload per job, plus a `num_midstates = 4`
+  claim that is wrong for four of the five ASIC families. Now gated on
+  `ASIC_family_uses_rolled_midstates()`, with test coverage for both branches and
+  a golden check that the rolled midstate matches an independent recomputation.
+- **Two host test binaries were committed as build artefacts**, and the
+  `simulation/` binaries generally were not ignored at all.
+- **The CI unit-test project did not compile.** `components/connect/CMakeLists.txt`
+  emitted `-DESP_MINER_CONFIG_AP_STUCK=${...}` unconditionally, so an unset CMake
+  variable became `-DESP_MINER_CONFIG_AP_STUCK=` — an empty *string* to the
+  preprocessor. `connect.c` compares that macro against `1` and `2`, so the test
+  project, which defines none of the `ESP_MINER_*` variables, failed with
+  `expected expression before '==' token`. The firmware build goes through the
+  root `CMakeLists.txt`, which defaults the value to 2, and built fine — which is
+  exactly why the break was invisible until the test project was built. A `-D` is
+  now emitted only for a variable that has a value, the numeric knob defaults to
+  `0` when unset, and all four macros gained `#ifndef` fallbacks in
+  `nvs_config.h`. `ESP_MINER_STA_MAC` and `ESP_MINER_DHCP_HOSTNAME` previously had
+  **no** header fallback at all and existed solely because of that unconditional
+  `-D`.
+
+### Added
+
+- **Bitaxe Supra (Board 601 / BM1370) as a first-class build variant.**
+  `tools/build_release.sh tim2` reproduces the unit's exact configuration —
+  board version, family, ASIC, station MAC, AP pin, and the static fallback —
+  so the image is reproducible instead of reconstructed from a CMake cache. The
+  build now also prints the version it resolved, which is what makes a
+  stale-cache mistake visible.
+- **`tools/collect_telemetry.ps1`** — samples `/api/system/info` from one or more
+  units into a CSV and derives the rates that actually matter (shares/min,
+  rejects/min, J/TH) from the delta between first and last sample, so a before /
+  after comparison does not depend on whatever the boot-time counters hold.
+
+### Verified
+
+- `192.168.178.80` (Bitaxe Supra, Board 601, BM1370, MAC `28:84:85:A6:1B:E0`)
+  updated over **Wi-Fi OTA** (`POST /api/system/OTA`) from `v4.0.0-stable-tim2`
+  to `v4.0.1-stable-tim2`, `factory` → `ota_0` → `ota_1`, address unchanged at
+  `192.168.178.80`. Wi-Fi credentials, pools, frequencies, voltages and the
+  static-fallback configuration were not touched.
+  - Host CPU load **15.87 % → 14.10 %** and share submit latency **2.954 ms →
+    2.495 ms** over matched 400 s captures — the ticket-mask fix removing wasted
+    per-nonce verification work.
+  - Effective share rate, difficulty-normalised: **+6.1 %**.
+  - **0 shares rejected for any reason other than staleness.** Stale rejections
+    run at **1.614/h**, against 1.581/h and 1.558/h on the two BM1366 units that
+    have each been validated for 353 h. The Supra runs at 3.5× their hashrate and
+    produces stale shares at the *same absolute rate*, which is what identifies the
+    remainder as the inherent job-boundary race rather than a device defect.
+  - AsicBoost confirmed on the wire: shares submitted with distinct rolled
+    version-bit fields (`00040000`, `0007e000`, `000aa000`, `000e4000`, …), each
+    answered `"result": true`.
+  - Boot log retained in full; **zero `W`/`E` lines**.
+- **The BM1366 units at `192.168.178.61` and `.66` were deliberately not
+  reflashed** and served as the reference baseline for the measurements above.
+  Both remain on their previous firmware with uptime past 353 h.
+
+---
+
 ## [2.16.0-hardened] - 2026-10-04
 
 Driven by a 41-minute ring-buffer capture from the production Bitaxe Ultra at

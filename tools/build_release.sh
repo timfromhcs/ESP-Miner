@@ -4,6 +4,7 @@
 #   ./tools/build_release.sh general
 #   ./tools/build_release.sh timsminer 192.168.178.66
 #   ./tools/build_release.sh blackharkminer 192.168.178.61
+#   ./tools/build_release.sh tim2
 #
 # The general variant carries no baked-in address. A per-device variant is only
 # correct when that address is reserved in the router for the unit's MAC - see
@@ -18,6 +19,34 @@ TASK="${NPM_EXECUTABLE:-/usr/bin/npm}"
 case "${VARIANT}" in
     general)
         DEFS=()
+        ;;
+    # Bitaxe Supra, board 601, BM1370.
+    #
+    # This one is not a network variant in the usual sense: it additionally pins
+    # the hardware identity and the station MAC, because the unit lost its NVS at
+    # least once and a unit that cannot describe itself comes up as an unknown
+    # board with no valid family. ESP_MINER_STA_MAC is the deeper of the two: an
+    # efuse MAC is not reproducible across builds, and this address is reserved in
+    # the router for exactly this MAC.
+    #
+    # The values must stay byte-for-byte identical to what the unit already runs,
+    # or the OTA flash will move the address out from under its DHCP reservation.
+    tim2)
+        DEFS=(
+            -DESP_MINER_RELEASE_TAG="${VARIANT}"
+            -DESP_MINER_FALLBACK_ENABLED=1
+            -DESP_MINER_FALLBACK_IP="192.168.178.80"
+            -DESP_MINER_FALLBACK_GW="192.168.178.1"
+            -DESP_MINER_FALLBACK_MASK="255.255.255.0"
+            -DESP_MINER_FALLBACK_DNS="192.168.178.1"
+            -DESP_MINER_WIFI_BSSID="48:5d:35:0f:39:fc"
+            -DESP_MINER_STA_MAC="28:84:85:a6:1b:e0"
+            -DESP_MINER_DHCP_HOSTNAME=""
+            -DESP_MINER_CONFIG_AP_STUCK=2
+            -DESP_MINER_BOARD_VERSION="601"
+            -DESP_MINER_DEVICE_MODEL="gamma"
+            -DESP_MINER_ASIC_MODEL="BM1370"
+        )
         ;;
     timsminer|blackharkminer)
         if [ $# -lt 2 ]; then

@@ -24,10 +24,38 @@ extern "C" {
 #define STRATUM_V1_MAX_COINBASE_HEX 8192
 #define STRATUM_V1_MAX_JOB_ID_LEN 32
 
-/* Compact-target ("nBits") exponent bounds. A target outside 2^0..2^256 is
- * definitionally impossible, so a compliant pool can never send it. */
-#define STRATUM_V1_NBITS_MIN_EXP 0x03
-#define STRATUM_V1_NBITS_MAX_EXP 0x30
+/* Compact-target ("nBits") bounds.
+ *
+ * These mirror Bitcoin Core's acceptance of a compact target rather than being a
+ * "looks safe" range picked here. Core decodes nBits in
+ * arith_uint256::SetCompact and rejects the header in pow.cpp's DeriveTarget when
+ * the decoded target is zero, when the sign bit is set, or when the value
+ * overflows 256 bits:
+ *
+ *   size   = compact >> 24
+ *   word   = compact & 0x007fffff
+ *   target = word >> (8 * (3 - size))     when size <= 3
+ *   target = word << (8 * (size - 3))     when size >  3
+ *
+ *   negative = word != 0 && (compact & 0x00800000)
+ *   overflow = word != 0 && (size > 34
+ *                            || (word > 0xff   && size > 33)
+ *                            || (word > 0xffff && size > 32))
+ *
+ * The previous bounds here were a fixed exponent range of 0x03..0x30, which was
+ * wrong at both ends. Above, it accepted exponents that Core classifies as an
+ * overflow, so a job could be generated against a target no node would ever
+ * accept. Below, it rejected size 1 and 2, which Core accepts whenever the
+ * mantissa is wide enough to survive the shift. A single exponent bound cannot
+ * express the rule anyway, because whether size 33 overflows depends on the
+ * mantissa's width - so the validator implements Core's expression directly.
+ *
+ * Reference: github.com/bitcoin/bitcoin, src/arith_uint256.cpp (SetCompact) and
+ * src/pow.cpp (DeriveTarget). The equivalence is differential-tested against an
+ * independent reference implementation in simulation/test_nbits_reference.c.
+ */
+#define STRATUM_V1_NBITS_MIN_EXP 0x00
+#define STRATUM_V1_NBITS_MAX_EXP 0x22
 
 typedef struct {
     const char *job_id;

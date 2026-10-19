@@ -487,10 +487,32 @@ esp_err_t derr = ESP_OK;
 ESP_LOGW(TAG, "Coinbase unusable for job %s reason=%s (kept the job, "
                                              "mining work is unaffected)", notify ? notify->job_id : "(null)",
                                          notify_drop_reason_name(derr));
-                                GLOBAL_STATE->SYSTEM_MODULE.work_received++;
-                                GLOBAL_STATE->notify_received++;
-                                SYSTEM_notify_new_ntime(GLOBAL_STATE, stratum_api_v1_message.mining_notification->ntime);
                             }
+
+                            /* Count every notify we turned into work, on BOTH paths,
+                             * and take the clock sync with them.
+                             *
+                             * These counters used to be bumped only inside the
+                             * coinbase-decode-failure branch above, so on a healthy
+                             * miner - where every notify decodes cleanly - they
+                             * stayed at zero for the entire session. That is exactly
+                             * backwards: the counters exist to make the
+                             * received/dropped invariant observable, and a working
+                             * unit reported "0 received, 0 dropped" while mining
+                             * happily. Confirmed on all three fleet members
+                             * (192.168.178.61 / .66 / .80) before this fix.
+                             *
+                             * SYSTEM_notify_new_ntime() is the hourly pool clock
+                             * sync and the only settimeofday() on the V1 path, and
+                             * it had the same placement bug: a miner that never hit
+                             * the decode-miss branch never had its clock corrected
+                             * at all. SV2 already calls it on both paths.
+                             *
+                             * Invariant to hold: received + dropped equals the number
+                             * of well-formed notifications seen. */
+                            GLOBAL_STATE->SYSTEM_MODULE.work_received++;
+                            GLOBAL_STATE->notify_received++;
+                            SYSTEM_notify_new_ntime(GLOBAL_STATE, stratum_api_v1_message.mining_notification->ntime);
 
                             /* One path for both outcomes: the job is usable either way,
                              * so the queue handling below does not depend on whether the

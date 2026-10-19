@@ -1,0 +1,1450 @@
+﻿[0;32mI (54019780) asic_result: Processing time: 2.2 ms[0m
+[0;32mI (54019885) stratum_api: rx: {"id":3741,"result":true,"error":null}[0m
+[0;32mI (54019886) stratum_api: Result success[0m
+[0;32mI (54019886) stratum_v1_task: message result accepted[0m
+[0;32mI (54019886) stratum_v1_task: Stratum response time: 105.7 ms[0m
+[0;32mI (54020406) stratum_api: tx: {"id":3742,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","19ec8","14000000","6ad5e8f6","43d0ccab","00030000"]}[0m
+[0;32mI (54020407) asic_result: Processing time: 2.1 ms[0m
+[0;32mI (54020512) stratum_api: rx: {"id":3742,"result":true,"error":null}[0m
+[0;32mI (54020513) stratum_api: Result success[0m
+[0;32mI (54020514) stratum_v1_task: message result accepted[0m
+[0;32mI (54020514) stratum_v1_task: Stratum response time: 106.0 ms[0m
+[0;32mI (54020683) fan_controller: Temp: 60.2Â°C, SetPoint: 60.0Â°C, Output: 36.2%[0m
+[0;32mI (54022676) fan_controller: Temp: 60.2Â°C, SetPoint: 60.0Â°C, Output: 36.3%[0m
+[0;32mI (54024672) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 35.0%[0m
+[0;32mI (54026672) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 35.0%[0m
+[0;32mI (54028672) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 34.4%[0m
+[0;32mI (54028835) stratum_api: tx: {"id":3743,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","19ec8","24000000","6ad5e8f6","9e04dd5f","0015e000"]}[0m
+[0;32mI (54028836) asic_result: Processing time: 2.3 ms[0m
+[0;32mI (54028874) stratum_api: tx: {"id":3744,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","19ec8","25000000","6ad5e8f6","1abc2589","0000a000"]}[0m
+[0;32mI (54028875) asic_result: Processing time: 2.6 ms[0m
+[0;32mI (54028942) stratum_api: rx: {"id":3743,"result":true,"error":null}[0m
+[0;32mI (54028943) stratum_api: Result success[0m
+[0;32mI (54028943) stratum_v1_task: message result accepted[0m
+[0;32mI (54028943) stratum_v1_task: Stratum response time: 106.7 ms[0m
+[0;32mI (54028981) stratum_api: rx: {"id":3744,"result":true,"error":null}[0m
+[0;32mI (54028982) stratum_api: Result success[0m
+[0;32mI (54028982) stratum_v1_task: message result accepted[0m
+[0;32mI (54028982) stratum_v1_task: Stratum response time: 107.0 ms[0m
+[0;32mI (54030673) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 34.4%[0m
+[0;32mI (54032672) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 34.4%[0m
+[0;32mI (54034672) fan_controller: Temp: 59.8Â°C, SetPoint: 60.0Â°C, Output: 34.3%[0m
+[0;32mI (54036672) fan_controller: Temp: 59.8Â°C, SetPoint: 60.0Â°C, Output: 33.1%[0m
+[0;32mI (54038672) fan_controller: Temp: 59.8Â°C, SetPoint: 60.0Â°C, Output: 34.3%[0m
+[0;32mI (54040672) fan_controller: Temp: 59.8Â°C, SetPoint: 60.0Â°C, Output: 33.6%[0m
+[0;32mI (54042672) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 34.9%[0m
+[0;32mI (54042868) stratum_api: tx: {"id":3745,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","19ec8","40000000","6ad5e8f6","c9858d2d","0014c000"]}[0m
+[0;32mI (54042869) asic_result: Processing time: 2.4 ms[0m
+[0;32mI (54042975) stratum_api: rx: {"id":3745,"result":true,"error":null}[0m
+[0;32mI (54042976) stratum_api: Result success[0m
+[0;32mI (54042976) stratum_v1_task: message result accepted[0m
+[0;32mI (54042976) stratum_v1_task: Stratum response time: 107.1 ms[0m
+[0;32mI (54044131) stratum_api: rx: {"id":null,"method":"mining.notify","params":["19f0c","2fd19721ead83ddaf053737ce4a9a4ae0f2e65d7957bc1d10000002800000000","01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff4e03a86c020418e9d56a08","2f7a706f6f6c2e63612fdd46cadb2f00fabe6d6d8d70e675d6006fce966e443ecfaa178370b3f8c46fb8f581dfeb614a397462878000000000000000000000000100f2052a0100000017a914cc4ee66bc5ebab014ac9c9dc04ca374d5d367d758700000000",[],"20000000","1a00cd2a","6ad5e918",true]}[0m
+[0;32mI (54044133) stratum_v1_task: Scriptsig: ....j./zpool.ca/.F../...mm.p.u..o..nD>....p...o.....aJ9tb.........[0m
+[0;32mI (54044133) stratum_v1_task: Coinbase outputs: 0, total value: 9022501489713218780 sats[0m
+[0;32mI (54044134) create_jobs_task: New Work Dequeued 19f0c[0m
+[0;32mI (54044674) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 34.2%[0m
+[0;32mI (54046672) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 34.8%[0m
+[0;32mI (54048672) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 34.8%[0m
+[0;32mI (54050672) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 33.6%[0m
+[0;32mI (54052672) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 34.2%[0m
+[0;32mI (54052775) stratum_api: tx: {"id":3746,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","19f0c","11000000","6ad5e918","87270cb9","00044000"]}[0m
+[0;32mI (54052775) asic_result: Processing time: 2.8 ms[0m
+[0;32mI (54052880) stratum_api: rx: {"id":3746,"result":true,"error":null}[0m
+[0;32mI (54052881) stratum_api: Result success[0m
+[0;32mI (54052881) stratum_v1_task: message result accepted[0m
+[0;32mI (54052882) stratum_v1_task: Stratum response time: 105.8 ms[0m
+[0;32mI (54054672) fan_controller: Temp: 59.8Â°C, SetPoint: 60.0Â°C, Output: 34.1%[0m
+[0;32mI (54056672) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 34.7%[0m
+[0;32mI (54058672) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 34.7%[0m
+[0;32mI (54060672) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 34.1%[0m
+[0;32mI (54062681) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 34.1%[0m
+[0;32mI (54064672) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 34.7%[0m
+[0;32mI (54066672) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 34.1%[0m
+[0;32mI (54068672) fan_controller: Temp: 59.8Â°C, SetPoint: 60.0Â°C, Output: 34.0%[0m
+[0;32mI (54070682) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 34.0%[0m
+[0;32mI (54072672) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 34.6%[0m
+[0;32mI (54072904) stratum_api: tx: {"id":3747,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","19f0c","39000000","6ad5e918","656c6a12","00080000"]}[0m
+[0;32mI (54072905) asic_result: Processing time: 2.2 ms[0m
+[0;32mI (54073021) stratum_api: rx: {"id":3747,"result":true,"error":null}[0m
+[0;32mI (54073021) stratum_api: Result success[0m
+[0;32mI (54073022) stratum_v1_task: message result accepted[0m
+[0;32mI (54073022) stratum_v1_task: Stratum response time: 116.3 ms[0m
+[0;32mI (54073301) stratum_api: tx: {"id":3748,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","19f0c","3a000000","6ad5e918","1d95c303","00022000"]}[0m
+[0;32mI (54073302) asic_result: Processing time: 2.4 ms[0m
+[0;32mI (54073408) stratum_api: rx: {"id":3748,"result":true,"error":null}[0m
+[0;32mI (54073409) stratum_api: Result success[0m
+[0;32mI (54073409) stratum_v1_task: message result accepted[0m
+[0;32mI (54073409) stratum_v1_task: Stratum response time: 106.4 ms[0m
+[0;32mI (54074676) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 34.0%[0m
+[0;32mI (54076676) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 34.6%[0m
+[0;32mI (54078672) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 34.6%[0m
+[0;32mI (54080672) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 34.6%[0m
+[0;32mI (54082672) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 34.6%[0m
+[0;32mI (54084633) stratum_api: rx: {"id":null,"method":"mining.notify","params":["19f1e","4890bac91c6f127085f23e917dd5afaa5bf7c23c6ea52f6f0000006800000000","01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff4e03a96c020440e9d56a08","2f7a706f6f6c2e63612fdd46cadb2f00fabe6d6d8d70e675d6006fce966e443ecfaa178370b3f8c46fb8f581dfeb614a397462878000000000000000000000000100f2052a0100000017a914cc4ee66bc5ebab014ac9c9dc04ca374d5d367d758700000000",[],"20000000","1a00d4cb","6ad5e940",true]}[0m
+[0;32mI (54084635) stratum_v1_task: Block height 158889[0m
+[0;32mI (54084635) stratum_v1_task: Scriptsig: .@..j./zpool.ca/.F../...mm.p.u..o..nD>....p...o.....aJ9tb.........[0m
+[0;32mI (54084635) stratum_v1_task: Coinbase outputs: 0, total value: 9022501489713218780 sats[0m
+[0;32mI (54084636) create_jobs_task: New Work Dequeued 19f1e[0m
+[0;32mI (54084672) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 34.0%[0m
+[0;32mI (54086672) fan_controller: Temp: 60.1Â°C, SetPoint: 60.0Â°C, Output: 35.2%[0m
+[0;32mI (54088682) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 34.6%[0m
+[0;32mI (54090681) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 35.2%[0m
+[0;32mI (54091171) stratum_api: tx: {"id":3749,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","19f1e","0d000000","6ad5e940","64b5823c","00016000"]}[0m
+[0;32mI (54091172) asic_result: Processing time: 2.1 ms[0m
+[0;32mI (54091277) stratum_api: rx: {"id":3749,"result":true,"error":null}[0m
+[0;32mI (54091278) stratum_api: Result success[0m
+[0;32mI (54091278) stratum_v1_task: message result accepted[0m
+[0;32mI (54091278) stratum_v1_task: Stratum response time: 106.2 ms[0m
+[0;32mI (54092672) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 33.9%[0m
+[0;32mI (54094672) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 33.9%[0m
+[0;32mI (54096673) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 33.3%[0m
+[0;32mI (54098672) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 33.9%[0m
+[0;32mI (54100672) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 34.5%[0m
+[0;32mI (54100708) stratum_api: tx: {"id":3750,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","19f1e","20000000","6ad5e940","a200f822","00006000"]}[0m
+[0;32mI (54100709) asic_result: Processing time: 2.1 ms[0m
+[0;32mI (54100820) stratum_api: rx: {"id":3750,"result":true,"error":null}[0m
+[0;32mI (54100821) stratum_api: Result success[0m
+[0;32mI (54100822) stratum_v1_task: message result accepted[0m
+[0;32mI (54100822) stratum_v1_task: Stratum response time: 112.2 ms[0m
+[0;32mI (54102672) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 34.5%[0m
+[0;32mI (54104672) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 34.5%[0m
+[0;32mI (54106672) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 35.1%[0m
+[0;32mI (54107819) stratum_api: rx: {"id":null,"method":"mining.notify","params":["19f40","4890bac91c6f127085f23e917dd5afaa5bf7c23c6ea52f6f0000006800000000","01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff4e03a96c020456e9d56a08","2f7a706f6f6c2e63612fdd46cadb2f00fabe6d6dec0ed72a9f55b8afa8f28c82573ef776cdbdee4ff5ed2a414b1f9589ffcb408e8000000000000000000000000100f2052a0100000017a914cc4ee66bc5ebab014ac9c9dc04ca374d5d367d758700000000",[],"20000000","1a00d4cb","6ad5e956",true]}[0m
+[0;32mI (54107821) stratum_v1_task: Scriptsig: .V..j./zpool.ca/.F../...mm...*.U......W>.v...O..*AK.....@.........[0m
+[0;32mI (54107821) stratum_v1_task: Coinbase outputs: 0, total value: 9022501489713218780 sats[0m
+[0;32mI (54107822) create_jobs_task: New Work Dequeued 19f40[0m
+[0;32mI (54108320) stratum_api: tx: {"id":3751,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","19f40","00000000","6ad5e956","5fe90f6e","00162000"]}[0m
+[0;32mI (54108320) asic_result: Processing time: 2.1 ms[0m
+[0;32mI (54108447) stratum_api: rx: {"id":3751,"result":true,"error":null}[0m
+[0;32mI (54108448) stratum_api: Result success[0m
+[0;32mI (54108449) stratum_v1_task: message result accepted[0m
+[0;32mI (54108449) stratum_v1_task: Stratum response time: 127.6 ms[0m
+[0;32mI (54108673) fan_controller: Temp: 60.1Â°C, SetPoint: 60.0Â°C, Output: 35.1%[0m
+[0;32mI (54110672) fan_controller: Temp: 60.1Â°C, SetPoint: 60.0Â°C, Output: 35.8%[0m
+[0;32mI (54112672) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 34.6%[0m
+[0;32mI (54113023) stratum_api: tx: {"id":3752,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","19f40","0a000000","6ad5e956","f1722da6","0009a000"]}[0m
+[0;32mI (54113024) asic_result: Processing time: 2.5 ms[0m
+[0;32mI (54113129) stratum_api: rx: {"id":3752,"result":true,"error":null}[0m
+[0;32mI (54113130) stratum_api: Result success[0m
+[0;32mI (54113130) stratum_v1_task: message result accepted[0m
+[0;32mI (54113130) stratum_v1_task: Stratum response time: 105.9 ms[0m
+[0;32mI (54113633) stratum_api: tx: {"id":3753,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","19f40","0b000000","6ad5e956","0e801395","000ca000"]}[0m
+[0;32mI (54113634) asic_result: Processing time: 2.1 ms[0m
+[0;32mI (54113739) stratum_api: rx: {"id":3753,"result":true,"error":null}[0m
+[0;32mI (54113740) stratum_api: Result success[0m
+[0;32mI (54113740) stratum_v1_task: message result accepted[0m
+[0;32mI (54113740) stratum_v1_task: Stratum response time: 105.7 ms[0m
+[0;32mI (54114032) stratum_api: tx: {"id":3754,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","19f40","0c000000","6ad5e956","83bd7f8c","00084000"]}[0m
+[0;32mI (54114033) asic_result: Processing time: 2.3 ms[0m
+[0;32mI (54114141) stratum_api: rx: {"id":3754,"result":true,"error":null}[0m
+[0;32mI (54114142) stratum_api: Result success[0m
+[0;32mI (54114142) stratum_v1_task: message result accepted[0m
+[0;32mI (54114142) stratum_v1_task: Stratum response time: 108.5 ms[0m
+[0;32mI (54114672) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 33.9%[0m
+[0;32mI (54116672) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 33.9%[0m
+[0;32mI (54118672) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 33.9%[0m
+[0;32mI (54120064) stratum_api: rx: {"id":null,"method":"mining.notify","params":["19f49","7e421796e7d2b788fc71ecc9af16ce415f29fb4ab80f8f310000009600000000","01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff4e03aa6c020464e9d56a08","2f7a706f6f6c2e63612fdd46cadb2f00fabe6d6db7a1d4034fe11afbe7411c3b619b075dac3e5c4693d40ef738ebd5bab24e95d18000000000000000000000000100f2052a0100000017a914cc4ee66bc5ebab014ac9c9dc04ca374d5d367d758700000000",[],"20000000","1a00df83","6ad5e964",true]}[0m
+[0;32mI (54120066) stratum_v1_task: Block height 158890[0m
+[0;32mI (54120066) stratum_v1_task: Scriptsig: .d..j./zpool.ca/.F../...mm....O....A.;a..].>\F....8....N..........[0m
+[0;32mI (54120066) stratum_v1_task: Coinbase outputs: 0, total value: 9022501489713218780 sats[0m
+[0;32mI (54120067) create_jobs_task: New Work Dequeued 19f49[0m
+[0;32mI (54120680) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 33.9%[0m
+[0;32mI (54122675) fan_controller: Temp: 59.8Â°C, SetPoint: 60.0Â°C, Output: 32.6%[0m
+[0;32mI (54124214) stratum_api: tx: {"id":3755,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","19f49","08000000","6ad5e964","1b50d643","00058000"]}[0m
+[0;32mI (54124214) asic_result: Processing time: 2.1 ms[0m
+[0;32mI (54124320) stratum_api: rx: {"id":3755,"result":true,"error":null}[0m
+[0;32mI (54124321) stratum_api: Result success[0m
+[0;32mI (54124321) stratum_v1_task: message result accepted[0m
+[0;32mI (54124321) stratum_v1_task: Stratum response time: 106.5 ms[0m
+[0;32mI (54124672) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 33.9%[0m
+[0;32mI (54126672) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 33.8%[0m
+[0;32mI (54128673) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 33.2%[0m
+[0;32mI (54129695) stratum_api: tx: {"id":3756,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","19f49","13000000","6ad5e964","9f7036c4","0004c000"]}[0m
+[0;32mI (54129696) asic_result: Processing time: 2.1 ms[0m
+[0;32mI (54129802) stratum_api: rx: {"id":3756,"result":true,"error":null}[0m
+[0;32mI (54129803) stratum_api: Result success[0m
+[0;32mI (54129804) stratum_v1_task: message result accepted[0m
+[0;32mI (54129804) stratum_v1_task: Stratum response time: 107.1 ms[0m
+[0;32mI (54130679) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 33.8%[0m
+[0;32mI (54132672) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 34.4%[0m
+[0;32mI (54134208) stratum_api: tx: {"id":3757,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","19f49","1c000000","6ad5e964","38ce495c","00048000"]}[0m
+[0;32mI (54134209) asic_result: Processing time: 2.4 ms[0m
+[0;32mI (54134314) stratum_api: rx: {"id":3757,"result":true,"error":null}[0m
+[0;32mI (54134315) stratum_api: Result success[0m
+[0;32mI (54134315) stratum_v1_task: message result accepted[0m
+[0;32mI (54134316) stratum_v1_task: Stratum response time: 106.2 ms[0m
+[0;32mI (54134674) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 33.8%[0m
+[0;32mI (54136672) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 33.7%[0m
+[0;32mI (54138537) stratum_api: rx: {"id":null,"method":"mining.notify","params":["19f6b","7e421796e7d2b788fc71ecc9af16ce415f29fb4ab80f8f310000009600000000","01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff4e03aa6c020476e9d56a08","2f7a706f6f6c2e63612fdd46cadb2f00fabe6d6da37e7dd3dd6668663aedf7c71a2badfbed63b9e30db71a9715517e8b2a8a5c558000000000000000000000000100f2052a0100000017a914cc4ee66bc5ebab014ac9c9dc04ca374d5d367d758700000000",[],"20000000","1a00df83","6ad5e976",true]}[0m
+[0;32mI (54138539) stratum_v1_task: Scriptsig: .v..j./zpool.ca/.F../...mm.~}..fhf:....+...c.......Q~.*.\U........[0m
+[0;32mI (54138539) stratum_v1_task: Coinbase outputs: 0, total value: 9022501489713218780 sats[0m
+[0;32mI (54138540) create_jobs_task: New Work Dequeued 19f6b[0m
+[0;32mI (54138675) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 33.7%[0m
+[0;32mI (54139185) stratum_api: tx: {"id":3758,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","19f6b","01000000","6ad5e976","8de92548","00074000"]}[0m
+[0;32mI (54139186) asic_result: Processing time: 3.3 ms[0m
+[0;32mI (54139291) stratum_api: rx: {"id":3758,"result":true,"error":null}[0m
+[0;32mI (54139292) stratum_api: Result success[0m
+[0;32mI (54139292) stratum_v1_task: message result accepted[0m
+[0;32mI (54139292) stratum_v1_task: Stratum response time: 105.9 ms[0m
+[0;32mI (54140672) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 33.7%[0m
+[0;32mI (54142674) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 33.7%[0m
+[0;32mI (54144672) fan_controller: Temp: 59.8Â°C, SetPoint: 60.0Â°C, Output: 33.7%[0m
+[0;32mI (54146672) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 34.3%[0m
+[0;32mI (54148354) stratum_api: tx: {"id":3759,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","19f6b","13000000","6ad5e976","2daaaa92","000de000"]}[0m
+[0;32mI (54148355) asic_result: Processing time: 2.2 ms[0m
+[0;32mI (54148462) stratum_api: rx: {"id":3759,"result":true,"error":null}[0m
+[0;32mI (54148463) stratum_api: Result success[0m
+[0;32mI (54148464) stratum_v1_task: message result accepted[0m
+[0;32mI (54148464) stratum_v1_task: Stratum response time: 108.1 ms[0m
+[0;32mI (54148672) fan_controller: Temp: 59.8Â°C, SetPoint: 60.0Â°C, Output: 33.0%[0m
+[0;32mI (54150672) fan_controller: Temp: 59.8Â°C, SetPoint: 60.0Â°C, Output: 32.3%[0m
+[0;32mI (54151401) stratum_api: tx: {"id":3760,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","19f6b","19000000","6ad5e976","b800544e","000e0000"]}[0m
+[0;32mI (54151402) asic_result: Processing time: 2.1 ms[0m
+[0;32mI (54151508) stratum_api: rx: {"id":3760,"result":true,"error":null}[0m
+[0;32mI (54151509) stratum_api: Result success[0m
+[0;32mI (54151509) stratum_v1_task: message result accepted[0m
+[0;32mI (54151509) stratum_v1_task: Stratum response time: 106.2 ms[0m
+[0;32mI (54152672) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 33.5%[0m
+[0;32mI (54152938) stratum_api: tx: {"id":3761,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","19f6b","1c000000","6ad5e976","a6b1b7cd","000f4000"]}[0m
+[0;32mI (54152938) asic_result: Processing time: 2.7 ms[0m
+[0;32mI (54153044) stratum_api: rx: {"id":3761,"result":true,"error":null}[0m
+[0;32mI (54153045) stratum_api: Result success[0m
+[0;32mI (54153045) stratum_v1_task: message result accepted[0m
+[0;32mI (54153045) stratum_v1_task: Stratum response time: 106.6 ms[0m
+[0;32mI (54154672) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 34.1%[0m
+[0;32mI (54155276) stratum_api: rx: {"id":null,"method":"mining.notify","params":["19f73","2ce04c80c4e302f7b4749dd84d446e69a90132cbacfd18ae0000000100000000","01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff4e03ab6c020487e9d56a08","2f7a706f6f6c2e63612fdd46cadb2f00fabe6d6da70dedbef942d31cd2e63c94c7acf9842bef6e5ffea727a2d3738f02fdbf28658000000000000000000000000100f2052a0100000017a914cc4ee66bc5ebab014ac9c9dc04ca374d5d367d758700000000",[],"20000000","1a00e958","6ad5e987",true]}[0m
+[0;32mI (54155278) stratum_v1_task: Block height 158891[0m
+[0;32mI (54155279) stratum_v1_task: Scriptsig: ....j./zpool.ca/.F../...mm.....B....<.....+.n_..'..s....(e........[0m
+[0;32mI (54155279) stratum_v1_task: Coinbase outputs: 0, total value: 9022501489713218780 sats[0m
+[0;32mI (54155279) create_jobs_task: New Work Dequeued 19f73[0m
+[0;32mI (54156672) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 34.7%[0m
+[0;32mI (54158673) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 34.1%[0m
+[0;32mI (54158675) stratum_api: rx: {"id":null,"method":"mining.notify","params":["19f76","923b5944c571e0f2b20fe8ad89fe8487e5f85c3b4fdad4310000002000000000","01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff4e03ac6c02048ae9d56a08","2f7a706f6f6c2e63612fdd46cadb2f00fabe6d6daec25b55ac28eee12b2083e2040493b796cdb9659b8424bfb10cb90dc71994ee8000000000000000000000000100f2052a0100000017a914cc4ee66bc5ebab014ac9c9dc04ca374d5d367d758700000000",[],"20000000","1a00f488","6ad5e98a",true]}[0m
+[0;32mI (54158677) stratum_v1_task: Block height 158892[0m
+[0;32mI (54158677) stratum_v1_task: Scriptsig: ....j./zpool.ca/.F../...mm..[U.(..+ .........e..$.................[0m
+[0;32mI (54158677) stratum_v1_task: Coinbase outputs: 0, total value: 9022501489713218780 sats[0m
+[0;32mI (54158677) create_jobs_task: New Work Dequeued 19f76[0m
+[0;32mI (54160672) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 34.1%[0m
+[0;32mI (54162672) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 34.7%[0m
+[0;32mI (54163500) stratum_api: rx: {"id":null,"method":"mining.notify","params":["19f93","7413d282db52bf6642e511997f225ea12a0e51f35ff33c13000000bc00000000","01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff4e03ad6c02048fe9d56a08","2f7a706f6f6c2e63612fdd46cadb2f00fabe6d6d964b9d20013af5ce9918bc50a5cf3efde7d8a3507f01064fa318a5683e73d2818000000000000000000000000100f2052a0100000017a914cc4ee66bc5ebab014ac9c9dc04ca374d5d367d758700000000",[],"20000000","1a00f745","6ad5e98f",true]}[0m
+[0;32mI (54163502) stratum_v1_task: Block height 158893[0m
+[0;32mI (54163502) stratum_v1_task: Scriptsig: ....j./zpool.ca/.F../...mm.K. .:.....P..>....P...O...h>s..........[0m
+[0;32mI (54163502) stratum_v1_task: Coinbase outputs: 0, total value: 9022501489713218780 sats[0m
+[0;32mI (54163502) create_jobs_task: New Work Dequeued 19f93[0m
+[0;32mI (54164672) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 34.1%[0m
+[0;32mI (54166672) fan_controller: Temp: 60.1Â°C, SetPoint: 60.0Â°C, Output: 34.7%[0m
+[0;32mI (54168672) fan_controller: Temp: 60.1Â°C, SetPoint: 60.0Â°C, Output: 34.1%[0m
+[0;32mI (54170682) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 34.8%[0m
+[0;32mI (54170721) stratum_api: rx: {"id":null,"method":"mining.notify","params":["19fb1","7413d282db52bf6642e511997f225ea12a0e51f35ff33c13000000bc00000000","01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff4e03ad6c020495e9d56a08","2f7a706f6f6c2e63612fdd46cadb2f00fabe6d6deda955dc426d0beaa8811b508829757e832939c69413166a657135ae86b5ad8d8000000000000000000000000100f2052a0100000017a914cc4ee66bc5ebab014ac9c9dc04ca374d5d367d758700000000",[],"20000000","1a00f745","6ad5e995",true]}[0m
+[0;32mI (54170724) stratum_v1_task: Scriptsig: ....j./zpool.ca/.F../...mm..U.Bm.....P.)u~.)9....jeq5.............[0m
+[0;32mI (54170724) stratum_v1_task: Coinbase outputs: 0, total value: 9022501489713218780 sats[0m
+[0;32mI (54170725) create_jobs_task: New Work Dequeued 19fb1[0m
+[0;32mI (54172672) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 33.5%[0m
+[0;32mI (54174682) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 34.1%[0m
+[0;32mI (54176580) stratum_api: tx: {"id":3762,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","19fb1","0b000000","6ad5e995","2ae5fb72","000e2000"]}[0m
+[0;32mI (54176580) asic_result: Processing time: 2.6 ms[0m
+[0;32mI (54176672) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 33.5%[0m
+[0;32mI (54176689) stratum_api: rx: {"id":3762,"result":true,"error":null}[0m
+[0;32mI (54176690) stratum_api: Result success[0m
+[0;32mI (54176691) stratum_v1_task: message result accepted[0m
+[0;32mI (54176691) stratum_v1_task: Stratum response time: 109.4 ms[0m
+[0;32mI (54178679) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 34.1%[0m
+[0;32mI (54180672) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 34.1%[0m
+[0;32mI (54181536) stratum_api: tx: {"id":3763,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","19fb1","15000000","6ad5e995","5ef95784","000de000"]}[0m
+[0;32mI (54181537) asic_result: Processing time: 3.0 ms[0m
+[0;32mI (54181643) stratum_api: rx: {"id":3763,"result":true,"error":null}[0m
+[0;32mI (54181644) stratum_api: Result success[0m
+[0;32mI (54181644) stratum_v1_task: message result accepted[0m
+[0;32mI (54181644) stratum_v1_task: Stratum response time: 106.9 ms[0m
+[0;32mI (54182672) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 33.5%[0m
+[0;32mI (54184672) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 33.4%[0m
+[0;32mI (54186672) fan_controller: Temp: 60.1Â°C, SetPoint: 60.0Â°C, Output: 34.7%[0m
+[0;32mI (54188502) stratum_api: tx: {"id":3764,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","19fb1","23000000","6ad5e995","4f80e293","00098000"]}[0m
+[0;32mI (54188503) asic_result: Processing time: 3.0 ms[0m
+[0;32mI (54188608) stratum_api: rx: {"id":3764,"result":true,"error":null}[0m
+[0;32mI (54188609) stratum_api: Result success[0m
+[0;32mI (54188609) stratum_v1_task: message result accepted[0m
+[0;32mI (54188610) stratum_v1_task: Stratum response time: 106.5 ms[0m
+[0;32mI (54188673) fan_controller: Temp: 60.2Â°C, SetPoint: 60.0Â°C, Output: 35.3%[0m
+[0;32mI (54190672) fan_controller: Temp: 60.2Â°C, SetPoint: 60.0Â°C, Output: 34.7%[0m
+[0;32mI (54192674) fan_controller: Temp: 60.3Â°C, SetPoint: 60.0Â°C, Output: 35.4%[0m
+[0;32mI (54194677) fan_controller: Temp: 60.3Â°C, SetPoint: 60.0Â°C, Output: 34.8%[0m
+[0;32mI (54196677) fan_controller: Temp: 60.2Â°C, SetPoint: 60.0Â°C, Output: 35.5%[0m
+[0;32mI (54197751) stratum_api: tx: {"id":3765,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","19fb1","35000000","6ad5e995","d014eb57","0012c000"]}[0m
+[0;32mI (54197752) asic_result: Processing time: 2.1 ms[0m
+[0;32mI (54197858) stratum_api: rx: {"id":3765,"result":true,"error":null}[0m
+[0;32mI (54197859) stratum_api: Result success[0m
+[0;32mI (54197859) stratum_v1_task: message result accepted[0m
+[0;32mI (54197859) stratum_v1_task: Stratum response time: 106.4 ms[0m
+[0;32mI (54198676) fan_controller: Temp: 60.3Â°C, SetPoint: 60.0Â°C, Output: 36.2%[0m
+[0;32mI (54200672) fan_controller: Temp: 60.3Â°C, SetPoint: 60.0Â°C, Output: 36.2%[0m
+[0;32mI (54202351) stratum_api: rx: {"id":null,"method":"mining.notify","params":["19fdc","7413d282db52bf6642e511997f225ea12a0e51f35ff33c13000000bc00000000","01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff4e03ad6c0204b5e9d56a08","2f7a706f6f6c2e63612fdd46cadb2f00fabe6d6d2bb87addea1392ab685f36811b89612a2f806f7b8c331e3ed42f8edd28d4a6888000000000000000000000000100f2052a0100000017a914cc4ee66bc5ebab014ac9c9dc04ca374d5d367d758700000000",[],"20000000","1a00f745","6ad5e9b5",true]}[0m
+[0;32mI (54202353) stratum_v1_task: Scriptsig: ....j./zpool.ca/.F../...mm+.z.....h_6...a*/.o{.3.>./..(...........[0m
+[0;32mI (54202353) stratum_v1_task: Coinbase outputs: 0, total value: 9022501489713218780 sats[0m
+[0;32mI (54202353) create_jobs_task: New Work Dequeued 19fdc[0m
+[0;32mI (54202672) fan_controller: Temp: 60.2Â°C, SetPoint: 60.0Â°C, Output: 35.7%[0m
+[0;32mI (54203139) stratum_api: tx: {"id":3766,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","19fdc","01000000","6ad5e9b5","b5e86a9a","000da000"]}[0m
+[0;32mI (54203139) asic_result: Processing time: 3.5 ms[0m
+[0;32mI (54203246) stratum_api: rx: {"id":3766,"result":true,"error":null}[0m
+[0;32mI (54203246) stratum_api: Result success[0m
+[0;32mI (54203247) stratum_v1_task: message result accepted[0m
+[0;32mI (54203247) stratum_v1_task: Stratum response time: 106.9 ms[0m
+[0;32mI (54204672) fan_controller: Temp: 60.2Â°C, SetPoint: 60.0Â°C, Output: 35.7%[0m
+[0;32mI (54205431) stratum_api: tx: {"id":3767,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","19fdc","06000000","6ad5e9b5","c18fda42","00026000"]}[0m
+[0;32mI (54205431) asic_result: Processing time: 2.1 ms[0m
+[0;32mI (54205539) stratum_api: rx: {"id":3767,"result":true,"error":null}[0m
+[0;32mI (54205539) stratum_api: Result success[0m
+[0;32mI (54205540) stratum_v1_task: message result accepted[0m
+[0;32mI (54205540) stratum_v1_task: Stratum response time: 107.8 ms[0m
+[0;32mI (54206068) stratum_api: tx: {"id":3768,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","19fdc","07000000","6ad5e9b5","efa0ea2c","0009c000"]}[0m
+[0;32mI (54206069) asic_result: Processing time: 2.1 ms[0m
+[0;32mI (54206177) stratum_api: rx: {"id":3768,"result":true,"error":null}[0m
+[0;32mI (54206178) stratum_api: Result success[0m
+[0;32mI (54206179) stratum_v1_task: message result accepted[0m
+[0;32mI (54206179) stratum_v1_task: Stratum response time: 109.0 ms[0m
+[0;32mI (54206673) fan_controller: Temp: 60.1Â°C, SetPoint: 60.0Â°C, Output: 34.5%[0m
+[0;32mI (54207488) stratum_api: rx: {"id":null,"method":"mining.notify","params":["19fe1","e2188aec732df814b43101521757529a27825added6bc02b0000005200000000","01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff4e03ae6c0204bbe9d56a08","2f7a706f6f6c2e63612fdd46cadb2f00fabe6d6d2bb87addea1392ab685f36811b89612a2f806f7b8c331e3ed42f8edd28d4a6888000000000000000000000000100f2052a0100000017a914cc4ee66bc5ebab014ac9c9dc04ca374d5d367d758700000000",[],"20000000","1a010732","6ad5e9bb",true]}[0m
+[0;32mI (54207490) stratum_v1_task: Block height 158894[0m
+[0;32mI (54207490) stratum_v1_task: Coinbase outputs: 0, total value: 9022501489713218780 sats[0m
+[0;32mI (54207491) create_jobs_task: New Work Dequeued 19fe1[0m
+[0;32mI (54208452) stratum_api: rx: {"id":null,"method":"mining.notify","params":["19fe3","1a10e2426f8fb7a5f7e47800e71dba1c9f84988fe7669bf50000006e00000000","01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff4e03af6c0204bce9d56a08","2f7a706f6f6c2e63612fdd46cadb2f00fabe6d6d414845d610eb006bc7f3c288c283a75a0010e9bf893b05efa2bbd55cba8ab8498000000000000000000000000100f2052a0100000017a914cc4ee66bc5ebab014ac9c9dc04ca374d5d367d758700000000",[],"20000000","1a011216","6ad5e9bc",true]}[0m
+[0;32mI (54208454) stratum_v1_task: Block height 158895[0m
+[0;32mI (54208455) stratum_v1_task: Scriptsig: ....j./zpool.ca/.F../...mmAHE....k.......Z.....;.....\...I........[0m
+[0;32mI (54208455) stratum_v1_task: Coinbase outputs: 0, total value: 9022501489713218780 sats[0m
+[0;32mI (54208455) create_jobs_task: New Work Dequeued 19fe3[0m
+[0;32mI (54208673) fan_controller: Temp: 60.1Â°C, SetPoint: 60.0Â°C, Output: 34.5%[0m
+[0;32mI (54210672) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 33.9%[0m
+[0;32mI (54210823) stratum_api: tx: {"id":3769,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","19fe3","04000000","6ad5e9bc","1636f2fb","000e0000"]}[0m
+[0;32mI (54210824) asic_result: Processing time: 3.7 ms[0m
+[0;32mI (54210930) stratum_api: rx: {"id":3769,"result":true,"error":null}[0m
+[0;32mI (54210931) stratum_api: Result success[0m
+[0;32mI (54210931) stratum_v1_task: message result accepted[0m
+[0;32mI (54210931) stratum_v1_task: Stratum response time: 106.6 ms[0m
+[0;32mI (54212672) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 34.5%[0m
+[0;32mI (54214402) stratum_api: tx: {"id":3770,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","19fe3","0b000000","6ad5e9bc","77e11b23","00130000"]}[0m
+[0;32mI (54214402) asic_result: Processing time: 2.1 ms[0m
+[0;32mI (54214507) stratum_api: rx: {"id":3770,"result":true,"error":null}[0m
+[0;32mI (54214508) stratum_api: Result success[0m
+[0;32mI (54214508) stratum_v1_task: message result accepted[0m
+[0;32mI (54214509) stratum_v1_task: Stratum response time: 105.7 ms[0m
+[0;32mI (54214672) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 34.6%[0m
+[0;32mI (54214968) stratum_api: rx: {"id":null,"method":"mining.notify","params":["19fe7","c9d7d5a3b6437e4fb3292215f8b51e00cfbba6d0627d26f5000000eb00000000","01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff4e03b06c0204c3e9d56a08","2f7a706f6f6c2e63612fdd46cadb2f00fabe6d6de1804658d37366b4d5d7b055f3537157a2eb856edfd27bdbde7bbc55cfbd7ad68000000000000000000000000100f2052a0100000017a914cc4ee66bc5ebab014ac9c9dc04ca374d5d367d758700000000",[],"20000000","1a01172b","6ad5e9c3",true]}[0m
+[0;32mI (54214970) stratum_v1_task: Block height 158896[0m
+[0;32mI (54214970) stratum_v1_task: Scriptsig: ....j./zpool.ca/.F../...mm..FX.sf....U.SqW...n..{..{.U..z.........[0m
+[0;32mI (54214970) stratum_v1_task: Coinbase outputs: 0, total value: 9022501489713218780 sats[0m
+[0;32mI (54214971) create_jobs_task: New Work Dequeued 19fe7[0m
+[0;32mI (54216379) stratum_api: rx: {"id":null,"method":"mining.notify","params":["19fe8","34076766728132362f8e74bb9b54fb294fa18fc858ecd6d30000006600000000","01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff4e03b16c0204c4e9d56a08","2f7a706f6f6c2e63612fdd46cadb2f00fabe6d6de1804658d37366b4d5d7b055f3537157a2eb856edfd27bdbde7bbc55cfbd7ad68000000000000000000000000100f2052a0100000017a914cc4ee66bc5ebab014ac9c9dc04ca374d5d367d758700000000",[],"20000000","1a01217b","6ad5e9c4",true]}[0m
+[0;32mI (54216381) stratum_v1_task: Block height 158897[0m
+[0;32mI (54216381) stratum_v1_task: Coinbase outputs: 0, total value: 9022501489713218780 sats[0m
+[0;32mI (54216382) create_jobs_task: New Work Dequeued 19fe8[0m
+[0;32mI (54216672) fan_controller: Temp: 59.8Â°C, SetPoint: 60.0Â°C, Output: 33.2%[0m
+[0;32mI (54218683) fan_controller: Temp: 59.8Â°C, SetPoint: 60.0Â°C, Output: 33.2%[0m
+[0;32mI (54220672) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 34.4%[0m
+[0;32mI (54222672) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 34.4%[0m
+[0;32mI (54224672) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 33.8%[0m
+[0;32mI (54226416) stratum_api: rx: {"id":null,"method":"mining.notify","params":["19fe9","07049acdccb138a7fb5fec1aa711effa861322a3667c1e500000000e00000000","01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff4e03b26c0204cee9d56a08","2f7a706f6f6c2e63612fdd46cadb2f00fabe6d6de1804658d37366b4d5d7b055f3537157a2eb856edfd27bdbde7bbc55cfbd7ad68000000000000000000000000100f2052a0100000017a914cc4ee66bc5ebab014ac9c9dc04ca374d5d367d758700000000",[],"20000000","1a01241e","6ad5e9ce",true]}[0m
+[0;32mI (54226420) stratum_v1_task: Block height 158898[0m
+[0;32mI (54226420) stratum_v1_task: Coinbase outputs: 0, total value: 9022501489713218780 sats[0m
+[0;32mI (54226420) create_jobs_task: New Work Dequeued 19fe9[0m
+[0;32mI (54226672) fan_controller: Temp: 60.1Â°C, SetPoint: 60.0Â°C, Output: 35.0%[0m
+[0;32mI (54228672) fan_controller: Temp: 60.1Â°C, SetPoint: 60.0Â°C, Output: 34.4%[0m
+[0;32mI (54230326) stratum_api: tx: {"id":3771,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","19fe9","07000000","6ad5e9ce","66656a0b","00100000"]}[0m
+[0;32mI (54230327) asic_result: Processing time: 2.2 ms[0m
+[0;32mI (54230433) stratum_api: rx: {"id":3771,"result":true,"error":null}[0m
+[0;32mI (54230435) stratum_api: Result success[0m
+[0;32mI (54230436) stratum_v1_task: message result accepted[0m
+[0;32mI (54230436) stratum_v1_task: Stratum response time: 107.4 ms[0m
+[0;32mI (54230682) fan_controller: Temp: 60.1Â°C, SetPoint: 60.0Â°C, Output: 35.1%[0m
+[0;32mI (54232679) fan_controller: Temp: 60.1Â°C, SetPoint: 60.0Â°C, Output: 35.1%[0m
+[0;32mI (54234679) fan_controller: Temp: 60.1Â°C, SetPoint: 60.0Â°C, Output: 35.7%[0m
+[0;32mI (54236681) fan_controller: Temp: 60.1Â°C, SetPoint: 60.0Â°C, Output: 35.1%[0m
+[0;32mI (54238678) fan_controller: Temp: 60.2Â°C, SetPoint: 60.0Â°C, Output: 35.2%[0m
+[0;32mI (54240672) fan_controller: Temp: 60.3Â°C, SetPoint: 60.0Â°C, Output: 36.4%[0m
+[0;32mI (54242672) fan_controller: Temp: 60.1Â°C, SetPoint: 60.0Â°C, Output: 34.6%[0m
+[0;32mI (54244672) fan_controller: Temp: 60.2Â°C, SetPoint: 60.0Â°C, Output: 35.3%[0m
+[0;32mI (54245005) stratum_api: rx: {"id":null,"method":"mining.notify","params":["1a009","07049acdccb138a7fb5fec1aa711effa861322a3667c1e500000000e00000000","01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff4e03b26c0204e0e9d56a08","2f7a706f6f6c2e63612fdd46cadb2f00fabe6d6d0bed78322840053caca459ef4aad3651dc159a5f3c105300289c329affd0864b8000000000000000000000000100f2052a0100000017a914cc4ee66bc5ebab014ac9c9dc04ca374d5d367d758700000000",[],"20000000","1a01241e","6ad5e9e0",true]}[0m
+[0;32mI (54245006) stratum_v1_task: Scriptsig: ....j./zpool.ca/.F../...mm..x2(@.<..Y.J.6Q..._<.S.(.2....K........[0m
+[0;32mI (54245007) stratum_v1_task: Coinbase outputs: 0, total value: 9022501489713218780 sats[0m
+[0;32mI (54245007) create_jobs_task: New Work Dequeued 1a009[0m
+[0;32mI (54246672) fan_controller: Temp: 60.2Â°C, SetPoint: 60.0Â°C, Output: 35.3%[0m
+[0;32mI (54248331) stratum_api: tx: {"id":3772,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a009","06000000","6ad5e9e0","dd8df8c5","000cc000"]}[0m
+[0;32mI (54248332) asic_result: Processing time: 2.1 ms[0m
+[0;32mI (54248439) stratum_api: rx: {"id":3772,"result":true,"error":null}[0m
+[0;32mI (54248440) stratum_api: Result success[0m
+[0;32mI (54248441) stratum_v1_task: message result accepted[0m
+[0;32mI (54248441) stratum_v1_task: Stratum response time: 108.0 ms[0m
+[0;32mI (54248684) fan_controller: Temp: 60.2Â°C, SetPoint: 60.0Â°C, Output: 36.0%[0m
+[0;32mI (54249460) stratum_api: rx: {"id":null,"method":"mining.notify","params":["1a025","ed63eea4f40f1a1d1284fef03a6807dfb5d29e67b63a58e5000000ad00000000","01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff4e03b36c0204e5e9d56a08","2f7a706f6f6c2e63612fdd46cadb2f00fabe6d6d0bed78322840053caca459ef4aad3651dc159a5f3c105300289c329affd0864b8000000000000000000000000100f2052a0100000017a914cc4ee66bc5ebab014ac9c9dc04ca374d5d367d758700000000",[],"20000000","1a012efc","6ad5e9e5",true]}[0m
+[0;32mI (54249462) stratum_v1_task: Block height 158899[0m
+[0;32mI (54249462) stratum_v1_task: Coinbase outputs: 0, total value: 9022501489713218780 sats[0m
+[0;32mI (54249463) create_jobs_task: New Work Dequeued 1a025[0m
+[0;32mI (54250062) stratum_api: rx: {"id":null,"method":"mining.notify","params":["1a026","953ff4a60cbb873de017951d0f6a74a7bec0d6ad81e7681b0000010400000000","01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff4e03b46c0204e6e9d56a08","2f7a706f6f6c2e63612fdd46cadb2f00fabe6d6d0bed78322840053caca459ef4aad3651dc159a5f3c105300289c329affd0864b8000000000000000000000000100f2052a0100000017a914cc4ee66bc5ebab014ac9c9dc04ca374d5d367d758700000000",[],"20000000","1a011d10","6ad5e9e6",true]}[0m
+[0;32mI (54250064) stratum_v1_task: Block height 158900[0m
+[0;32mI (54250064) stratum_v1_task: Coinbase outputs: 0, total value: 9022501489713218780 sats[0m
+[0;32mI (54250065) create_jobs_task: New Work Dequeued 1a026[0m
+[0;32mI (54250219) stratum_api: tx: {"id":3773,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a026","00000000","6ad5e9e6","22deb4b0","00076000"]}[0m
+[0;32mI (54250220) asic_result: Processing time: 2.3 ms[0m
+[0;32mI (54250326) stratum_api: rx: {"id":3773,"result":true,"error":null}[0m
+[0;32mI (54250327) stratum_api: Result success[0m
+[0;32mI (54250327) stratum_v1_task: message result accepted[0m
+[0;32mI (54250327) stratum_v1_task: Stratum response time: 106.4 ms[0m
+[0;32mI (54250682) fan_controller: Temp: 60.3Â°C, SetPoint: 60.0Â°C, Output: 36.0%[0m
+[0;32mI (54252672) fan_controller: Temp: 60.2Â°C, SetPoint: 60.0Â°C, Output: 36.3%[0m
+[0;32mI (54254672) fan_controller: Temp: 60.2Â°C, SetPoint: 60.0Â°C, Output: 36.1%[0m
+[0;32mI (54256672) fan_controller: Temp: 60.2Â°C, SetPoint: 60.0Â°C, Output: 36.1%[0m
+[0;32mI (54257054) stratum_api: rx: {"id":null,"method":"mining.notify","params":["1a029","b96d3c0cdcc95f3518c15e936938a0a8590d6a8e2e4d765f0000000e00000000","01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff4e03b56c0204ede9d56a08","2f7a706f6f6c2e63612fdd46cadb2f00fabe6d6d1a2afbc8e21e5fa998fb07ff929e23f52f15564f9aa3948ff3d6684e777c5dbd8000000000000000000000000100f2052a0100000017a914cc4ee66bc5ebab014ac9c9dc04ca374d5d367d758700000000",[],"20000000","1a0120bc","6ad5e9ed",true]}[0m
+[0;32mI (54257055) stratum_v1_task: Block height 158901[0m
+[0;32mI (54257056) stratum_v1_task: Scriptsig: ....j./zpool.ca/.F../...mm.*...._.......#./.VO......hNw|].........[0m
+[0;32mI (54257056) stratum_v1_task: Coinbase outputs: 0, total value: 9022501489713218780 sats[0m
+[0;32mI (54257056) create_jobs_task: New Work Dequeued 1a029[0m
+[0;33mW (54258338) httpd_txrx: httpd_sock_err: error in recv : 104[0m
+[0;32mI (54258672) fan_controller: Temp: 60.2Â°C, SetPoint: 60.0Â°C, Output: 35.5%[0m
+[0;32mI (54259890) stratum_api: tx: {"id":3774,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a029","05000000","6ad5e9ed","8e7957ec","000f4000"]}[0m
+[0;32mI (54259891) asic_result: Processing time: 2.2 ms[0m
+[0;32mI (54259997) stratum_api: rx: {"id":3774,"result":true,"error":null}[0m
+[0;32mI (54259998) stratum_api: Result success[0m
+[0;32mI (54259998) stratum_v1_task: message result accepted[0m
+[0;32mI (54259998) stratum_v1_task: Stratum response time: 107.0 ms[0m
+[0;32mI (54260503) stratum_api: tx: {"id":3775,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a029","06000000","6ad5e9ed","b71c523f","0012a000"]}[0m
+[0;32mI (54260504) asic_result: Processing time: 2.1 ms[0m
+[0;32mI (54260609) stratum_api: rx: {"id":3775,"result":true,"error":null}[0m
+[0;32mI (54260610) stratum_api: Result success[0m
+[0;32mI (54260610) stratum_v1_task: message result accepted[0m
+[0;32mI (54260610) stratum_v1_task: Stratum response time: 105.9 ms[0m
+[0;32mI (54260672) fan_controller: Temp: 60.2Â°C, SetPoint: 60.0Â°C, Output: 36.2%[0m
+[0;32mI (54262508) stratum_api: tx: {"id":3776,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a029","0a000000","6ad5e9ed","fc4a377b","00130000"]}[0m
+[0;32mI (54262509) asic_result: Processing time: 3.6 ms[0m
+[0;32mI (54262620) stratum_api: rx: {"id":3776,"result":true,"error":null}[0m
+[0;32mI (54262621) stratum_api: Result success[0m
+[0;32mI (54262621) stratum_v1_task: message result accepted[0m
+[0;32mI (54262621) stratum_v1_task: Stratum response time: 111.6 ms[0m
+[0;32mI (54262675) fan_controller: Temp: 60.2Â°C, SetPoint: 60.0Â°C, Output: 36.2%[0m
+[0;32mI (54264672) fan_controller: Temp: 60.1Â°C, SetPoint: 60.0Â°C, Output: 35.6%[0m
+[0;32mI (54266672) fan_controller: Temp: 60.1Â°C, SetPoint: 60.0Â°C, Output: 35.6%[0m
+[0;32mI (54268672) fan_controller: Temp: 60.2Â°C, SetPoint: 60.0Â°C, Output: 36.9%[0m
+[0;32mI (54269984) stratum_api: rx: {"id":null,"method":"mining.notify","params":["1a048","d74dc586129cf5ea02636f11c9f0ae84d833e9ef557390640000007e00000000","01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff4e03b66c0204fae9d56a08","2f7a706f6f6c2e63612fdd46cadb2f00fabe6d6d1a2afbc8e21e5fa998fb07ff929e23f52f15564f9aa3948ff3d6684e777c5dbd8000000000000000000000000100f2052a0100000017a914cc4ee66bc5ebab014ac9c9dc04ca374d5d367d758700000000",[],"20000000","1a011dcf","6ad5e9fa",true]}[0m
+[0;32mI (54269987) stratum_v1_task: Block height 158902[0m
+[0;32mI (54269987) stratum_v1_task: Coinbase outputs: 0, total value: 9022501489713218780 sats[0m
+[0;32mI (54269987) create_jobs_task: New Work Dequeued 1a048[0m
+[0;32mI (54270672) fan_controller: Temp: 60.1Â°C, SetPoint: 60.0Â°C, Output: 35.7%[0m
+[0;32mI (54271657) stratum_api: rx: {"id":null,"method":"mining.notify","params":["1a04a","252d1d58abd177790872421adfe1befa2f3920ebd06fb57f0000011900000000","01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff4e03b76c0204fce9d56a08","2f7a706f6f6c2e63612fdd46cadb2f00fabe6d6d765e05d8d9c4b08af8160fe8e92288ab7f143bc49b456d3c752180a51d72195d8000000000000000000000000100f2052a0100000017a914cc4ee66bc5ebab014ac9c9dc04ca374d5d367d758700000000",[],"20000000","1a00deb1","6ad5e9fc",true]}[0m
+[0;32mI (54271659) stratum_v1_task: Block height 158903[0m
+[0;32mI (54271659) stratum_v1_task: Scriptsig: ....j./zpool.ca/.F../...mmv^..........."....;..Em<u!...r.]........[0m
+[0;32mI (54271659) stratum_v1_task: Coinbase outputs: 0, total value: 9022501489713218780 sats[0m
+[0;32mI (54271659) create_jobs_task: New Work Dequeued 1a04a[0m
+[0;32mI (54272672) fan_controller: Temp: 60.2Â°C, SetPoint: 60.0Â°C, Output: 37.0%[0m
+[0;32mI (54274672) fan_controller: Temp: 60.2Â°C, SetPoint: 60.0Â°C, Output: 35.8%[0m
+[0;32mI (54276674) fan_controller: Temp: 60.1Â°C, SetPoint: 60.0Â°C, Output: 35.8%[0m
+[0;32mI (54278683) fan_controller: Temp: 60.1Â°C, SetPoint: 60.0Â°C, Output: 35.8%[0m
+[0;32mI (54280008) stratum_api: tx: {"id":3777,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a04a","10000000","6ad5e9fc","cdcc6bda","000fc000"]}[0m
+[0;32mI (54280009) asic_result: Processing time: 2.1 ms[0m
+[0;32mI (54280019) stratum_api: rx: {"id":null,"method":"mining.notify","params":["1a04d","957b73f0ee72140ff56757d0f1d750eff83fc30de52fb053000000d900000000","01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff4e03b86c020404ead56a08","2f7a706f6f6c2e63612fdd46cadb2f00fabe6d6d765e05d8d9c4b08af8160fe8e92288ab7f143bc49b456d3c752180a51d72195d8000000000000000000000000100f2052a0100000017a914cc4ee66bc5ebab014ac9c9dc04ca374d5d367d758700000000",[],"20000000","1a00e101","6ad5ea04",true]}[0m
+[0;32mI (54280021) stratum_v1_task: Block height 158904[0m
+[0;32mI (54280021) stratum_v1_task: Coinbase outputs: 0, total value: 9022501489713218780 sats[0m
+[0;32mI (54280021) create_jobs_task: New Work Dequeued 1a04d[0m
+[0;32mI (54280125) stratum_api: rx: {"id":3777,"result":true,"error":null}[0m
+[0;32mI (54280126) stratum_api: Result success[0m
+[0;32mI (54280126) stratum_v1_task: message result accepted[0m
+[0;32mI (54280126) stratum_v1_task: Stratum response time: 116.7 ms[0m
+[0;32mI (54280672) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 35.2%[0m
+[0;32mI (54280686) stratum_api: tx: {"id":3778,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a04d","01000000","6ad5ea04","53731217","0006e000"]}[0m
+[0;32mI (54280686) asic_result: Processing time: 2.5 ms[0m
+[0;32mI (54280795) stratum_api: rx: {"id":3778,"result":true,"error":null}[0m
+[0;32mI (54280796) stratum_api: Result success[0m
+[0;32mI (54280796) stratum_v1_task: message result accepted[0m
+[0;32mI (54280796) stratum_v1_task: Stratum response time: 109.5 ms[0m
+[0;32mI (54282396) stratum_api: rx: {"id":null,"method":"mining.notify","params":["1a04e","990f4ce0865d7a1a9361d0f85900770a97e3384bd3b956fc0000008900000000","01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff4e03b96c020406ead56a08","2f7a706f6f6c2e63612fdd46cadb2f00fabe6d6d765e05d8d9c4b08af8160fe8e92288ab7f143bc49b456d3c752180a51d72195d8000000000000000000000000100f2052a0100000017a914cc4ee66bc5ebab014ac9c9dc04ca374d5d367d758700000000",[],"20000000","1a00969e","6ad5ea06",true]}[0m
+[0;32mI (54282398) stratum_v1_task: Block height 158905[0m
+[0;32mI (54282399) stratum_v1_task: Coinbase outputs: 0, total value: 9022501489713218780 sats[0m
+[0;32mI (54282399) create_jobs_task: New Work Dequeued 1a04e[0m
+[0;32mI (54282487) stratum_api: tx: {"id":3779,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a04e","00000000","6ad5ea06","5e3fa7a7","00038000"]}[0m
+[0;32mI (54282487) asic_result: Processing time: 3.6 ms[0m
+[0;32mI (54282593) stratum_api: rx: {"id":3779,"result":true,"error":null}[0m
+[0;32mI (54282595) stratum_api: Result success[0m
+[0;32mI (54282595) stratum_v1_task: message result accepted[0m
+[0;32mI (54282595) stratum_v1_task: Stratum response time: 106.8 ms[0m
+[0;32mI (54282672) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 35.2%[0m
+[0;32mI (54284679) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 34.6%[0m
+[0;32mI (54285661) stratum_api: tx: {"id":3780,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a04e","06000000","6ad5ea06","9aad1ea7","000b6000"]}[0m
+[0;32mI (54285661) asic_result: Processing time: 2.1 ms[0m
+[0;32mI (54285767) stratum_api: rx: {"id":3780,"result":true,"error":null}[0m
+[0;32mI (54285767) stratum_api: Result success[0m
+[0;32mI (54285768) stratum_v1_task: message result accepted[0m
+[0;32mI (54285768) stratum_v1_task: Stratum response time: 105.9 ms[0m
+[0;32mI (54286672) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 34.6%[0m
+[0;32mI (54288672) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 35.2%[0m
+[0;32mI (54290672) fan_controller: Temp: 60.1Â°C, SetPoint: 60.0Â°C, Output: 35.8%[0m
+[0;32mI (54292672) fan_controller: Temp: 60.1Â°C, SetPoint: 60.0Â°C, Output: 35.8%[0m
+[0;32mI (54294672) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 35.8%[0m
+[0;32mI (54295486) stratum_api: rx: {"id":null,"method":"mining.notify","params":["1a06b","c80a3cefb3b624c9902755b2b7ef12e2c78cfaa32414ac3f0000002800000000","01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff4e03ba6c020413ead56a08","2f7a706f6f6c2e63612fdd46cadb2f00fabe6d6d765e05d8d9c4b08af8160fe8e92288ab7f143bc49b456d3c752180a51d72195d8000000000000000000000000100f2052a0100000017a914cc4ee66bc5ebab014ac9c9dc04ca374d5d367d758700000000",[],"20000000","1a009555","6ad5ea13",true]}[0m
+[0;32mI (54295488) stratum_v1_task: Block height 158906[0m
+[0;32mI (54295488) stratum_v1_task: Coinbase outputs: 0, total value: 9022501489713218780 sats[0m
+[0;32mI (54295489) create_jobs_task: New Work Dequeued 1a06b[0m
+[0;32mI (54296676) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 35.2%[0m
+[0;32mI (54298676) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 34.6%[0m
+[0;32mI (54300673) fan_controller: Temp: 59.8Â°C, SetPoint: 60.0Â°C, Output: 33.9%[0m
+[0;32mI (54301506) stratum_api: rx: {"id":null,"method":"mining.notify","params":["1a047","c61ed18e1114057fcbdf0758016d3e5bb89a3de22f98af8c296920febd9cc81e","01000000f4e9d56a010000000000000000000000000000000000000000000000000000000000000000ffffffff22032baf0d04f4e9d56a08","2f7a706f6f6c2e63612fdd46cadb2f0000000000010027a9020000000023210224af11914c50d8a9f500091f56ab208a21997fe232d057d23ba9692f33c0b09aac00000000",[],"00000006","1901b4ce","6ad5e9f4",true]}[0m
+[0;32mI (54301509) stratum_v1_task: Block height 0[0m
+[0;32mI (54301509) stratum_v1_task: Coinbase outputs: 0, total value: 0 sats[0m
+[0;32mI (54301510) create_jobs_task: New Work Dequeued 1a047[0m
+[0;32mI (54302672) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 34.5%[0m
+[0;32mI (54304672) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 34.5%[0m
+[0;32mI (54306672) fan_controller: Temp: 59.8Â°C, SetPoint: 60.0Â°C, Output: 33.9%[0m
+[0;32mI (54308672) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 34.4%[0m
+[0;32mI (54309619) stratum_api: tx: {"id":3781,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a047","10000000","6ad5e9f4","4aa4c9a1","00022000"]}[0m
+[0;32mI (54309619) asic_result: Processing time: 2.3 ms[0m
+[0;32mI (54309725) stratum_api: rx: {"id":3781,"result":true,"error":null}[0m
+[0;32mI (54309726) stratum_api: Result success[0m
+[0;32mI (54309726) stratum_v1_task: message result accepted[0m
+[0;32mI (54309727) stratum_v1_task: Stratum response time: 106.7 ms[0m
+[0;32mI (54310672) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 34.4%[0m
+[0;32mI (54312672) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 35.0%[0m
+[0;32mI (54314681) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 33.8%[0m
+[0;32mI (54316545) stratum_api: tx: {"id":3782,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a047","1d000000","6ad5e9f4","8dd1055a","00174000"]}[0m
+[0;32mI (54316545) asic_result: Processing time: 2.1 ms[0m
+[0;32mI (54316650) stratum_api: rx: {"id":3782,"result":true,"error":null}[0m
+[0;32mI (54316651) stratum_api: Result success[0m
+[0;32mI (54316651) stratum_v1_task: message result accepted[0m
+[0;32mI (54316651) stratum_v1_task: Stratum response time: 105.9 ms[0m
+[0;32mI (54316679) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 34.4%[0m
+[0;32mI (54317591) stratum_api: tx: {"id":3783,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a047","20000000","6ad5e9f4","71578535","0000a000"]}[0m
+[0;32mI (54317591) asic_result: Processing time: 2.1 ms[0m
+[0;32mI (54317700) stratum_api: rx: {"id":3783,"result":true,"error":null}[0m
+[0;32mI (54317701) stratum_api: Result success[0m
+[0;32mI (54317701) stratum_v1_task: message result accepted[0m
+[0;32mI (54317701) stratum_v1_task: Stratum response time: 109.3 ms[0m
+[0;32mI (54318673) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 34.4%[0m
+[0;32mI (54319827) stratum_api: tx: {"id":3784,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a047","24000000","6ad5e9f4","6601c8d5","000b2000"]}[0m
+[0;32mI (54319827) asic_result: Processing time: 2.6 ms[0m
+[0;32mI (54319933) stratum_api: rx: {"id":3784,"result":true,"error":null}[0m
+[0;32mI (54319934) stratum_api: Result success[0m
+[0;32mI (54319934) stratum_v1_task: message result accepted[0m
+[0;32mI (54319934) stratum_v1_task: Stratum response time: 106.2 ms[0m
+[0;32mI (54320672) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 34.4%[0m
+[0;32mI (54322672) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 35.6%[0m
+[0;32mI (54323883) stratum_api: tx: {"id":3785,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a047","2c000000","6ad5e9f4","1a74d677","000da000"]}[0m
+[0;32mI (54323884) asic_result: Processing time: 2.1 ms[0m
+[0;32mI (54323992) stratum_api: rx: {"id":3785,"result":true,"error":null}[0m
+[0;32mI (54323992) stratum_api: Result success[0m
+[0;32mI (54323993) stratum_v1_task: message result accepted[0m
+[0;32mI (54323993) stratum_v1_task: Stratum response time: 108.1 ms[0m
+[0;32mI (54324027) stratum_api: tx: {"id":3786,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a047","2c000000","6ad5e9f4","9a943f7a","0015e000"]}[0m
+[0;32mI (54324028) asic_result: Processing time: 2.6 ms[0m
+[0;32mI (54324133) stratum_api: rx: {"id":3786,"result":true,"error":null}[0m
+[0;32mI (54324134) stratum_api: Result success[0m
+[0;32mI (54324134) stratum_v1_task: message result accepted[0m
+[0;32mI (54324134) stratum_v1_task: Stratum response time: 105.3 ms[0m
+[0;32mI (54324672) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 34.3%[0m
+[0;32mI (54326672) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 34.9%[0m
+[0;32mI (54327953) stratum_api: rx: {"id":null,"method":"mining.notify","params":["1a0ae","c61ed18e1114057fcbdf0758016d3e5bb89a3de22f98af8c296920febd9cc81e","0100000033ead56a010000000000000000000000000000000000000000000000000000000000000000ffffffff22032baf0d0433ead56a08","2f7a706f6f6c2e63612fdd46cadb2f0000000000010027a9020000000023210224af11914c50d8a9f500091f56ab208a21997fe232d057d23ba9692f33c0b09aac00000000",[],"00000006","1901b4ce","6ad5ea33",true]}[0m
+[0;32mI (54327954) stratum_v1_task: Coinbase outputs: 0, total value: 0 sats[0m
+[0;32mI (54327955) create_jobs_task: New Work Dequeued 1a0ae[0m
+[0;32mI (54328672) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 34.3%[0m
+[0;32mI (54330672) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 34.9%[0m
+[0;32mI (54332672) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 34.3%[0m
+[0;32mI (54334672) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 34.4%[0m
+[0;32mI (54336672) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 34.9%[0m
+[0;32mI (54338672) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 34.9%[0m
+[0;32mI (54340681) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 34.3%[0m
+[0;32mI (54342616) stratum_api: tx: {"id":3787,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a0ae","1d000000","6ad5ea33","9c5d4faf","00058000"]}[0m
+[0;32mI (54342617) asic_result: Processing time: 2.5 ms[0m
+[0;32mI (54342678) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 34.9%[0m
+[0;32mI (54342754) stratum_api: rx: {"id":3787,"result":true,"error":null}[0m
+[0;32mI (54342755) stratum_api: Result success[0m
+[0;32mI (54342755) stratum_v1_task: message result accepted[0m
+[0;32mI (54342755) stratum_v1_task: Stratum response time: 137.6 ms[0m
+[0;32mI (54344672) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 34.9%[0m
+[0;32mI (54346672) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 34.9%[0m
+[0;32mI (54348672) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 34.2%[0m
+[0;32mI (54350672) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 34.9%[0m
+[0;32mI (54352684) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 35.5%[0m
+[0;32mI (54354672) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 34.9%[0m
+[0;32mI (54356676) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 34.3%[0m
+[0;32mI (54358673) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 35.5%[0m
+[0;32mI (54360478) stratum_api: tx: {"id":3788,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a0ae","40000000","6ad5ea33","eb00f994","00126000"]}[0m
+[0;32mI (54360478) asic_result: Processing time: 3.5 ms[0m
+[0;32mI (54360585) stratum_api: rx: {"id":3788,"result":true,"error":null}[0m
+[0;32mI (54360586) stratum_api: Result success[0m
+[0;32mI (54360586) stratum_v1_task: message result accepted[0m
+[0;32mI (54360587) stratum_v1_task: Stratum response time: 107.5 ms[0m
+[0;32mI (54360672) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 34.9%[0m
+[0;32mI (54362672) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 35.5%[0m
+[0;32mI (54364850) fan_controller: Temp: 60.0Â°C, SetPoint: 60.0Â°C, Output: 35.2%[0m
+[0;32mI (54366743) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 33.8%[0m
+[0;32mI (54368672) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 34.2%[0m
+[0;32mI (54370674) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 34.1%[0m
+[0;32mI (54372465) stratum_api: tx: {"id":3789,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a0ae","58000000","6ad5ea33","81411458","0003a000"]}[0m
+[0;32mI (54372465) asic_result: Processing time: 3.1 ms[0m
+[0;32mI (54372576) stratum_api: rx: {"id":3789,"result":true,"error":null}[0m
+[0;32mI (54372578) stratum_api: Result success[0m
+[0;32mI (54372578) stratum_v1_task: message result accepted[0m
+[0;32mI (54372579) stratum_v1_task: Stratum response time: 111.4 ms[0m
+[0;32mI (54372678) fan_controller: Temp: 59.9Â°C, SetPoint: 60.0Â°C, Output: 34.0%[0m
+[0;32mI (54374673) fan_controller: Temp: 59.8Â°C, SetPoint: 60.0Â°C, Output: 33.6%[0m
+[0;32mI (54376267) stratum_api: tx: {"id":3790,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a0ae","5f000000","6ad5ea33","5a25ab12","000f8000"]}[0m
+[0;32mI (54376268) asic_result: Processing time: 4.6 ms[0m
+[0;32mI (54376376) stratum_api: rx: {"id":3790,"result":true,"error":null}[0m
+[0;32mI (54376377) stratum_api: Result success[0m
+[0;32mI (54376377) stratum_v1_task: message result accepted[0m
+[0;32mI (54376378) stratum_v1_task: Stratum response time: 109.3 ms[0m
+[0;32mI (54376562) stratum_api: tx: {"id":3791,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a0ae","60000000","6ad5ea33","24df85af","0005a000"]}[0m
+[0;32mI (54376562) asic_result: Processing time: 2.9 ms[0m
+[0;32mI (54376668) stratum_api: rx: {"id":3791,"result":true,"error":null}[0m
+[0;32mI (54376669) stratum_api: Result success[0m
+[0;32mI (54376669) stratum_v1_task: message result accepted[0m
+[0;32mI (54376670) stratum_v1_task: Stratum response time: 106.2 ms[0m
+[0;32mI (54376673) fan_controller: Temp: 59.8Â°C, SetPoint: 60.0Â°C, Output: 34.2%[0m
+[0;32mI (54378674) fan_controller: Temp: 59.8Â°C, SetPoint: 60.0Â°C, Output: 33.5%[0m
+[0;32mI (54379020) esp_image: segment 0: paddr=00710020 vaddr=3c160020 size=11d574h (1168756) map[0m
+[0;32mI (54379141) esp_image: segment 1: paddr=0082d59c vaddr=3fc9f700 size=02a7ch ( 10876) [0m
+[0;32mI (54379143) esp_image: segment 2: paddr=00830020 vaddr=42000020 size=15f9b4h (1440180) map[0m
+[0;32mI (54379292) esp_image: segment 3: paddr=0098f9dc vaddr=3fca217c size=042d4h ( 17108) [0m
+[0;32mI (54379294) esp_image: segment 4: paddr=00993cb8 vaddr=40374000 size=1b670h (112240) [0m
+[0;32mI (54379306) esp_image: segment 5: paddr=009af330 vaddr=50000000 size=00024h (    36) [0m
+[0;32mI (54379307) esp_image: segment 0: paddr=00710020 vaddr=3c160020 size=11d574h (1168756) map[0m
+[0;32mI (54379427) esp_image: segment 1: paddr=0082d59c vaddr=3fc9f700 size=02a7ch ( 10876) [0m
+[0;32mI (54379430) esp_image: segment 2: paddr=00830020 vaddr=42000020 size=15f9b4h (1440180) map[0m
+[0;32mI (54379579) esp_image: segment 3: paddr=0098f9dc vaddr=3fca217c size=042d4h ( 17108) [0m
+[0;32mI (54379582) esp_image: segment 4: paddr=00993cb8 vaddr=40374000 size=1b670h (112240) [0m
+[0;32mI (54379596) esp_image: segment 5: paddr=009af330 vaddr=50000000 size=00024h (    36) [0m
+[0;32mI (54379613) http_server: Restarting System because of Firmware update complete[0m
+I (54380614) wifi:state: run -> init (0x0)
+I (54380617) wifi:pm stop, total sleep time: 0 us / 54376489586 us
+
+I (54380617) wifi:<ba-del>idx:0, tid:0
+I (54380618) wifi:<ba-del>idx:1, tid:1
+[0;32mI (54380619) connect: NET,event=WIFI_DISCONNECTED,reason=8 (Deassociated due to leaving),rssi=-66[0m
+[0;32mI (54380619) connect: NET,event=STATE_TRANSITION,from=DNS_READY,to=WIFI_RECOVERY,gen=1,dhcp_gen=1,retry=0,ts=54379431[0m
+[0;33mW (54380620) connect: NET,event=SOCKET_INVALIDATE,reason=WIFI_LOST,gen=1[0m
+[0;32mI (54380620) connect: Wi-Fi status: Deassociated due to leaving (Error 8, retry #0)[0m
+[0;32mI (54380620) connect: NET,event=WIFI_RETRY,attempt=1,backoff=2209[0m
+I (54380653) wifi:flush txq
+I (54380653) wifi:stop sw txq
+I (54380653) wifi:lmac stop hw txq
+
+--- SYSTEM RESTART ---
+[0;32mI (1255) bitaxe: Welcome to the bitaxe - FOSS || GTFO![0m
+[0;32mI (1257) bitaxe: RST pin initialized to low[0m
+[0;32mI (1357) adc: calibration scheme version is Curve Fitting[0m
+[0;32mI (1357) adc: Calibration Success[0m
+[0;32mI (1394) nvs_config: Used entries: 321[0m
+[0;32mI (1395) nvs_config: Free entries: 435[0m
+[0;32mI (1395) nvs_config: Available entries: 309[0m
+[0;32mI (1395) nvs_config: Total entries: 756[0m
+[0;32mI (1414) device_config: Device Model: Gamma[0m
+[0;32mI (1416) device_config: Board Version: 601[0m
+[0;32mI (1416) device_config: ASIC: 1x BM1370 (128 cores)[0m
+[0;32mI (1416) i2c_bitaxe: Initializing I2C bus on SDA=47 SCL=48[0m
+[0;32mI (1417) bitaxe: I2C initialized successfully[0m
+[0;32mI (1518) system: Initial overheat_mode value: 0[0m
+[0;32mI (1521) connect: NET,event=STATE_TRANSITION,from=OFF,to=WIFI_INIT,gen=0,dhcp_gen=0,retry=0,ts=332[0m
+[0;32mI (1522) pp: pp rom version: e7ae62f[0m
+[0;32mI (1523) net80211: net80211 rom version: e7ae62f[0m
+I (1525) wifi:wifi driver task: 3fcc4454, prio:23, stack:6656, core=0
+I (1537) wifi:wifi firmware version: 00ad238
+I (1537) wifi:wifi certification version: v7.0
+I (1537) wifi:config NVS flash: enabled
+I (1537) wifi:config nano formatting: disabled
+I (1537) wifi:Init data frame dynamic rx buffer num: 32
+I (1537) wifi:Init static rx mgmt buffer num: 5
+I (1538) wifi:Init management short buffer num: 32
+I (1538) wifi:Init static tx buffer num: 16
+I (1538) wifi:Init tx cache buffer num: 32
+I (1539) wifi:Init static tx FG buffer num: 2
+I (1539) wifi:Init static rx buffer size: 1600
+I (1539) wifi:Init static rx buffer num: 16
+I (1539) wifi:Init dynamic rx buffer num: 32
+[0;32mI (1540) wifi_init: rx ba win: 16[0m
+[0;32mI (1540) wifi_init: accept mbox: 6[0m
+[0;32mI (1540) wifi_init: tcpip mbox: 32[0m
+[0;32mI (1541) wifi_init: udp mbox: 6[0m
+[0;32mI (1541) wifi_init: tcp mbox: 6[0m
+[0;32mI (1541) wifi_init: tcp tx win: 5760[0m
+[0;32mI (1541) wifi_init: tcp rx win: 5760[0m
+[0;32mI (1541) wifi_init: tcp mss: 1440[0m
+[0;32mI (1541) wifi_init: WiFi/LWIP prefer SPIRAM[0m
+[0;32mI (1541) wifi_init: WiFi IRAM OP enabled[0m
+[0;32mI (1541) wifi_init: WiFi RX IRAM OP enabled[0m
+I (1542) wifi:(2.4G)set country: cc=DE  schan=1 nchan=13 policy=0
+[0;32mI (1542) connect: NET,event=WIFI_COUNTRY,code=DE,err=ESP_OK[0m
+[0;32mI (1543) connect: ESP_WIFI_MODE_STA[0m
+[0;32mI (1544) connect: Wi-Fi Password provided, using WPA2[0m
+[0;33mW (1544) connect: NET,event=WIFI_BSSID_PINNED,bssid=48:5d:35:0f:39:fc,scan=all_channel[0m
+[0;33mW (1545) connect: NET,event=WIFI_MAC_PINNED,mac=28:84:85:a6:1b:e0[0m
+[0;32mI (1545) connect: wifi_init_sta finished.[0m
+I (1545) wifi:Set ps type: 0, coexist: 0
+
+[0;32mI (1545) connect: ESP_WIFI setting hostname to: bitaxe-tim2[0m
+[0;32mI (1545) phy_init: phy_version 712,87e8c20e,Apr 13 2026,18:51:10[0m
+[0;32mI (1582) phy_init: Saving new calibration data due to checksum failure or outdated calibration data, mode(0)[0m
+I (1621) wifi:mode : sta (28:84:85:a6:1b:e0)
+I (1622) wifi:enable tsf
+[0;32mI (1622) connect: NET,event=WIFI_CONNECTING[0m
+[0;32mI (1622) connect: NET,event=STATE_TRANSITION,from=WIFI_INIT,to=WIFI_CONNECTING,gen=0,dhcp_gen=0,retry=0,ts=434[0m
+[0;33mW (1623) connect: NET,event=WIFI_BSSID_EFFECTIVE,bssid=48:5d:35:0f:39:fc,expected=48:5d:35:0f:39:fc[0m
+[0;32mI (1626) display: SSD1306 (128x32)[0m
+[0;32mI (1627) display: Install panel IO[0m
+[0;32mI (1627) display: Install panel driver[0m
+[0;32mI (1629) display: Initialize LVGL[0m
+[0;32mI (1631) LVGL: Starting LVGL task[0m
+[0;32mI (1650) display: Rotation: 0[0m
+[0;32mI (1756) display: Display init success![0m
+[0;32mI (1756) input: Install button driver[0m
+[0;32mI (1834) system: Existing overheat_mode value: 0[0m
+[0;32mI (1834) system: Custom WWW disabled; skipping SPIFFS filesystem initialization[0m
+[0;32mI (1834) vcore: Selected TPS546 config for family=Gamma id=4 voltage_domains=1[0m
+[0;32mI (1834) vcore: TPS546 init core: phase=0x00 stack=0x0000 sync=0x10 scale=0.250 vout=1.20 min=1.00 max=2.00[0m
+[0;32mI (1835) vcore: TPS546 init VIN: on=4.80 off=4.50 uv_warn=0.00 ov_fault=6.50[0m
+[0;32mI (1835) vcore: TPS546 init IOUT: warn=25.00 fault=30.00[0m
+[0;32mI (1835) vcore: TPS546 init COMPENSATION_CONFIG: 00 00 00 00 00[0m
+[0;32mI (1835) TPS546: Initializing the core voltage regulator[0m
+[0;33mW (1847) TPS546: SMBus alert response raw=0x48 decoded 7-bit address=0x24[0m
+[0;32mI (1862) TPS546: Device ID: 54 49 54 6d 24 41[0m
+[0;32mI (1862) TPS546: Power config-OPERATION: 00[0m
+[0;32mI (1863) TPS546: Power config-ON_OFF_CONFIG: 1F[0m
+[0;32mI (1863) TPS546: Reading MFR info[0m
+[0;32mI (1864) TPS546: MFR_ID: 00 00 00[0m
+[0;32mI (1864) TPS546: MFR_MODEL: 00 00 00[0m
+[0;32mI (1864) TPS546: MFR_REVISION: 00 00 00[0m
+[0;32mI (1864) TPS546: Writing new config values[0m
+[0;32mI (1864) TPS546: VOUT_MODE: 97[0m
+[0;32mI (1864) TPS546: ---Writing new config values to TPS546---[0m
+[0;32mI (1864) TPS546: Setting ON_OFF_CONFIG: 1B[0m
+[0;32mI (1865) TPS546: Setting STACK_CONFIG: 0000[0m
+[0;32mI (1865) TPS546: Setting SYNC_CONFIG: 10[0m
+[0;32mI (1865) TPS546: Setting PHASE: 00[0m
+[0;32mI (1865) TPS546: Setting FREQUENCY: 650KHz[0m
+[0;32mI (1867) TPS546: Setting VIN_ON: 4.80V[0m
+[0;32mI (1868) TPS546: Setting VIN_OFF: 4.50V[0m
+[0;32mI (1869) TPS546: Setting VIN_OV_FAULT_LIMIT: 6.50V[0m
+[0;32mI (1870) TPS546: Setting VIN_OV_FAULT_RESPONSE: B7[0m
+[0;32mI (1870) TPS546: Setting VOUT SCALE: 0.25[0m
+[0;32mI (1871) TPS546: Setting VOUT_COMMAND: 1.20V[0m
+[0;32mI (1872) TPS546: Setting VOUT_MAX: 2.00V[0m
+[0;32mI (1872) TPS546: Setting VOUT_MIN: 1.00V[0m
+[0;32mI (1873) TPS546: Setting VOUT_OV_FAULT_LIMIT: 1.25x (1.50V)[0m
+[0;32mI (1874) TPS546: Setting VOUT_OV_WARN_LIMIT: 1.16x (1.39V)[0m
+[0;32mI (1875) TPS546: Setting VOUT_MARGIN_HIGH: 1.10x (1.32V)[0m
+[0;32mI (1876) TPS546: Setting VOUT_MARGIN_LOW: 0.90x (1.08V)[0m
+[0;32mI (1877) TPS546: Setting VOUT_UV_WARN_LIMIT: 0.90x (1.08V)[0m
+[0;32mI (1878) TPS546: Setting VOUT_UV_FAULT_LIMIT: 0.75x (0.90V)[0m
+[0;32mI (1879) TPS546: ----- IOUT[0m
+[0;32mI (1879) TPS546: Setting IOUT_OC_WARN_LIMIT: 25.00A[0m
+[0;32mI (1879) TPS546: Setting IOUT_OC_FAULT_LIMIT: 30.00A[0m
+[0;32mI (1880) TPS546: Setting IOUT_OC_FAULT_RESPONSE: c0[0m
+[0;32mI (1880) TPS546: ----- TEMPERATURE[0m
+[0;32mI (1880) TPS546: Setting OT_WARN_LIMIT: 105C[0m
+[0;32mI (1881) TPS546: Setting OT_FAULT_LIMIT: 145C[0m
+[0;32mI (1881) TPS546: Setting OT_FAULT_RESPONSE: ff[0m
+[0;32mI (1881) TPS546: ----- TIMING[0m
+[0;32mI (1881) TPS546: Setting TON_DELAY: 0ms[0m
+[0;32mI (1882) TPS546: Setting TON_RISE: 3ms[0m
+[0;32mI (1882) TPS546: Setting TON_MAX_FAULT_LIMIT: 0ms[0m
+[0;32mI (1882) TPS546: Setting TON_MAX_FAULT_RESPONSE: 3b[0m
+[0;32mI (1883) TPS546: Setting TOFF_DELAY: 0ms[0m
+[0;32mI (1883) TPS546: Setting TOFF_FALL: 0ms[0m
+[0;32mI (1883) TPS546: Setting PIN_DETECT_OVERRIDE: FFFF[0m
+[0;32mI (1883) TPS546: -----------VOLTAGE---------------------[0m
+[0;32mI (1884) TPS546: read VIN_ON: 4.80V[0m
+[0;32mI (1885) TPS546: read VIN_OFF: 4.50V[0m
+[0;32mI (1886) TPS546: read VIN_OV_FAULT_LIMIT: 6.50V[0m
+[0;32mI (1887) TPS546: read VIN_UV_WARN_LIMIT: 2.50V[0m
+[0;32mI (1887) TPS546: read VIN_OV_FAULT_RESPONSE: B7[0m
+[0;32mI (1888) TPS546: read VOUT_MAX: 2.00V[0m
+[0;32mI (1888) TPS546: read VOUT_OV_FAULT_LIMIT: 1.25x (1.50V)[0m
+[0;32mI (1889) TPS546: read VOUT_OV_WARN_LIMIT: 1.16x (1.39V)[0m
+[0;32mI (1890) TPS546: read VOUT_MARGIN_HIGH: 1.10x (1.32V)[0m
+[0;32mI (1891) TPS546: read VOUT_COMMAND: 1.20V[0m
+[0;32mI (1892) TPS546: read VOUT_MARGIN_LOW: 0.90x (1.08V)[0m
+[0;32mI (1893) TPS546: read VOUT_UV_WARN_LIMIT: 0.90x (1.08V)[0m
+[0;32mI (1894) TPS546: read VOUT_UV_FAULT_LIMIT: 0.75x (0.90V)[0m
+[0;32mI (1895) TPS546: read VOUT_MIN: 1.00 V[0m
+[0;32mI (1896) TPS546: read STATUS_WORD: 0a42[0m
+[0;32mI (1896) TPS546: -----------VOLTAGE/CURRENT---------------------[0m
+[0;32mI (1897) TPS546: read READ_VIN: 5.32V[0m
+[0;32mI (1897) TPS546: read READ_IOUT: -0.20A[0m
+[0;32mI (1898) TPS546: read READ_VOUT: 0.03V[0m
+[0;32mI (1898) TPS546: -----------TIMING---------------------[0m
+[0;32mI (1899) TPS546: read TON_DELAY: 0ms[0m
+[0;32mI (1899) TPS546: read TON_RISE: 3ms[0m
+[0;32mI (1900) TPS546: read TON_MAX_FAULT_LIMIT: 0ms[0m
+[0;32mI (1900) TPS546: read TON_MAX_FAULT_RESPONSE: 3b[0m
+[0;32mI (1900) TPS546: read TOFF_DELAY: 0ms[0m
+[0;32mI (1901) TPS546: read TOFF_FALL: 0ms[0m
+[0;32mI (1901) TPS546: ---------CONFIG--------------------[0m
+[0;32mI (1901) TPS546: read PHASE: 00[0m
+[0;32mI (1902) TPS546: read STACK_CONFIG: 0000[0m
+[0;32mI (1902) TPS546: read SYNC_CONFIG: 10[0m
+[0;32mI (1902) TPS546: read INTERLEAVE: 0020[0m
+[0;32mI (1903) TPS546: read CAPABILITY: d0[0m
+[0;32mI (1903) TPS546: ---------OPERATION------------------[0m
+[0;32mI (1903) TPS546: read OPERATION: 00[0m
+[0;32mI (1903) TPS546: read ON_OFF_CONFIG: 1b[0m
+[0;32mI (1904) TPS546: read COMPENSATION CONFIG[0m
+[0;32mI (1904) TPS546: 13 11 08 19 04[0m
+[0;32mI (1904) TPS546: Clearing faults[0m
+[0;32mI (1904) TPS546: read STATUS_WORD: 0840[0m
+[0;32mI (1905) EMC2101: Initializing EMC2101 (Temperature offset: 0Â° C)[0m
+[0;32mI (1905) thermal: EMC2101 configuration: Ideality Factor: 24, Beta Compensation: 00[0m
+[0;32mI (1906) power_management: Starting[0m
+[0;32mI (1906) power_management: ASIC Frequency: 750 MHz, Expected hashrate: 1.53GH/s[0m
+[0;32mI (1906) fan_controller: Starting[0m
+[0;32mI (1906) fan_controller: Set to Startup mode, fan speed: 70.0%[0m
+[0;32mI (1907) system: Firmware Version: v4.0.1-stable-tim2[0m
+[0;32mI (1907) system: AxeOS Version: Unified[0m
+[0;32mI (1907) http_server: Starting HTTP Server[0m
+[0;32mI (1911) websocket_log: websocket_log_task starting[0m
+[0;32mI (1911) websocket_api: websocket_api_task starting[0m
+[0;32mI (1913) BAP: Initializing BAP system[0m
+[0;32mI (1916) BAP: BAP system initialized successfully[0m
+[0;32mI (2416) power_management: setting new vcore voltage to 1200mV[0m
+[0;32mI (2416) vcore: Set ASIC voltage = 1.200V[0m
+[0;32mI (2417) TPS546: Vout changed to 1.20 V[0m
+[0;32mI (2417) TPS546: Setting VOUT_OV_FAULT_LIMIT: 1.25x (1.50V)[0m
+[0;32mI (2418) TPS546: Setting VOUT_OV_WARN_LIMIT: 1.16x (1.39V)[0m
+[0;32mI (2419) TPS546: Setting VOUT_MARGIN_HIGH: 1.10x (1.32V)[0m
+[0;32mI (2420) TPS546: Setting VOUT_MARGIN_LOW: 0.90x (1.08V)[0m
+[0;32mI (2421) TPS546: Setting VOUT_UV_WARN_LIMIT: 0.90x (1.08V)[0m
+[0;32mI (2422) TPS546: Setting VOUT_UV_FAULT_LIMIT: 0.75x (0.90V)[0m
+I (4042) wifi:new:<4,0>, old:<1,0>, ap:<255,255>, sta:<4,0>, prof:1, snd_ch_cfg:0x0
+I (4044) wifi:state: init -> auth (0xb0)
+I (4053) wifi:state: auth -> assoc (0x0)
+I (4063) wifi:BSS max idle period:10(1000TU), protected keep alive:FALSE
+I (4063) wifi:state: assoc -> run (0x10)
+I (4094) wifi:connected with FRITZ!Box 7590 MP-2,4GhZ, aid = 131, channel 4, BW20, bssid = 48:5d:35:0f:39:fc
+I (4095) wifi:security: WPA2-PSK, phy: bgn, rssi: -68, cipher(pairwise:0x3, group:0x3), pmf:0
+I (4097) wifi:pm start, type: 0
+
+I (4097) wifi:dp: 1, bi: 102400, li: 3, scale listen interval from 307200 us to 307200 us
+I (4097) wifi:set rx beacon pti, rx_bcn_pti: 14, bcn_timeout: 25000, mt_pti: 14, mt_time: 10000
+[0;32mI (4098) connect: NET,event=WIFI_CONNECTED,reason=assoc_success[0m
+[0;32mI (4099) connect: NET,event=STATE_TRANSITION,from=WIFI_CONNECTING,to=WIFI_CONNECTED_NO_IP,gen=0,dhcp_gen=0,retry=0,ts=2910[0m
+[0;32mI (4099) connect: NET,event=DHCP_START[0m
+[0;32mI (4099) connect: NET,event=STATE_TRANSITION,from=WIFI_CONNECTED_NO_IP,to=DHCP_RUNNING,gen=0,dhcp_gen=0,retry=0,ts=2910[0m
+[0;32mI (4099) connect: NET,event=DHCP_CLIENT_START,err=ESP_OK[0m
+I (4109) wifi:dp: 2, bi: 102400, li: 4, scale listen interval from 307200 us to 409600 us
+I (4109) wifi:AP's beacon interval = 102400 us, DTIM period = 2
+I (4125) wifi:<ba-add>idx:0 (ifx:0, 48:5d:35:0f:39:fc), tid:0, ssn:0, winSize:64
+I (4126) wifi:<ba-add>idx:1 (ifx:0, 48:5d:35:0f:39:fc), tid:1, ssn:0, winSize:64
+[0;32mI (5612) connect: NET,event=IP_ACQUIRED,ip=192.168.178.80,gen=1[0m
+[0;32mI (5612) connect: NET,event=STATE_TRANSITION,from=DHCP_RUNNING,to=IP_ACQUIRED,gen=1,dhcp_gen=1,retry=0,ts=4424[0m
+[0;32mI (5613) connect: NET,event=LAST_LEASE_SAVED,ip=192.168.178.80,gw=192.168.178.1,mask=255.255.255.0,dns=192.168.178.1,dns_from_lease=1[0m
+[0;32mI (5614) connect: Connected to SSID: FRITZ!Box 7590 MP-2,4GhZ[0m
+[0;32mI (5614) connect: NET,event=STATE_TRANSITION,from=IP_ACQUIRED,to=DNS_READY,gen=1,dhcp_gen=1,retry=0,ts=4425[0m
+[0;32mI (5614) esp_netif_handlers: sta ip: 192.168.178.80, mask: 255.255.255.0, gw: 192.168.178.1[0m
+[0;32mI (5617) mdns_mem: mDNS task will be created from internal RAM[0m
+[0;32mI (5617) connect: mDNS/Avahi initialized successfully - device discoverable on network[0m
+[0;32mI (5668) asic_init: Starting ASIC initialization (cold boot mode)[0m
+[0;32mI (5778) connect: mDNS hostname set to: bitaxe-tim2.local[0m
+[0;32mI (5779) connect: Access device at: http://bitaxe-tim2.local[0m
+[0;32mI (5779) connect: mDNS HTTP service registered: _http._tcp port 80[0m
+[0;32mI (5779) connect: Discover with: avahi-browse _http._tcp[0m
+[0;32mI (5779) connect: mDNS instance: Bitaxe Gamma 601 (1BE0)[0m
+[0;32mI (5779) connect: mDNS AxeOS subtype registered: _axeos._sub._http._tcp[0m
+[0;32mI (5780) connect: Discover AxeOS devices with: avahi-browse _axeos._sub._http._tcp[0m
+[0;32mI (5780) connect: mDNS TXT records added: board=601, family=Gamma, asic=BM1370, asic_count=1, fw_version=v4.0.1-stable-tim2[0m
+[0;32mI (5781) connect: mDNS/Avahi setup complete - device ready for network discovery[0m
+[0;32mI (5872) asic_init: Performing full UART initialization[0m
+[0;32mI (5873) serial: Initializing serial[0m
+[0;32mI (5894) asic_init: Detecting ASIC chips... attempt 1/1[0m
+[0;32mI (5894) asic: Initializing 1x BM1370[0m
+[0;32mI (5894) bm1370: Version mask 1FFFE000 -> 65535 rolls[0m
+[0;32mI (5895) bm1370: Version mask 1FFFE000 -> 65535 rolls[0m
+[0;32mI (5895) bm1370: Version mask 1FFFE000 -> 65535 rolls[0m
+[0;32mI (5913) common: Chip 0 detected: CORE_NUM: 0x00 ADDR: 0x00[0m
+[0;32mI (6913) bm1370: Version mask 1FFFE000 -> 65535 rolls[0m
+[0;32mI (6935) bm1370: Setting ticket mask for pool difficulty 256.00[0m
+[0;32mI (6988) frequency_transition: Ramping up frequency from 50 MHz to 750 MHz[0m
+[0;32mI (6988) pll: Frequency: 56.25 MHz (fb_divider: 189, refdiv: 2, postdiv1: 7, postdiv2: 6)[0m
+[0;32mI (6989) bm1370: Setting Frequency to 56.25 MHz (56.25)[0m
+[0;32mI (7091) pll: Frequency: 62.5 MHz (fb_divider: 175, refdiv: 2, postdiv1: 7, postdiv2: 5)[0m
+[0;32mI (7092) bm1370: Setting Frequency to 62.5 MHz (62.5)[0m
+[0;32mI (7194) pll: Frequency: 68.75 MHz (fb_divider: 165, refdiv: 2, postdiv1: 6, postdiv2: 5)[0m
+[0;32mI (7198) bm1370: Setting Frequency to 68.75 MHz (68.75)[0m
+[0;32mI (7301) pll: Frequency: 75 MHz (fb_divider: 168, refdiv: 2, postdiv1: 7, postdiv2: 4)[0m
+[0;32mI (7305) bm1370: Setting Frequency to 75 MHz (75)[0m
+[0;33mW (7394) httpd_txrx: httpd_sock_err: error in recv : 104[0m
+[0;32mI (7411) pll: Frequency: 81.25 MHz (fb_divider: 182, refdiv: 2, postdiv1: 7, postdiv2: 4)[0m
+[0;32mI (7412) bm1370: Setting Frequency to 81.25 MHz (81.25)[0m
+[0;32mI (7516) pll: Frequency: 87.5 MHz (fb_divider: 168, refdiv: 2, postdiv1: 6, postdiv2: 4)[0m
+[0;32mI (7519) bm1370: Setting Frequency to 87.5 MHz (87.5)[0m
+[0;32mI (7523) connect: IPv6 Address: FE80::2A84:85FF:FEA6:1BE0[0m
+[0;32mI (7626) pll: Frequency: 93.75 MHz (fb_divider: 180, refdiv: 2, postdiv1: 6, postdiv2: 4)[0m
+[0;32mI (7627) bm1370: Setting Frequency to 93.75 MHz (93.75)[0m
+[0;32mI (7727) pll: Frequency: 100 MHz (fb_divider: 160, refdiv: 2, postdiv1: 5, postdiv2: 4)[0m
+[0;32mI (7730) bm1370: Setting Frequency to 100 MHz (100)[0m
+[0;32mI (7837) pll: Frequency: 106.25 MHz (fb_divider: 170, refdiv: 2, postdiv1: 5, postdiv2: 4)[0m
+[0;32mI (7838) bm1370: Setting Frequency to 106.25 MHz (106.25)[0m
+[0;32mI (7939) pll: Frequency: 112.5 MHz (fb_divider: 162, refdiv: 2, postdiv1: 6, postdiv2: 3)[0m
+[0;32mI (7940) bm1370: Setting Frequency to 112.5 MHz (112.5)[0m
+[0;32mI (8040) pll: Frequency: 118.75 MHz (fb_divider: 171, refdiv: 2, postdiv1: 6, postdiv2: 3)[0m
+[0;32mI (8041) bm1370: Setting Frequency to 118.75 MHz (118.75)[0m
+[0;32mI (8141) pll: Frequency: 125 MHz (fb_divider: 180, refdiv: 2, postdiv1: 6, postdiv2: 3)[0m
+[0;32mI (8142) bm1370: Setting Frequency to 125 MHz (125)[0m
+[0;32mI (8242) pll: Frequency: 131.25 MHz (fb_divider: 189, refdiv: 2, postdiv1: 6, postdiv2: 3)[0m
+[0;32mI (8243) bm1370: Setting Frequency to 131.25 MHz (131.25)[0m
+[0;32mI (8343) pll: Frequency: 137.5 MHz (fb_divider: 165, refdiv: 2, postdiv1: 5, postdiv2: 3)[0m
+[0;32mI (8343) bm1370: Setting Frequency to 137.5 MHz (137.5)[0m
+[0;32mI (8444) pll: Frequency: 143.75 MHz (fb_divider: 161, refdiv: 2, postdiv1: 7, postdiv2: 2)[0m
+[0;32mI (8445) bm1370: Setting Frequency to 143.75 MHz (143.75)[0m
+[0;32mI (8522) connect: IPv6 Address: 2A02:3100:5F3F:7700:2A84:85FF:FEA6:1BE0[0m
+[0;32mI (8523) connect: IPv6 Address: FD1B:422:BBF5:0:2A84:85FF:FEA6:1BE0[0m
+[0;32mI (8545) pll: Frequency: 150 MHz (fb_divider: 168, refdiv: 2, postdiv1: 7, postdiv2: 2)[0m
+[0;32mI (8545) bm1370: Setting Frequency to 150 MHz (150)[0m
+[0;32mI (8646) pll: Frequency: 156.25 MHz (fb_divider: 175, refdiv: 2, postdiv1: 7, postdiv2: 2)[0m
+[0;32mI (8647) bm1370: Setting Frequency to 156.25 MHz (156.25)[0m
+[0;32mI (8747) pll: Frequency: 162.5 MHz (fb_divider: 182, refdiv: 2, postdiv1: 7, postdiv2: 2)[0m
+[0;32mI (8747) bm1370: Setting Frequency to 162.5 MHz (162.5)[0m
+[0;32mI (8848) pll: Frequency: 168.75 MHz (fb_divider: 162, refdiv: 2, postdiv1: 6, postdiv2: 2)[0m
+[0;32mI (8849) bm1370: Setting Frequency to 168.75 MHz (168.75)[0m
+[0;32mI (8949) pll: Frequency: 175 MHz (fb_divider: 168, refdiv: 2, postdiv1: 6, postdiv2: 2)[0m
+[0;32mI (8950) bm1370: Setting Frequency to 175 MHz (175)[0m
+[0;32mI (9050) pll: Frequency: 181.25 MHz (fb_divider: 174, refdiv: 2, postdiv1: 6, postdiv2: 2)[0m
+[0;32mI (9051) bm1370: Setting Frequency to 181.25 MHz (181.25)[0m
+[0;32mI (9151) pll: Frequency: 187.5 MHz (fb_divider: 180, refdiv: 2, postdiv1: 6, postdiv2: 2)[0m
+[0;32mI (9152) bm1370: Setting Frequency to 187.5 MHz (187.5)[0m
+[0;32mI (9252) pll: Frequency: 193.75 MHz (fb_divider: 186, refdiv: 2, postdiv1: 6, postdiv2: 2)[0m
+[0;32mI (9253) bm1370: Setting Frequency to 193.75 MHz (193.75)[0m
+[0;32mI (9353) pll: Frequency: 200 MHz (fb_divider: 160, refdiv: 2, postdiv1: 5, postdiv2: 2)[0m
+[0;32mI (9354) bm1370: Setting Frequency to 200 MHz (200)[0m
+[0;32mI (9454) pll: Frequency: 206.25 MHz (fb_divider: 165, refdiv: 2, postdiv1: 5, postdiv2: 2)[0m
+[0;32mI (9455) bm1370: Setting Frequency to 206.25 MHz (206.25)[0m
+[0;32mI (9556) pll: Frequency: 212.5 MHz (fb_divider: 170, refdiv: 2, postdiv1: 5, postdiv2: 2)[0m
+[0;32mI (9557) bm1370: Setting Frequency to 212.5 MHz (212.5)[0m
+[0;32mI (9657) pll: Frequency: 218.75 MHz (fb_divider: 175, refdiv: 2, postdiv1: 5, postdiv2: 2)[0m
+[0;32mI (9657) bm1370: Setting Frequency to 218.75 MHz (218.75)[0m
+[0;32mI (9758) pll: Frequency: 225 MHz (fb_divider: 180, refdiv: 2, postdiv1: 5, postdiv2: 2)[0m
+[0;32mI (9759) bm1370: Setting Frequency to 225 MHz (225)[0m
+[0;32mI (9860) pll: Frequency: 231.25 MHz (fb_divider: 185, refdiv: 2, postdiv1: 5, postdiv2: 2)[0m
+[0;32mI (9861) bm1370: Setting Frequency to 231.25 MHz (231.25)[0m
+[0;32mI (9962) pll: Frequency: 237.5 MHz (fb_divider: 190, refdiv: 2, postdiv1: 5, postdiv2: 2)[0m
+[0;32mI (9965) bm1370: Setting Frequency to 237.5 MHz (237.5)[0m
+[0;32mI (10066) pll: Frequency: 243.75 MHz (fb_divider: 195, refdiv: 2, postdiv1: 5, postdiv2: 2)[0m
+[0;32mI (10067) bm1370: Setting Frequency to 243.75 MHz (243.75)[0m
+[0;32mI (10167) pll: Frequency: 250 MHz (fb_divider: 160, refdiv: 2, postdiv1: 4, postdiv2: 2)[0m
+[0;32mI (10168) bm1370: Setting Frequency to 250 MHz (250)[0m
+[0;32mI (10268) pll: Frequency: 256.25 MHz (fb_divider: 164, refdiv: 2, postdiv1: 4, postdiv2: 2)[0m
+[0;32mI (10269) bm1370: Setting Frequency to 256.25 MHz (256.25)[0m
+[0;32mI (10369) pll: Frequency: 262.5 MHz (fb_divider: 168, refdiv: 2, postdiv1: 4, postdiv2: 2)[0m
+[0;32mI (10370) bm1370: Setting Frequency to 262.5 MHz (262.5)[0m
+[0;32mI (10470) pll: Frequency: 268.75 MHz (fb_divider: 172, refdiv: 2, postdiv1: 4, postdiv2: 2)[0m
+[0;32mI (10471) bm1370: Setting Frequency to 268.75 MHz (268.75)[0m
+[0;32mI (10571) pll: Frequency: 275 MHz (fb_divider: 176, refdiv: 2, postdiv1: 4, postdiv2: 2)[0m
+[0;32mI (10572) bm1370: Setting Frequency to 275 MHz (275)[0m
+[0;32mI (10672) pll: Frequency: 281.25 MHz (fb_divider: 180, refdiv: 2, postdiv1: 4, postdiv2: 2)[0m
+[0;32mI (10672) bm1370: Setting Frequency to 281.25 MHz (281.25)[0m
+[0;32mI (10773) pll: Frequency: 287.5 MHz (fb_divider: 161, refdiv: 2, postdiv1: 7, postdiv2: 1)[0m
+[0;32mI (10774) bm1370: Setting Frequency to 287.5 MHz (287.5)[0m
+[0;32mI (10874) pll: Frequency: 293.75 MHz (fb_divider: 188, refdiv: 2, postdiv1: 4, postdiv2: 2)[0m
+[0;32mI (10875) bm1370: Setting Frequency to 293.75 MHz (293.75)[0m
+[0;32mI (10975) pll: Frequency: 300 MHz (fb_divider: 168, refdiv: 2, postdiv1: 7, postdiv2: 1)[0m
+[0;32mI (10976) bm1370: Setting Frequency to 300 MHz (300)[0m
+[0;32mI (11076) pll: Frequency: 306.25 MHz (fb_divider: 196, refdiv: 2, postdiv1: 4, postdiv2: 2)[0m
+[0;32mI (11077) bm1370: Setting Frequency to 306.25 MHz (306.25)[0m
+[0;32mI (11178) pll: Frequency: 312.5 MHz (fb_divider: 175, refdiv: 2, postdiv1: 7, postdiv2: 1)[0m
+[0;32mI (11178) bm1370: Setting Frequency to 312.5 MHz (312.5)[0m
+[0;32mI (11279) pll: Frequency: 318.75 MHz (fb_divider: 204, refdiv: 2, postdiv1: 4, postdiv2: 2)[0m
+[0;32mI (11284) bm1370: Setting Frequency to 318.75 MHz (318.75)[0m
+[0;32mI (11386) pll: Frequency: 325 MHz (fb_divider: 182, refdiv: 2, postdiv1: 7, postdiv2: 1)[0m
+[0;32mI (11390) bm1370: Setting Frequency to 325 MHz (325)[0m
+[0;32mI (11491) pll: Frequency: 331.25 MHz (fb_divider: 212, refdiv: 2, postdiv1: 4, postdiv2: 2)[0m
+[0;32mI (11492) bm1370: Setting Frequency to 331.25 MHz (331.25)[0m
+[0;32mI (11592) pll: Frequency: 337.5 MHz (fb_divider: 162, refdiv: 2, postdiv1: 6, postdiv2: 1)[0m
+[0;32mI (11593) bm1370: Setting Frequency to 337.5 MHz (337.5)[0m
+[0;32mI (11693) pll: Frequency: 343.75 MHz (fb_divider: 165, refdiv: 2, postdiv1: 6, postdiv2: 1)[0m
+[0;32mI (11694) bm1370: Setting Frequency to 343.75 MHz (343.75)[0m
+[0;32mI (11794) pll: Frequency: 350 MHz (fb_divider: 168, refdiv: 2, postdiv1: 6, postdiv2: 1)[0m
+[0;32mI (11795) bm1370: Setting Frequency to 350 MHz (350)[0m
+[0;32mI (11895) pll: Frequency: 356.25 MHz (fb_divider: 171, refdiv: 2, postdiv1: 6, postdiv2: 1)[0m
+[0;32mI (11896) bm1370: Setting Frequency to 356.25 MHz (356.25)[0m
+[0;32mI (11996) pll: Frequency: 362.5 MHz (fb_divider: 174, refdiv: 2, postdiv1: 6, postdiv2: 1)[0m
+[0;32mI (11997) bm1370: Setting Frequency to 362.5 MHz (362.5)[0m
+[0;32mI (12097) pll: Frequency: 368.75 MHz (fb_divider: 177, refdiv: 2, postdiv1: 6, postdiv2: 1)[0m
+[0;32mI (12098) bm1370: Setting Frequency to 368.75 MHz (368.75)[0m
+[0;32mI (12198) pll: Frequency: 375 MHz (fb_divider: 180, refdiv: 2, postdiv1: 6, postdiv2: 1)[0m
+[0;32mI (12199) bm1370: Setting Frequency to 375 MHz (375)[0m
+[0;32mI (12299) pll: Frequency: 381.25 MHz (fb_divider: 183, refdiv: 2, postdiv1: 6, postdiv2: 1)[0m
+[0;32mI (12300) bm1370: Setting Frequency to 381.25 MHz (381.25)[0m
+[0;32mI (12402) pll: Frequency: 387.5 MHz (fb_divider: 186, refdiv: 2, postdiv1: 6, postdiv2: 1)[0m
+[0;32mI (12403) bm1370: Setting Frequency to 387.5 MHz (387.5)[0m
+[0;32mI (12503) pll: Frequency: 393.75 MHz (fb_divider: 189, refdiv: 2, postdiv1: 6, postdiv2: 1)[0m
+[0;32mI (12505) bm1370: Setting Frequency to 393.75 MHz (393.75)[0m
+[0;32mI (12606) pll: Frequency: 400 MHz (fb_divider: 160, refdiv: 2, postdiv1: 5, postdiv2: 1)[0m
+[0;32mI (12609) bm1370: Setting Frequency to 400 MHz (400)[0m
+[0;32mI (12709) pll: Frequency: 406.25 MHz (fb_divider: 195, refdiv: 2, postdiv1: 6, postdiv2: 1)[0m
+[0;32mI (12711) bm1370: Setting Frequency to 406.25 MHz (406.25)[0m
+[0;32mI (12811) pll: Frequency: 412.5 MHz (fb_divider: 165, refdiv: 2, postdiv1: 5, postdiv2: 1)[0m
+[0;32mI (12813) bm1370: Setting Frequency to 412.5 MHz (412.5)[0m
+[0;32mI (12913) pll: Frequency: 418.75 MHz (fb_divider: 201, refdiv: 2, postdiv1: 6, postdiv2: 1)[0m
+[0;32mI (12916) bm1370: Setting Frequency to 418.75 MHz (418.75)[0m
+[0;32mI (13017) pll: Frequency: 425 MHz (fb_divider: 170, refdiv: 2, postdiv1: 5, postdiv2: 1)[0m
+[0;32mI (13019) bm1370: Setting Frequency to 425 MHz (425)[0m
+[0;32mI (13120) pll: Frequency: 431.25 MHz (fb_divider: 207, refdiv: 2, postdiv1: 6, postdiv2: 1)[0m
+[0;32mI (13122) bm1370: Setting Frequency to 431.25 MHz (431.25)[0m
+[0;32mI (13222) pll: Frequency: 437.5 MHz (fb_divider: 175, refdiv: 2, postdiv1: 5, postdiv2: 1)[0m
+[0;32mI (13225) bm1370: Setting Frequency to 437.5 MHz (437.5)[0m
+[0;32mI (13325) pll: Frequency: 443.75 MHz (fb_divider: 213, refdiv: 2, postdiv1: 6, postdiv2: 1)[0m
+[0;32mI (13328) bm1370: Setting Frequency to 443.75 MHz (443.75)[0m
+[0;32mI (13429) pll: Frequency: 450 MHz (fb_divider: 180, refdiv: 2, postdiv1: 5, postdiv2: 1)[0m
+[0;32mI (13431) bm1370: Setting Frequency to 450 MHz (450)[0m
+[0;32mI (13532) pll: Frequency: 456.25 MHz (fb_divider: 219, refdiv: 2, postdiv1: 6, postdiv2: 1)[0m
+[0;32mI (13535) bm1370: Setting Frequency to 456.25 MHz (456.25)[0m
+[0;32mI (13635) pll: Frequency: 462.5 MHz (fb_divider: 185, refdiv: 2, postdiv1: 5, postdiv2: 1)[0m
+[0;32mI (13638) bm1370: Setting Frequency to 462.5 MHz (462.5)[0m
+[0;32mI (13738) pll: Frequency: 468.75 MHz (fb_divider: 225, refdiv: 2, postdiv1: 6, postdiv2: 1)[0m
+[0;32mI (13741) bm1370: Setting Frequency to 468.75 MHz (468.75)[0m
+[0;32mI (13842) pll: Frequency: 475 MHz (fb_divider: 190, refdiv: 2, postdiv1: 5, postdiv2: 1)[0m
+[0;32mI (13844) bm1370: Setting Frequency to 475 MHz (475)[0m
+[0;32mI (13945) pll: Frequency: 481.25 MHz (fb_divider: 231, refdiv: 2, postdiv1: 6, postdiv2: 1)[0m
+[0;32mI (13947) bm1370: Setting Frequency to 481.25 MHz (481.25)[0m
+[0;32mI (14048) pll: Frequency: 487.5 MHz (fb_divider: 195, refdiv: 2, postdiv1: 5, postdiv2: 1)[0m
+[0;32mI (14051) bm1370: Setting Frequency to 487.5 MHz (487.5)[0m
+[0;32mI (14151) pll: Frequency: 493.75 MHz (fb_divider: 237, refdiv: 2, postdiv1: 6, postdiv2: 1)[0m
+[0;32mI (14154) bm1370: Setting Frequency to 493.75 MHz (493.75)[0m
+[0;32mI (14254) pll: Frequency: 500 MHz (fb_divider: 160, refdiv: 2, postdiv1: 4, postdiv2: 1)[0m
+[0;32mI (14257) bm1370: Setting Frequency to 500 MHz (500)[0m
+[0;32mI (14357) pll: Frequency: 506.25 MHz (fb_divider: 162, refdiv: 2, postdiv1: 4, postdiv2: 1)[0m
+[0;32mI (14360) bm1370: Setting Frequency to 506.25 MHz (506.25)[0m
+[0;32mI (14460) pll: Frequency: 512.5 MHz (fb_divider: 164, refdiv: 2, postdiv1: 4, postdiv2: 1)[0m
+[0;32mI (14463) bm1370: Setting Frequency to 512.5 MHz (512.5)[0m
+[0;32mI (14563) pll: Frequency: 518.75 MHz (fb_divider: 166, refdiv: 2, postdiv1: 4, postdiv2: 1)[0m
+[0;32mI (14564) bm1370: Setting Frequency to 518.75 MHz (518.75)[0m
+[0;32mI (14664) pll: Frequency: 525 MHz (fb_divider: 168, refdiv: 2, postdiv1: 4, postdiv2: 1)[0m
+[0;32mI (14665) bm1370: Setting Frequency to 525 MHz (525)[0m
+[0;32mI (14765) pll: Frequency: 531.25 MHz (fb_divider: 170, refdiv: 2, postdiv1: 4, postdiv2: 1)[0m
+[0;32mI (14772) bm1370: Setting Frequency to 531.25 MHz (531.25)[0m
+[0;32mI (14873) pll: Frequency: 537.5 MHz (fb_divider: 172, refdiv: 2, postdiv1: 4, postdiv2: 1)[0m
+[0;32mI (14874) bm1370: Setting Frequency to 537.5 MHz (537.5)[0m
+[0;32mI (14978) pll: Frequency: 543.75 MHz (fb_divider: 174, refdiv: 2, postdiv1: 4, postdiv2: 1)[0m
+[0;32mI (14979) bm1370: Setting Frequency to 543.75 MHz (543.75)[0m
+[0;32mI (15082) pll: Frequency: 550 MHz (fb_divider: 176, refdiv: 2, postdiv1: 4, postdiv2: 1)[0m
+[0;32mI (15083) bm1370: Setting Frequency to 550 MHz (550)[0m
+[0;32mI (15185) pll: Frequency: 556.25 MHz (fb_divider: 178, refdiv: 2, postdiv1: 4, postdiv2: 1)[0m
+[0;32mI (15187) bm1370: Setting Frequency to 556.25 MHz (556.25)[0m
+[0;32mI (15290) pll: Frequency: 562.5 MHz (fb_divider: 180, refdiv: 2, postdiv1: 4, postdiv2: 1)[0m
+[0;32mI (15292) bm1370: Setting Frequency to 562.5 MHz (562.5)[0m
+[0;32mI (15395) pll: Frequency: 568.75 MHz (fb_divider: 182, refdiv: 2, postdiv1: 4, postdiv2: 1)[0m
+[0;32mI (15397) bm1370: Setting Frequency to 568.75 MHz (568.75)[0m
+[0;32mI (15500) pll: Frequency: 575 MHz (fb_divider: 184, refdiv: 2, postdiv1: 4, postdiv2: 1)[0m
+[0;32mI (15500) bm1370: Setting Frequency to 575 MHz (575)[0m
+[0;32mI (15604) pll: Frequency: 581.25 MHz (fb_divider: 186, refdiv: 2, postdiv1: 4, postdiv2: 1)[0m
+[0;32mI (15607) bm1370: Setting Frequency to 581.25 MHz (581.25)[0m
+[0;32mI (15710) pll: Frequency: 587.5 MHz (fb_divider: 188, refdiv: 2, postdiv1: 4, postdiv2: 1)[0m
+[0;32mI (15713) bm1370: Setting Frequency to 587.5 MHz (587.5)[0m
+[0;32mI (15815) pll: Frequency: 593.75 MHz (fb_divider: 190, refdiv: 2, postdiv1: 4, postdiv2: 1)[0m
+[0;32mI (15816) bm1370: Setting Frequency to 593.75 MHz (593.75)[0m
+[0;32mI (15920) pll: Frequency: 600 MHz (fb_divider: 192, refdiv: 2, postdiv1: 4, postdiv2: 1)[0m
+[0;32mI (15921) bm1370: Setting Frequency to 600 MHz (600)[0m
+[0;32mI (16024) pll: Frequency: 606.25 MHz (fb_divider: 194, refdiv: 2, postdiv1: 4, postdiv2: 1)[0m
+[0;32mI (16028) bm1370: Setting Frequency to 606.25 MHz (606.25)[0m
+[0;32mI (16130) pll: Frequency: 612.5 MHz (fb_divider: 196, refdiv: 2, postdiv1: 4, postdiv2: 1)[0m
+[0;32mI (16134) bm1370: Setting Frequency to 612.5 MHz (612.5)[0m
+[0;32mI (16235) pll: Frequency: 618.75 MHz (fb_divider: 198, refdiv: 2, postdiv1: 4, postdiv2: 1)[0m
+[0;32mI (16235) bm1370: Setting Frequency to 618.75 MHz (618.75)[0m
+[0;32mI (16336) pll: Frequency: 625 MHz (fb_divider: 200, refdiv: 2, postdiv1: 4, postdiv2: 1)[0m
+[0;32mI (16337) bm1370: Setting Frequency to 625 MHz (625)[0m
+[0;32mI (16448) pll: Frequency: 631.25 MHz (fb_divider: 202, refdiv: 2, postdiv1: 4, postdiv2: 1)[0m
+[0;32mI (16449) bm1370: Setting Frequency to 631.25 MHz (631.25)[0m
+[0;32mI (16552) pll: Frequency: 637.5 MHz (fb_divider: 204, refdiv: 2, postdiv1: 4, postdiv2: 1)[0m
+[0;32mI (16553) bm1370: Setting Frequency to 637.5 MHz (637.5)[0m
+[0;32mI (16656) pll: Frequency: 643.75 MHz (fb_divider: 206, refdiv: 2, postdiv1: 4, postdiv2: 1)[0m
+[0;32mI (16657) bm1370: Setting Frequency to 643.75 MHz (643.75)[0m
+[0;32mI (16758) pll: Frequency: 650 MHz (fb_divider: 208, refdiv: 2, postdiv1: 4, postdiv2: 1)[0m
+[0;32mI (16763) bm1370: Setting Frequency to 650 MHz (650)[0m
+[0;32mI (16866) pll: Frequency: 656.25 MHz (fb_divider: 210, refdiv: 2, postdiv1: 4, postdiv2: 1)[0m
+[0;32mI (16867) bm1370: Setting Frequency to 656.25 MHz (656.25)[0m
+[0;32mI (16970) pll: Frequency: 662.5 MHz (fb_divider: 212, refdiv: 2, postdiv1: 4, postdiv2: 1)[0m
+[0;32mI (16971) bm1370: Setting Frequency to 662.5 MHz (662.5)[0m
+[0;32mI (17072) pll: Frequency: 668.75 MHz (fb_divider: 214, refdiv: 2, postdiv1: 4, postdiv2: 1)[0m
+[0;32mI (17073) bm1370: Setting Frequency to 668.75 MHz (668.75)[0m
+[0;32mI (17181) pll: Frequency: 675 MHz (fb_divider: 162, refdiv: 2, postdiv1: 3, postdiv2: 1)[0m
+[0;32mI (17182) bm1370: Setting Frequency to 675 MHz (675)[0m
+[0;32mI (17287) pll: Frequency: 681.25 MHz (fb_divider: 218, refdiv: 2, postdiv1: 4, postdiv2: 1)[0m
+[0;32mI (17288) bm1370: Setting Frequency to 681.25 MHz (681.25)[0m
+[0;32mI (17391) pll: Frequency: 687.5 MHz (fb_divider: 165, refdiv: 2, postdiv1: 3, postdiv2: 1)[0m
+[0;32mI (17392) bm1370: Setting Frequency to 687.5 MHz (687.5)[0m
+[0;32mI (17496) pll: Frequency: 693.75 MHz (fb_divider: 222, refdiv: 2, postdiv1: 4, postdiv2: 1)[0m
+[0;32mI (17497) bm1370: Setting Frequency to 693.75 MHz (693.75)[0m
+[0;32mI (17600) pll: Frequency: 700 MHz (fb_divider: 168, refdiv: 2, postdiv1: 3, postdiv2: 1)[0m
+[0;32mI (17604) bm1370: Setting Frequency to 700 MHz (700)[0m
+[0;32mI (17707) pll: Frequency: 706.25 MHz (fb_divider: 226, refdiv: 2, postdiv1: 4, postdiv2: 1)[0m
+[0;32mI (17708) bm1370: Setting Frequency to 706.25 MHz (706.25)[0m
+[0;32mI (17808) pll: Frequency: 712.5 MHz (fb_divider: 171, refdiv: 2, postdiv1: 3, postdiv2: 1)[0m
+[0;32mI (17811) bm1370: Setting Frequency to 712.5 MHz (712.5)[0m
+[0;32mI (17914) pll: Frequency: 718.75 MHz (fb_divider: 230, refdiv: 2, postdiv1: 4, postdiv2: 1)[0m
+[0;32mI (17919) bm1370: Setting Frequency to 718.75 MHz (718.75)[0m
+[0;32mI (18022) pll: Frequency: 725 MHz (fb_divider: 174, refdiv: 2, postdiv1: 3, postdiv2: 1)[0m
+[0;32mI (18022) bm1370: Setting Frequency to 725 MHz (725)[0m
+[0;32mI (18124) pll: Frequency: 731.25 MHz (fb_divider: 234, refdiv: 2, postdiv1: 4, postdiv2: 1)[0m
+[0;32mI (18128) bm1370: Setting Frequency to 731.25 MHz (731.25)[0m
+[0;32mI (18230) pll: Frequency: 737.5 MHz (fb_divider: 177, refdiv: 2, postdiv1: 3, postdiv2: 1)[0m
+[0;32mI (18233) bm1370: Setting Frequency to 737.5 MHz (737.5)[0m
+[0;32mI (18335) pll: Frequency: 743.75 MHz (fb_divider: 238, refdiv: 2, postdiv1: 4, postdiv2: 1)[0m
+[0;32mI (18339) bm1370: Setting Frequency to 743.75 MHz (743.75)[0m
+[0;32mI (18440) pll: Frequency: 750 MHz (fb_divider: 180, refdiv: 2, postdiv1: 3, postdiv2: 1)[0m
+[0;32mI (18441) bm1370: Setting Frequency to 750 MHz (750)[0m
+[0;32mI (18541) frequency_transition: Successfully transitioned to 750 MHz[0m
+[0;32mI (18547) bm1370: nonce space: requested=750.00 MHz applied=750.00 MHz[0m
+[0;32mI (18549) bm1370: Setting chip UART BT8D=2 -> 1041666 baud (host programmed to match)[0m
+[0;32mI (18550) serial: Changing UART baud to 1041666[0m
+[0;32mI (18552) asic_init: ASIC initialized successfully with 1 chip(s) (cold boot mode)[0m
+[0;32mI (18552) create_jobs_task: ASIC Job Interval: 500 ms[0m
+[0;32mI (18552) create_jobs_task: ASIC Ready![0m
+[0;32mI (18554) statistics_task: Starting[0m
+[0;32mI (18555) protocol_coordinator: Protocol coordinator started (primary: SV1, fallback: SV1, state: 1)[0m
+[0;32mI (18556) main_task: Returned from app_main()[0m
+[0;32mI (18556) stratum_v1_task: Opening connection to pool: sha256.eu.mine.zpool.ca:3333[0m
+[0;32mI (18604) stratum_socket: Resolved sha256.eu.mine.zpool.ca:3333 â 198.50.168.214[0m
+[0;32mI (18605) stratum_v1_task: Connecting to: stratum+tcp://sha256.eu.mine.zpool.ca:3333 (198.50.168.214)[0m
+[0;32mI (18605) stratum_api: TLS disabled, Using TCP transport[0m
+[0;32mI (18605) stratum_v1_task: Transport initialized, connecting to sha256.eu.mine.zpool.ca:3333 (198.50.168.214)[0m
+[0;32mI (18608) fan_controller: PID initialized at 50.9Â°C (P:5.0 I:0.1 D:2.0[0m
+[0;32mI (18609) fan_controller: Set to Auto mode, fan speed: 25.0%[0m
+[0;32mI (18756) stratum_v1_task: Resetting stratum uid[0m
+[0;32mI (18757) system: Clean Jobs: clearing queue[0m
+[0;32mI (18757) stratum_api: tx: {"id":1,"method":"mining.configure","params":[["version-rolling"],{"version-rolling.mask":"ffffffff"}]}[0m
+[0;32mI (18761) stratum_api: tx: {"id":2,"method":"mining.subscribe","params":["bitaxe/BM1370/v4.0.1-stable-tim2"]}[0m
+[0;32mI (18763) stratum_api: tx: {"id":3,"method":"mining.authorize","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","c=DGB"]}[0m
+[0;32mI (18866) stratum_api: rx: {"id":1,"result":{"version-rolling":true,"version-rolling.mask":"1fffe000"},"error":null}[0m
+[0;32mI (18867) stratum_api: Configure result: version_mask=1fffe000[0m
+[0;32mI (18867) stratum_v1_task: Configure result accepted, version mask: 1fffe000[0m
+[0;32mI (18869) stratum_api: rx: {"id":2,"result":[[["mining.set_difficulty","65536.000"],["mining.notify","00832fce0416bb0e1ef5bdc24dadbef4"]],"80034685",4],"error":null}[0m
+[0;32mI (18870) stratum_api: Subscribe result: extranonce=80034685, extranonce2_len=4[0m
+[0;32mI (18870) stratum_v1_task: Set extranonce: 80034685, extranonce_2_len: 4[0m
+[0;32mI (19153) create_jobs_task: Resetting extranonce2 to 0 due to set_extranonce request[0m
+[0;32mI (19153) create_jobs_task: Set chip version rolls 65535[0m
+[0;32mI (19153) bm1370: Version mask 1FFFE000 -> 65535 rolls[0m
+[0;32mI (19847) stratum_api: rx: {"id":3,"result":true,"error":null}[0m
+[0;32mI (19848) stratum_api: Result success[0m
+[0;32mI (19848) stratum_v1_task: setup message accepted[0m
+[0;32mI (19849) stratum_api: tx: {"id":4,"method":"mining.suggest_difficulty","params":[1000]}[0m
+[0;32mI (19887) stratum_api: rx: {"id":null,"method":"mining.set_difficulty","params":[65536]}[0m
+[0;32mI (19888) stratum_api: Set pool difficulty: 65536.00[0m
+[0;32mI (19889) stratum_v1_task: Set pool difficulty: 65536.00[0m
+[0;32mI (19889) stratum_api: rx: {"id":null,"method":"mining.notify","params":["1a0fa","c61ed18e1114057fcbdf0758016d3e5bb89a3de22f98af8c296920febd9cc81e","0100000073ead56a010000000000000000000000000000000000000000000000000000000000000000ffffffff22032baf0d0473ead56a08","2f7a706f6f6c2e63612fdd46cadb2f0000000000010027a9020000000023210224af11914c50d8a9f500091f56ab208a21997fe232d057d23ba9692f33c0b09aac00000000",[],"00000006","1901b4ce","6ad5ea73",true]}[0m
+[0;32mI (19892) stratum_v1_task: Coinbase outputs: 0, total value: 0 sats[0m
+[0;32mI (19892) system: Syncing clock[0m
+[0;32mI (19953) create_jobs_task: New pool difficulty 65536.00[0m
+[0;33mW (19953) asic: Capping ticket mask difficulty 65536.00 -> 4096[0m
+[0;32mI (19953) bm1370: Setting ticket mask for pool difficulty 4096.00[0m
+[0;32mI (19954) create_jobs_task: New Work Dequeued 1a0fa[0m
+[0;32mI (19958) stratum_api: rx: {"id":4,"result":true,"error":null}[0m
+[0;32mI (19959) stratum_api: Result success[0m
+[0;32mI (19959) stratum_v1_task: setup message accepted[0m
+[0;32mI (19959) stratum_api: rx: {"id":null,"method":"mining.set_difficulty","params":[1000]}[0m
+[0;32mI (19959) stratum_api: Set pool difficulty: 1000.00[0m
+[0;32mI (19960) stratum_v1_task: Set pool difficulty: 1000.00[0m
+[0;32mI (20458) create_jobs_task: New pool difficulty 1000.00[0m
+[0;32mI (20459) bm1370: Setting ticket mask for pool difficulty 1000.00[0m
+[0;32mI (20507) fan_controller: Temp: 50.9Â°C, SetPoint: 60.0Â°C, Output: 26.8%[0m
+[0;32mI (22168) stratum_api: tx: {"id":5,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a0fa","04000000","6ad5ea73","612fe932","0009e000"]}[0m
+[0;32mI (22168) asic_result: Processing time: 2.6 ms[0m
+[0;32mI (22273) stratum_api: rx: {"id":5,"result":true,"error":null}[0m
+[0;32mI (22275) stratum_api: Result success[0m
+[0;32mI (22277) stratum_v1_task: message result accepted[0m
+[0;32mI (22277) stratum_v1_task: Stratum response time: 105.1 ms[0m
+[0;32mI (22510) fan_controller: Temp: 51.2Â°C, SetPoint: 60.0Â°C, Output: 27.1%[0m
+[0;32mI (23303) stratum_api: tx: {"id":6,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a0fa","06000000","6ad5ea73","ef1db4da","000e8000"]}[0m
+[0;32mI (23304) asic_result: Processing time: 3.9 ms[0m
+[0;32mI (23409) stratum_api: rx: {"id":6,"result":true,"error":null}[0m
+[0;32mI (23410) stratum_api: Result success[0m
+[0;32mI (23410) stratum_v1_task: message result accepted[0m
+[0;32mI (23410) stratum_v1_task: Stratum response time: 106.3 ms[0m
+[0;32mI (24507) fan_controller: Temp: 51.5Â°C, SetPoint: 60.0Â°C, Output: 25.4%[0m
+[0;32mI (26506) fan_controller: Temp: 52.0Â°C, SetPoint: 60.0Â°C, Output: 27.5%[0m
+[0;32mI (27316) stratum_api: tx: {"id":7,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a0fa","0e000000","6ad5ea73","b61ed386","000fc000"]}[0m
+[0;32mI (27317) asic_result: Processing time: 2.8 ms[0m
+[0;32mI (27323) stratum_api: tx: {"id":8,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a0fa","0e000000","6ad5ea73","765821ab","000e8000"]}[0m
+[0;32mI (27323) asic_result: Processing time: 2.6 ms[0m
+[0;32mI (27421) stratum_api: rx: {"id":7,"result":true,"error":null}[0m
+[0;32mI (27422) stratum_api: Result success[0m
+[0;32mI (27422) stratum_v1_task: message result accepted[0m
+[0;32mI (27422) stratum_v1_task: Stratum response time: 104.5 ms[0m
+[0;32mI (27431) stratum_api: rx: {"id":8,"result":true,"error":null}[0m
+[0;32mI (27431) stratum_api: Result success[0m
+[0;32mI (27432) stratum_v1_task: message result accepted[0m
+[0;32mI (27432) stratum_v1_task: Stratum response time: 108.0 ms[0m
+[0;32mI (28506) fan_controller: Temp: 52.5Â°C, SetPoint: 60.0Â°C, Output: 27.2%[0m
+[0;32mI (30506) fan_controller: Temp: 52.9Â°C, SetPoint: 60.0Â°C, Output: 28.3%[0m
+[0;32mI (32506) fan_controller: Temp: 53.2Â°C, SetPoint: 60.0Â°C, Output: 28.1%[0m
+[0;32mI (34506) fan_controller: Temp: 53.5Â°C, SetPoint: 60.0Â°C, Output: 29.4%[0m
+[0;32mI (36509) fan_controller: Temp: 53.8Â°C, SetPoint: 60.0Â°C, Output: 29.3%[0m
+[0;32mI (38506) fan_controller: Temp: 54.0Â°C, SetPoint: 60.0Â°C, Output: 29.4%[0m
+[0;32mI (40506) fan_controller: Temp: 54.3Â°C, SetPoint: 60.0Â°C, Output: 30.2%[0m
+[0;32mI (41495) stratum_api: tx: {"id":9,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a0fa","2a000000","6ad5ea73","7e9b0a67","00146000"]}[0m
+[0;32mI (41495) asic_result: Processing time: 2.4 ms[0m
+[0;32mI (41602) stratum_api: rx: {"id":9,"result":true,"error":null}[0m
+[0;32mI (41602) stratum_api: Result success[0m
+[0;32mI (41603) stratum_v1_task: message result accepted[0m
+[0;32mI (41603) stratum_v1_task: Stratum response time: 106.7 ms[0m
+[0;32mI (42506) fan_controller: Temp: 54.5Â°C, SetPoint: 60.0Â°C, Output: 30.3%[0m
+[0;32mI (44506) fan_controller: Temp: 54.8Â°C, SetPoint: 60.0Â°C, Output: 29.9%[0m
+[0;32mI (46507) fan_controller: Temp: 55.1Â°C, SetPoint: 60.0Â°C, Output: 30.1%[0m
+[0;32mI (48506) fan_controller: Temp: 55.3Â°C, SetPoint: 60.0Â°C, Output: 30.4%[0m
+[0;32mI (49303) stratum_api: tx: {"id":10,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a0fa","3a000000","6ad5ea73","e28a9b4b","000b8000"]}[0m
+[0;32mI (49304) asic_result: Processing time: 2.9 ms[0m
+[0;32mI (49410) stratum_api: rx: {"id":10,"result":true,"error":null}[0m
+[0;32mI (49410) stratum_api: Result success[0m
+[0;32mI (49411) stratum_v1_task: message result accepted[0m
+[0;32mI (49411) stratum_v1_task: Stratum response time: 106.2 ms[0m
+[0;32mI (49700) stratum_api: tx: {"id":11,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a0fa","3b000000","6ad5ea73","c3d9fa00","00066000"]}[0m
+[0;32mI (49701) asic_result: Processing time: 2.5 ms[0m
+[0;32mI (49806) stratum_api: rx: {"id":11,"result":true,"error":null}[0m
+[0;32mI (49807) stratum_api: Result success[0m
+[0;32mI (49807) stratum_v1_task: message result accepted[0m
+[0;32mI (49808) stratum_v1_task: Stratum response time: 105.6 ms[0m
+[0;32mI (50506) fan_controller: Temp: 55.5Â°C, SetPoint: 60.0Â°C, Output: 30.8%[0m
+[0;32mI (50815) stratum_api: tx: {"id":12,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a0fa","3d000000","6ad5ea73","a229f9ad","000a8000"]}[0m
+[0;32mI (50816) asic_result: Processing time: 2.4 ms[0m
+[0;32mI (50920) stratum_api: rx: {"id":12,"result":true,"error":null}[0m
+[0;32mI (50921) stratum_api: Result success[0m
+[0;32mI (50921) stratum_v1_task: message result accepted[0m
+[0;32mI (50921) stratum_v1_task: Stratum response time: 105.0 ms[0m
+[0;32mI (51850) stratum_api: tx: {"id":13,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a0fa","3f000000","6ad5ea73","b3496eff","000ca000"]}[0m
+[0;32mI (51850) asic_result: Processing time: 2.4 ms[0m
+[0;32mI (51954) stratum_api: rx: {"id":13,"result":true,"error":null}[0m
+[0;32mI (51955) stratum_api: Result success[0m
+[0;32mI (51955) stratum_v1_task: message result accepted[0m
+[0;32mI (51956) stratum_v1_task: Stratum response time: 104.8 ms[0m
+[0;32mI (52506) fan_controller: Temp: 55.8Â°C, SetPoint: 60.0Â°C, Output: 30.5%[0m
+[0;32mI (54506) fan_controller: Temp: 55.9Â°C, SetPoint: 60.0Â°C, Output: 30.3%[0m
+[0;32mI (55716) stratum_api: tx: {"id":14,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a0fa","47000000","6ad5ea73","269fe436","0007e000"]}[0m
+[0;32mI (55716) asic_result: Processing time: 3.0 ms[0m
+[0;32mI (55821) stratum_api: rx: {"id":14,"result":true,"error":null}[0m
+[0;32mI (55822) stratum_api: Result success[0m
+[0;32mI (55822) stratum_v1_task: message result accepted[0m
+[0;32mI (55822) stratum_v1_task: Stratum response time: 104.7 ms[0m
+[0;32mI (56506) fan_controller: Temp: 56.2Â°C, SetPoint: 60.0Â°C, Output: 32.0%[0m
+[0;32mI (58507) fan_controller: Temp: 56.2Â°C, SetPoint: 60.0Â°C, Output: 30.0%[0m
+[0;32mI (59827) stratum_api: tx: {"id":15,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a0fa","4f000000","6ad5ea73","ab7352f3","000bc000"]}[0m
+[0;32mI (59827) asic_result: Processing time: 2.5 ms[0m
+[0;32mI (59932) stratum_api: rx: {"id":15,"result":true,"error":null}[0m
+[0;32mI (59932) stratum_api: Result success[0m
+[0;32mI (59933) stratum_v1_task: message result accepted[0m
+[0;32mI (59933) stratum_v1_task: Stratum response time: 104.9 ms[0m
+[0;32mI (60506) fan_controller: Temp: 56.4Â°C, SetPoint: 60.0Â°C, Output: 30.6%[0m
+[0;32mI (62514) fan_controller: Temp: 56.5Â°C, SetPoint: 60.0Â°C, Output: 29.9%[0m
+[0;32mI (64195) stratum_api: tx: {"id":16,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a0fa","58000000","6ad5ea73","579cb232","0005c000"]}[0m
+[0;32mI (64195) asic_result: Processing time: 2.6 ms[0m
+[0;32mI (64299) stratum_api: rx: {"id":16,"result":true,"error":null}[0m
+[0;32mI (64300) stratum_api: Result success[0m
+[0;32mI (64301) stratum_v1_task: message result accepted[0m
+[0;32mI (64301) stratum_v1_task: Stratum response time: 104.9 ms[0m
+[0;32mI (64509) fan_controller: Temp: 56.7Â°C, SetPoint: 60.0Â°C, Output: 31.8%[0m
+[0;32mI (66506) fan_controller: Temp: 56.7Â°C, SetPoint: 60.0Â°C, Output: 29.2%[0m
+[0;32mI (68506) fan_controller: Temp: 56.9Â°C, SetPoint: 60.0Â°C, Output: 31.1%[0m
+[0;32mI (70506) fan_controller: Temp: 57.0Â°C, SetPoint: 60.0Â°C, Output: 31.1%[0m
+[0;32mI (72506) fan_controller: Temp: 57.1Â°C, SetPoint: 60.0Â°C, Output: 29.9%[0m
+[0;32mI (72870) stratum_api: tx: {"id":17,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a0fa","69000000","6ad5ea73","da0b82f7","000a0000"]}[0m
+[0;32mI (72870) asic_result: Processing time: 3.2 ms[0m
+[0;32mI (72974) stratum_api: rx: {"id":17,"result":true,"error":null}[0m
+[0;32mI (72975) stratum_api: Result success[0m
+[0;32mI (72975) stratum_v1_task: message result accepted[0m
+[0;32mI (72975) stratum_v1_task: Stratum response time: 104.7 ms[0m
+[0;32mI (73506) stratum_api: tx: {"id":18,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a0fa","6a000000","6ad5ea73","a9a491c1","00102000"]}[0m
+[0;32mI (73507) asic_result: Processing time: 2.5 ms[0m
+[0;32mI (73612) stratum_api: rx: {"id":18,"result":true,"error":null}[0m
+[0;32mI (73613) stratum_api: Result success[0m
+[0;32mI (73613) stratum_v1_task: message result accepted[0m
+[0;32mI (73613) stratum_v1_task: Stratum response time: 105.8 ms[0m
+[0;32mI (74506) fan_controller: Temp: 57.3Â°C, SetPoint: 60.0Â°C, Output: 31.2%[0m
+[0;32mI (75043) stratum_api: tx: {"id":19,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a0fa","6d000000","6ad5ea73","b7340e5b","00130000"]}[0m
+[0;32mI (75044) asic_result: Processing time: 2.4 ms[0m
+[0;32mI (75148) stratum_api: rx: {"id":19,"result":true,"error":null}[0m
+[0;32mI (75149) stratum_api: Result success[0m
+[0;32mI (75149) stratum_v1_task: message result accepted[0m
+[0;32mI (75149) stratum_v1_task: Stratum response time: 104.6 ms[0m
+[0;32mI (76506) fan_controller: Temp: 57.4Â°C, SetPoint: 60.0Â°C, Output: 32.0%[0m
+[0;32mI (77833) stratum_api: tx: {"id":20,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a0fa","73000000","6ad5ea73","f4f141b7","0009a000"]}[0m
+[0;32mI (77834) asic_result: Processing time: 2.4 ms[0m
+[0;32mI (77939) stratum_api: rx: {"id":20,"result":true,"error":null}[0m
+[0;32mI (77942) stratum_api: Result success[0m
+[0;32mI (77943) stratum_v1_task: message result accepted[0m
+[0;32mI (77943) stratum_v1_task: Stratum response time: 105.9 ms[0m
+[0;32mI (78019) stratum_api: tx: {"id":21,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a0fa","73000000","6ad5ea73","60748fc5","00110000"]}[0m
+[0;32mI (78020) asic_result: Processing time: 2.5 ms[0m
+[0;32mI (78126) stratum_api: rx: {"id":21,"result":true,"error":null}[0m
+[0;32mI (78127) stratum_api: Result success[0m
+[0;32mI (78128) stratum_v1_task: message result accepted[0m
+[0;32mI (78128) stratum_v1_task: Stratum response time: 107.1 ms[0m
+[0;32mI (78506) fan_controller: Temp: 57.5Â°C, SetPoint: 60.0Â°C, Output: 30.2%[0m
+[0;32mI (78595) stratum_api: rx: {"id":null,"method":"mining.notify","params":["1a149","c61ed18e1114057fcbdf0758016d3e5bb89a3de22f98af8c296920febd9cc81e","01000000b6ead56a010000000000000000000000000000000000000000000000000000000000000000ffffffff22032baf0d04b6ead56a08","2f7a706f6f6c2e63612fdd46cadb2f0000000000010027a9020000000023210224af11914c50d8a9f500091f56ab208a21997fe232d057d23ba9692f33c0b09aac00000000",[],"00000006","1901b4ce","6ad5eab6",true]}[0m
+[0;32mI (78596) stratum_v1_task: Coinbase outputs: 0, total value: 0 sats[0m
+[0;32mI (78597) create_jobs_task: New Work Dequeued 1a149[0m
+[0;32mI (80506) fan_controller: Temp: 57.7Â°C, SetPoint: 60.0Â°C, Output: 31.0%[0m
+[0;32mI (82010) stratum_api: tx: {"id":22,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a149","06000000","6ad5eab6","4db6ec1f","00104000"]}[0m
+[0;32mI (82011) asic_result: Processing time: 2.6 ms[0m
+[0;32mI (82115) stratum_api: rx: {"id":22,"result":true,"error":null}[0m
+[0;32mI (82118) stratum_api: Result success[0m
+[0;32mI (82119) stratum_v1_task: message result accepted[0m
+[0;32mI (82119) stratum_v1_task: Stratum response time: 104.9 ms[0m
+[0;32mI (82182) stratum_api: tx: {"id":23,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a149","07000000","6ad5eab6","defb37b1","0003c000"]}[0m
+[0;32mI (82183) asic_result: Processing time: 2.4 ms[0m
+[0;32mI (82287) stratum_api: rx: {"id":23,"result":true,"error":null}[0m
+[0;32mI (82288) stratum_api: Result success[0m
+[0;32mI (82288) stratum_v1_task: message result accepted[0m
+[0;32mI (82288) stratum_v1_task: Stratum response time: 104.6 ms[0m
+[0;32mI (82506) fan_controller: Temp: 57.8Â°C, SetPoint: 60.0Â°C, Output: 31.2%[0m
+[0;32mI (82575) stratum_api: tx: {"id":24,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a149","07000000","6ad5eab6","141cceb6","0014c000"]}[0m
+[0;32mI (82576) asic_result: Processing time: 2.3 ms[0m
+[0;32mI (82680) stratum_api: rx: {"id":24,"result":true,"error":null}[0m
+[0;32mI (82681) stratum_api: Result success[0m
+[0;32mI (82681) stratum_v1_task: message result accepted[0m
+[0;32mI (82681) stratum_v1_task: Stratum response time: 104.7 ms[0m
+[0;32mI (83252) stratum_api: tx: {"id":25,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a149","09000000","6ad5eab6","2d0c3ac8","00072000"]}[0m
+[0;32mI (83252) asic_result: Processing time: 2.4 ms[0m
+[0;32mI (83357) stratum_api: rx: {"id":25,"result":true,"error":null}[0m
+[0;32mI (83360) stratum_api: Result success[0m
+[0;32mI (83360) stratum_v1_task: message result accepted[0m
+[0;32mI (83360) stratum_v1_task: Stratum response time: 105.8 ms[0m
+[0;32mI (84506) fan_controller: Temp: 58.0Â°C, SetPoint: 60.0Â°C, Output: 32.0%[0m
+[0;32mI (85665) stratum_api: tx: {"id":26,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a149","0e000000","6ad5eab6","7924129e","00036000"]}[0m
+[0;32mI (85665) asic_result: Processing time: 2.3 ms[0m
+[0;32mI (85779) stratum_api: rx: {"id":26,"result":true,"error":null}[0m
+[0;32mI (85780) stratum_api: Result success[0m
+[0;32mI (85780) stratum_v1_task: message result accepted[0m
+[0;32mI (85780) stratum_v1_task: Stratum response time: 114.8 ms[0m
+[0;32mI (86506) fan_controller: Temp: 58.0Â°C, SetPoint: 60.0Â°C, Output: 31.6%[0m
+[0;32mI (88144) stratum_api: tx: {"id":27,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a149","13000000","6ad5eab6","e407d63c","0001e000"]}[0m
+[0;32mI (88145) asic_result: Processing time: 2.8 ms[0m
+[0;32mI (88252) stratum_api: rx: {"id":27,"result":true,"error":null}[0m
+[0;32mI (88253) stratum_api: Result success[0m
+[0;32mI (88253) stratum_v1_task: message result accepted[0m
+[0;32mI (88253) stratum_v1_task: Stratum response time: 107.8 ms[0m
+[0;32mI (88506) fan_controller: Temp: 58.1Â°C, SetPoint: 60.0Â°C, Output: 31.2%[0m
+[0;32mI (90506) fan_controller: Temp: 58.4Â°C, SetPoint: 60.0Â°C, Output: 33.4%[0m
+[0;32mI (91784) stratum_api: tx: {"id":28,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a149","1a000000","6ad5eab6","9a92aef4","0006e000"]}[0m
+[0;32mI (91784) asic_result: Processing time: 2.4 ms[0m
+[0;32mI (91889) stratum_api: rx: {"id":28,"result":true,"error":null}[0m
+[0;32mI (91890) stratum_api: Result success[0m
+[0;32mI (91891) stratum_v1_task: message result accepted[0m
+[0;32mI (91891) stratum_v1_task: Stratum response time: 105.3 ms[0m
+[0;32mI (92506) fan_controller: Temp: 58.3Â°C, SetPoint: 60.0Â°C, Output: 31.2%[0m
+[0;32mI (94506) fan_controller: Temp: 58.4Â°C, SetPoint: 60.0Â°C, Output: 32.1%[0m
+[0;32mI (96506) fan_controller: Temp: 58.6Â°C, SetPoint: 60.0Â°C, Output: 33.1%[0m
+[0;32mI (98506) fan_controller: Temp: 58.6Â°C, SetPoint: 60.0Â°C, Output: 33.4%[0m
+[0;32mI (100515) fan_controller: Temp: 58.7Â°C, SetPoint: 60.0Â°C, Output: 33.2%[0m
+[0;32mI (102517) fan_controller: Temp: 58.8Â°C, SetPoint: 60.0Â°C, Output: 33.6%[0m
+[0;32mI (103524) stratum_api: tx: {"id":29,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a149","31000000","6ad5eab6","f614eead","000fa000"]}[0m
+[0;32mI (103525) asic_result: Processing time: 2.4 ms[0m
+[0;32mI (103636) stratum_api: rx: {"id":29,"result":true,"error":null}[0m
+[0;32mI (103637) stratum_api: Result success[0m
+[0;32mI (103637) stratum_v1_task: message result accepted[0m
+[0;32mI (103638) stratum_v1_task: Stratum response time: 112.2 ms[0m
+[0;32mI (103806) stratum_api: tx: {"id":30,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a149","32000000","6ad5eab6","82fc17d4","00064000"]}[0m
+[0;32mI (103806) asic_result: Processing time: 2.8 ms[0m
+[0;32mI (103912) stratum_api: rx: {"id":30,"result":true,"error":null}[0m
+[0;32mI (103913) stratum_api: Result success[0m
+[0;32mI (103913) stratum_v1_task: message result accepted[0m
+[0;32mI (103913) stratum_v1_task: Stratum response time: 106.0 ms[0m
+[0;32mI (103971) stratum_api: tx: {"id":31,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a149","32000000","6ad5eab6","271c5fe5","000d0000"]}[0m
+[0;32mI (103972) asic_result: Processing time: 5.2 ms[0m
+[0;32mI (104076) stratum_api: rx: {"id":31,"result":true,"error":null}[0m
+[0;32mI (104077) stratum_api: Result success[0m
+[0;32mI (104078) stratum_v1_task: message result accepted[0m
+[0;32mI (104078) stratum_v1_task: Stratum response time: 105.0 ms[0m
+[0;32mI (104513) fan_controller: Temp: 58.9Â°C, SetPoint: 60.0Â°C, Output: 32.7%[0m
+[0;32mI (106507) fan_controller: Temp: 58.9Â°C, SetPoint: 60.0Â°C, Output: 33.7%[0m
+[0;32mI (107631) stratum_api: tx: {"id":32,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a149","39000000","6ad5eab6","e7213082","00144000"]}[0m
+[0;32mI (107631) asic_result: Processing time: 2.8 ms[0m
+[0;32mI (107736) stratum_api: rx: {"id":32,"result":true,"error":null}[0m
+[0;32mI (107736) stratum_api: Result success[0m
+[0;32mI (107737) stratum_v1_task: message result accepted[0m
+[0;32mI (107737) stratum_v1_task: Stratum response time: 104.5 ms[0m
+[0;32mI (108506) fan_controller: Temp: 59.0Â°C, SetPoint: 60.0Â°C, Output: 34.2%[0m
+[0;32mI (109622) stratum_api: tx: {"id":33,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a149","3d000000","6ad5eab6","57894fed","00122000"]}[0m
+[0;32mI (109622) asic_result: Processing time: 4.6 ms[0m
+[0;32mI (109730) stratum_api: rx: {"id":33,"result":true,"error":null}[0m
+[0;32mI (109731) stratum_api: Result success[0m
+[0;32mI (109731) stratum_v1_task: message result accepted[0m
+[0;32mI (109731) stratum_v1_task: Stratum response time: 107.9 ms[0m
+[0;32mI (110506) fan_controller: Temp: 59.0Â°C, SetPoint: 60.0Â°C, Output: 33.4%[0m
+[0;32mI (112506) fan_controller: Temp: 59.0Â°C, SetPoint: 60.0Â°C, Output: 33.2%[0m
+[0;32mI (114506) fan_controller: Temp: 59.1Â°C, SetPoint: 60.0Â°C, Output: 33.6%[0m
+[0;32mI (114820) stratum_api: tx: {"id":34,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a149","48000000","6ad5eab6","32fc36db","00042000"]}[0m
+[0;32mI (114820) asic_result: Processing time: 2.4 ms[0m
+[0;32mI (114925) stratum_api: rx: {"id":34,"result":true,"error":null}[0m
+[0;32mI (114926) stratum_api: Result success[0m
+[0;32mI (114926) stratum_v1_task: message result accepted[0m
+[0;32mI (114926) stratum_v1_task: Stratum response time: 105.1 ms[0m
+[0;32mI (116052) stratum_api: tx: {"id":35,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a149","4a000000","6ad5eab6","40d2849d","000e0000"]}[0m
+[0;32mI (116053) asic_result: Processing time: 2.5 ms[0m
+[0;32mI (116157) stratum_api: rx: {"id":35,"result":true,"error":null}[0m
+[0;32mI (116158) stratum_api: Result success[0m
+[0;32mI (116158) stratum_v1_task: message result accepted[0m
+[0;32mI (116158) stratum_v1_task: Stratum response time: 105.0 ms[0m
+[0;32mI (116506) fan_controller: Temp: 59.2Â°C, SetPoint: 60.0Â°C, Output: 33.4%[0m
+[0;32mI (117635) stratum_api: tx: {"id":36,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a149","4d000000","6ad5eab6","49521755","00136000"]}[0m
+[0;32mI (117636) asic_result: Processing time: 2.6 ms[0m
+[0;32mI (117740) stratum_api: rx: {"id":36,"result":true,"error":null}[0m
+[0;32mI (117741) stratum_api: Result success[0m
+[0;32mI (117741) stratum_v1_task: message result accepted[0m
+[0;32mI (117741) stratum_v1_task: Stratum response time: 104.3 ms[0m
+[0;32mI (118485) stratum_api: tx: {"id":37,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a149","4f000000","6ad5eab6","69014dc0","000c0000"]}[0m
+[0;32mI (118486) asic_result: Processing time: 2.4 ms[0m
+[0;32mI (118506) fan_controller: Temp: 59.2Â°C, SetPoint: 60.0Â°C, Output: 32.7%[0m
+[0;32mI (118591) stratum_api: rx: {"id":37,"result":true,"error":null}[0m
+[0;32mI (118592) stratum_api: Result success[0m
+[0;32mI (118592) stratum_v1_task: message result accepted[0m
+[0;32mI (118592) stratum_v1_task: Stratum response time: 105.5 ms[0m
+[0;32mI (120506) fan_controller: Temp: 59.3Â°C, SetPoint: 60.0Â°C, Output: 34.4%[0m
+[0;32mI (122252) stratum_api: tx: {"id":38,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a149","57000000","6ad5eab6","92d16d69","00014000"]}[0m
+[0;32mI (122253) asic_result: Processing time: 2.5 ms[0m
+[0;32mI (122363) stratum_api: rx: {"id":38,"result":true,"error":null}[0m
+[0;32mI (122364) stratum_api: Result success[0m
+[0;32mI (122364) stratum_v1_task: message result accepted[0m
+[0;32mI (122364) stratum_v1_task: Stratum response time: 111.1 ms[0m
+[0;32mI (122506) fan_controller: Temp: 59.2Â°C, SetPoint: 60.0Â°C, Output: 33.0%[0m
+[0;32mI (124506) fan_controller: Temp: 59.3Â°C, SetPoint: 60.0Â°C, Output: 34.1%[0m
+[0;32mI (126074) stratum_api: tx: {"id":39,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a149","5e000000","6ad5eab6","a0336db5","000fa000"]}[0m
+[0;32mI (126075) asic_result: Processing time: 2.4 ms[0m
+[0;32mI (126181) stratum_api: rx: {"id":39,"result":true,"error":null}[0m
+[0;32mI (126182) stratum_api: Result success[0m
+[0;32mI (126182) stratum_v1_task: message result accepted[0m
+[0;32mI (126182) stratum_v1_task: Stratum response time: 106.6 ms[0m
+[0;32mI (126506) fan_controller: Temp: 59.3Â°C, SetPoint: 60.0Â°C, Output: 32.7%[0m
+[0;32mI (128506) fan_controller: Temp: 59.3Â°C, SetPoint: 60.0Â°C, Output: 33.8%[0m
+[0;32mI (130506) fan_controller: Temp: 59.4Â°C, SetPoint: 60.0Â°C, Output: 33.7%[0m
+[0;32mI (131565) stratum_api: tx: {"id":40,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a149","69000000","6ad5eab6","6b1f7584","000fa000"]}[0m
+[0;32mI (131565) asic_result: Processing time: 2.5 ms[0m
+[0;32mI (131675) stratum_api: rx: {"id":40,"result":true,"error":null}[0m
+[0;32mI (131675) stratum_api: Result success[0m
+[0;32mI (131676) stratum_v1_task: message result accepted[0m
+[0;32mI (131676) stratum_v1_task: Stratum response time: 109.9 ms[0m
+[0;32mI (132507) fan_controller: Temp: 59.4Â°C, SetPoint: 60.0Â°C, Output: 34.8%[0m
+[0;32mI (134194) stratum_api: tx: {"id":41,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a149","6e000000","6ad5eab6","093be1d7","0013e000"]}[0m
+[0;32mI (134195) asic_result: Processing time: 2.4 ms[0m
+[0;32mI (134300) stratum_api: rx: {"id":41,"result":true,"error":null}[0m
+[0;32mI (134301) stratum_api: Result success[0m
+[0;32mI (134301) stratum_v1_task: message result accepted[0m
+[0;32mI (134301) stratum_v1_task: Stratum response time: 106.0 ms[0m
+[0;32mI (134506) fan_controller: Temp: 59.4Â°C, SetPoint: 60.0Â°C, Output: 34.1%[0m
+[0;32mI (136506) fan_controller: Temp: 59.4Â°C, SetPoint: 60.0Â°C, Output: 32.7%[0m
+[0;32mI (138029) stratum_api: tx: {"id":42,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a149","76000000","6ad5eab6","607aa139","000ba000"]}[0m
+[0;32mI (138030) asic_result: Processing time: 2.4 ms[0m
+[0;32mI (138134) stratum_api: rx: {"id":42,"result":true,"error":null}[0m
+[0;32mI (138135) stratum_api: Result success[0m
+[0;32mI (138135) stratum_v1_task: message result accepted[0m
+[0;32mI (138135) stratum_v1_task: Stratum response time: 104.7 ms[0m
+[0;32mI (138506) fan_controller: Temp: 59.4Â°C, SetPoint: 60.0Â°C, Output: 32.6%[0m
+[0;32mI (140506) fan_controller: Temp: 59.4Â°C, SetPoint: 60.0Â°C, Output: 33.1%[0m
+[0;32mI (140983) stratum_api: rx: {"id":null,"method":"mining.set_difficulty","params":[1926]}[0m
+[0;32mI (140984) stratum_api: Set pool difficulty: 1926.00[0m
+[0;32mI (140984) stratum_v1_task: Set pool difficulty: 1926.00[0m
+[0;32mI (140985) stratum_api: rx: {"id":null,"method":"mining.notify","params":["1a1b7","c61ed18e1114057fcbdf0758016d3e5bb89a3de22f98af8c296920febd9cc81e","01000000f4ead56a010000000000000000000000000000000000000000000000000000000000000000ffffffff22032baf0d04f4ead56a08","2f7a706f6f6c2e63612fdd46cadb2f0000000000010027a9020000000023210224af11914c50d8a9f500091f56ab208a21997fe232d057d23ba9692f33c0b09aac00000000",[],"00000006","1901b4ce","6ad5eaf4",true]}[0m
+[0;32mI (140986) stratum_v1_task: Coinbase outputs: 0, total value: 0 sats[0m
+[0;32mI (140986) create_jobs_task: New Work Dequeued 1a1b7[0m
+[0;32mI (140987) create_jobs_task: New pool difficulty 1926.00[0m
+[0;32mI (140988) bm1370: Setting ticket mask for pool difficulty 1926.00[0m
+[0;32mI (142042) stratum_api: tx: {"id":43,"method":"mining.submit","params":["dgb1qh9q54r640s6v9nj37zxslag2g2mtqwd5tzr0ch.timderbeste","1a1b7","02000000","6ad5eaf4","86670f42","0003c000"]}[0m
+[0;32mI (142043) asic_result: Processing time: 2.6 ms[0m
+[0;32mI (142147) stratum_api: rx: {"id":43,"result":true,"error":null}[0m
+[0;32mI (142148) stratum_api: Result success[0m
+[0;32mI (142148) stratum_v1_task: message result accepted[0m
+[0;32mI (142148) stratum_v1_task: Stratum response time: 104.8 ms[0m
+[0;32mI (142506) fan_controller: Temp: 59.5Â°C, SetPoint: 60.0Â°C, Output: 33.6%[0m
+[0;33mW (143377) httpd_txrx: httpd_sock_err: error in recv : 104[0m
+[0;32mI (144506) fan_controller: Temp: 59.4Â°C, SetPoint: 60.0Â°C, Output: 33.5%[0m
+[0;32mI (146506) fan_controller: Temp: 59.4Â°C, SetPoint: 60.0Â°C, Output: 32.1%[0m
+[0;32mI (148507) fan_controller: Temp: 59.4Â°C, SetPoint: 60.0Â°C, Output: 32.7%[0m

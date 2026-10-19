@@ -29,7 +29,15 @@ html_doc/
 components/components/*
 config.bin
 config.cvs
-managed_components/*
+# IDF-managed third-party components. Written by the component manager at build
+# time, never edited by hand.
+#
+# This must be the bare directory name, not "managed_components/*": a pattern
+# containing a slash is anchored to the .gitignore's own directory, so the
+# slashless form is what also covers test/managed_components/ - which is what
+# the unit-test build downloads and which otherwise lands in the repository as
+# 278 untracked files.
+managed_components/
 
 # System files
 .DS_Store
@@ -51,3 +59,22 @@ baseline_telemetry.json
 current_telemetry.json
 build_wsl/
 build*/
+
+# Per-variant release images produced by tools/build_release.sh. Binaries are
+# published as GitHub release assets and to the R2 bucket by the release
+# workflow; keeping a second copy in git only creates a second thing to go stale.
+dist/
+
+# Host test binaries produced by `cd simulation && make test`. The sources are
+# tracked; the compiled artefacts are not.
+simulation/test_virtual_board
+simulation/test_dataflow_memory
+simulation/test_notify_validate
+simulation/test_power_policy
+simulation/test_net_recovery_policy
+simulation/test_nbits_reference
+
+# Full flash dumps and per-device provisioning fragments. These contain the
+# device's Wi-Fi credentials in plaintext, so they stay out of the repository.
+# The redacted snapshots under evidence/ are the shareable form.
+/backups/

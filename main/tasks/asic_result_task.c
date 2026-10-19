@@ -124,7 +124,21 @@ void ASIC_result_task(void *pvParameters)
             continue;
         }
 
-        uint32_t version_bits = asic_result->rolled_version ^ active_job->version;
+        /* Recover the BIP310 version bits the chip rolled for this nonce.
+         *
+         * This used to be `rolled_version ^ active_job->version`, which only
+         * yields the rolled bits when the pool's version field happens to have
+         * none of them set already. BIP9 signalling puts bits in [25:27] and those
+         * live inside the rollable window [13:28], so a pool that sends a version
+         * with signalling bits set made the XOR cancel exactly those bits and the
+         * share went out with the wrong version - the pool then reconstructs a
+         * different block header and rejects it.
+         *
+         * Masking with the roll range is correct in both cases: bits outside
+         * [13:28] are never rolled and must be reported verbatim, which is exactly
+         * what the chip's own `version | rolled_bits` reconstruction puts in the
+         * header. */
+        uint32_t version_bits = asic_result->rolled_version & ASIC_VERSION_ROLL_MASK;
         if (nonce_diff >= active_job->pool_diff)
         {
             if (is_duplicate_share(active_job->jobid, active_job->extranonce2, active_job->ntime, asic_result->nonce, version_bits)) {
@@ -199,8 +213,16 @@ void ASIC_result_task(void *pvParameters)
             }
         }
 
-        //log the ASIC response
-        ESP_LOGI(TAG, "ID: %s, ASIC nr: %d, Core: %d/%d, ver: %08" PRIX32 " Nonce %08" PRIX32 " diff %.1f of %g.", active_job->jobid, asic_result->asic_nr, asic_result->core_id, asic_result->small_core_id, asic_result->rolled_version, asic_result->nonce, nonce_diff, active_job->pool_diff);
+        /* Demoted from ESP_LOGI to ESP_LOGD.
+         *
+         * This runs once per nonce the chip reports, and on a BM1370 that is
+         * thousands of times a second once the ticket mask tracks the pool
+         * difficulty. At INFO it was the single largest producer of log output in
+         * the firmware: the 128 KB ring buffer filled in seconds, so the warnings
+         * and errors that actually explain a fault were overwritten long before
+         * anyone could read them - which is why a device in a bad state looks
+         * clean in its own logs. The information is still available at DEBUG. */
+        ESP_LOGD(TAG, "ID: %s, ASIC nr: %d, Core: %d/%d, ver: %08" PRIX32 " Nonce %08" PRIX32 " diff %.1f of %g.", active_job->jobid, asic_result->asic_nr, asic_result->core_id, asic_result->small_core_id, asic_result->rolled_version, asic_result->nonce, nonce_diff, active_job->pool_diff);
 
         SYSTEM_notify_found_nonce(GLOBAL_STATE, nonce_diff, active_job->target);
 

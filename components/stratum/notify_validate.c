@@ -73,27 +73,59 @@ bool stratum_v1_hex_num_is_valid(const char *s)
     return all_hex(s, len);
 }
 
+/* Bit width of the mantissa once decoded, i.e. how many significant bits the
+ * target has after the size-dependent shift. Zero means the target decodes to
+ * zero, which consensus rejects. */
+static unsigned nbits_mantissa_bits(uint32_t size, uint32_t word)
+{
+    if (word == 0) {
+        return 0;
+    }
+    unsigned bits = 0;
+    for (uint32_t w = word; w != 0; w >>= 1) {
+        bits++;
+    }
+    if (size <= 3) {
+        unsigned shift = 8u * (3u - size);
+        if (shift >= bits) {
+            return 0; /* every significant bit shifts out */
+        }
+        return bits - shift;
+    }
+    return bits;
+}
+
 bool stratum_v1_nbits_is_plausible(const char *nbits_hex)
 {
     if (!stratum_v1_hex_num_is_valid(nbits_hex)) {
         return false;
     }
     uint32_t nbits = (uint32_t) strtoul(nbits_hex, NULL, 16);
-    uint32_t exponent = nbits >> 24;
-    uint32_t mantissa = nbits & 0x00FFFFFFu;
+    uint32_t size = nbits >> 24;
+    uint32_t word = nbits & 0x007fffffu;
 
-    if (mantissa == 0) {
-        return false; /* target of zero can never be met */
-    }
-    if (exponent < STRATUM_V1_NBITS_MIN_EXP || exponent > STRATUM_V1_NBITS_MAX_EXP) {
+    /* A target of zero can never be met. This also covers a mantissa short
+     * enough to shift away entirely at size 0..2. */
+    if (nbits_mantissa_bits(size, word) == 0) {
         return false;
     }
-    /* A negative mantissa (high bit of the 24-bit field set) is sign-extended
-     * by the compact encoding; reject it instead of hashing toward a huge
-     * target. */
-    if (mantissa & 0x00800000u) {
+
+    /* The sign bit of the compact encoding. A negative target is sign-extended
+     * by the decoder, so hashing toward one would accept everything. */
+    if (word != 0 && (nbits & 0x00800000u) != 0) {
         return false;
     }
+
+    /* Overflow, using the same three-term expression Bitcoin Core's SetCompact
+     * reports it with. Whether a given size overflows depends on the mantissa's
+     * width, which is why a single exponent bound cannot express this. See the
+     * comment in notify_validate.h for the reference. */
+    if (word != 0 && ((size > 34)
+                      || (word > 0xffu && size > 33)
+                      || (word > 0xffffu && size > 32))) {
+        return false;
+    }
+
     return true;
 }
 

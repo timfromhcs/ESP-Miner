@@ -51,6 +51,64 @@
 #define ESP_MINER_WIFI_BSSID ""
 #endif
 
+/* Station MAC to present, "aa:bb:cc:dd:ee:ff" or "" for the eFuse MAC.
+ *
+ * Empty in the general release. A unit whose identity has to be pinned - a DHCP
+ * reservation, a bridge rule, an ACL - needs the address to be identical on
+ * every boot and on every build, and eFuse MACs are not reproducible across
+ * builds. */
+#ifndef ESP_MINER_STA_MAC
+#define ESP_MINER_STA_MAC ""
+#endif
+
+/* Hostname sent in DHCP option 12. "" keeps the hostname from NVS.
+ *
+ * Set it only when the server rejects the DISCOVER; some DHCP servers drop a
+ * request whose option 12 is empty or malformed, which presents exactly like
+ * "the network is down". */
+#ifndef ESP_MINER_DHCP_HOSTNAME
+#define ESP_MINER_DHCP_HOSTNAME ""
+#endif
+
+/* Per-device hardware identity, used only as the *default* for the NVS entries
+ * boardversion / devicemodel / asicmodel.
+ *
+ * These three live in NVS, which a per-device release preserves, so in practice a
+ * unit carries its own identity already. The fallback exists for the case that
+ * actually breaks a miner: a unit that cannot get on the network cannot be
+ * reached to re-provision itself, and an unknown board version resolves to neither
+ * a family nor an ASIC, so it neither mines nor reports what it is.
+ *
+ * Defaults below are the universal "I don't know" values used by the general
+ * release. A per-device release passes the real ones:
+ *
+ *   idf.py -DESP_MINER_BOARD_VERSION=601 \
+ *          -DESP_MINER_DEVICE_MODEL=gamma \
+ *          -DESP_MINER_ASIC_MODEL=BM1370 build
+ *
+ * Board version alone is enough when it is one of the known entries in
+ * device_config.h, because that resolves family and ASIC together. The model and
+ * ASIC strings are only consulted for a board version that is not in that table. */
+#ifndef ESP_MINER_BOARD_VERSION
+#define ESP_MINER_BOARD_VERSION "000"
+#endif
+#ifndef ESP_MINER_DEVICE_MODEL
+#define ESP_MINER_DEVICE_MODEL "unknown"
+#endif
+#ifndef ESP_MINER_ASIC_MODEL
+#define ESP_MINER_ASIC_MODEL "unknown"
+#endif
+
+/* When the configuration access point may be brought up (see connect.c):
+ * 0 = never, 1 = always, 2 = only when no address could be bound at all.
+ * Unlike the three above this one is compared numerically, so an empty -D would
+ * turn it into a string literal and fail to compile rather than merely behave
+ * unexpectedly. The default is the safest option: a unit that still has its
+ * LAN-reachable address does not raise a second radio. */
+#ifndef ESP_MINER_CONFIG_AP_STUCK
+#define ESP_MINER_CONFIG_AP_STUCK 0
+#endif
+
 typedef enum {
     NVS_CONFIG_WIFI_SSID,
     NVS_CONFIG_WIFI_PASS,

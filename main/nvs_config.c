@@ -128,9 +128,12 @@ static Settings settings[NVS_CONFIG_COUNT] = {
     [NVS_CONFIG_THEME_COLOR]                           = {.nvs_key_name = "themecolor",      .type = TYPE_STR,   .default_value = {.str = DEFAULT_COLOR}},
     [NVS_CONFIG_SCOREBOARD]                            = {.nvs_key_name = "scoreboard",      .type = TYPE_STR,   .array_size = MAX_SCOREBOARD},
     
-    [NVS_CONFIG_BOARD_VERSION]                         = {.nvs_key_name = "boardversion",    .type = TYPE_STR,   .default_value = {.str = "000"}},
-    [NVS_CONFIG_DEVICE_MODEL]                          = {.nvs_key_name = "devicemodel",     .type = TYPE_STR,   .default_value = {.str = "unknown"}},
-    [NVS_CONFIG_ASIC_MODEL]                            = {.nvs_key_name = "asicmodel",       .type = TYPE_STR,   .default_value = {.str = "unknown"}},
+    /* Hardware identity falls back to this build's per-device values so a unit that
+     * lost its NVS still knows what it is; see ESP_MINER_BOARD_VERSION in
+     * nvs_config.h. NVS wins whenever it has an entry. */
+    [NVS_CONFIG_BOARD_VERSION]                         = {.nvs_key_name = "boardversion",    .type = TYPE_STR,   .default_value = {.str = ESP_MINER_BOARD_VERSION}},
+    [NVS_CONFIG_DEVICE_MODEL]                          = {.nvs_key_name = "devicemodel",     .type = TYPE_STR,   .default_value = {.str = ESP_MINER_DEVICE_MODEL}},
+    [NVS_CONFIG_ASIC_MODEL]                            = {.nvs_key_name = "asicmodel",       .type = TYPE_STR,   .default_value = {.str = ESP_MINER_ASIC_MODEL}},
     [NVS_CONFIG_PLUG_SENSE]                            = {.nvs_key_name = "plug_sense",      .type = TYPE_BOOL},
     [NVS_CONFIG_ASIC_ENABLE]                           = {.nvs_key_name = "asic_enable",     .type = TYPE_BOOL},
     [NVS_CONFIG_EMC2101]                               = {.nvs_key_name = "EMC2101",         .type = TYPE_BOOL},

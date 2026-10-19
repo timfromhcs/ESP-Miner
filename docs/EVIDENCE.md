@@ -39,16 +39,33 @@ To prevent misleading performance comparisons, all evidence items are classified
 | **EV-011** | Memory Stability & PSRAM Leaks | `reports/benchmark_sustained_telemetry.json` | `REAL HARDWARE` | **PROVEN** | **MEASURED** | ~7.63 MiB free PSRAM; 0 bytes monotonic leak drift across 600s |
 | **EV-012** | Virtual Board State Invariants | `simulation/virtual_board.c` | `SIMULATION` | **PROVEN** | **MEASURED** | 12/12 unit/dataflow tests green, 10,000 chaotic property tests pass |
 | **EV-013** | Host Parsing Micro-Benchmark | `simulation/test_dataflow_memory.c` | `HOST BENCHMARK` | **PROVEN** | **MEASURED** | >60M ops/s on x86_64 host (software parsing throughput only) |
+| **EV-014** | BM1370 Ticket Mask Tracks Pool Difficulty | `components/asic/bm1370.c:BM1370_set_ticket_mask`, `asic.c:ASIC_set_ticket_mask` | `REAL HARDWARE` | **PROVEN** | **MEASURED** | Live log on `192.168.178.80`: register `0x14` re-programmed 256 → 4 096 (capped) → 1 000 across successive `mining.set_difficulty`. Before v4.0.1 the register was written twice at init from the static family default and never again. See `evidence/192.168.178.80/`. |
+| **EV-015** | BM1370 Host/Chip UART Rate Agreement | `components/asic/bm1370.c:BM1370_set_max_baud` | `REAL HARDWARE` | **PROVEN** | **MEASURED** | Log: `Setting chip UART BT8D=2 -> 1041666 baud (host programmed to match)` followed by `serial: Changing UART baud to 1041666`. Previously the chip ran at 1 041 666.67 while the host was programmed to 1 000 000 — a 4.17 % mismatch. |
+| **EV-016** | V1 Notify Counters & Pool Clock Sync | `main/tasks/stratum_v1_task.c` | `REAL HARDWARE` | **PROVEN** | **MEASURED** | `notifyReceived` rises from 0 and tracks notifies; before the fix all three of `notifyReceived`, `workReceived`, `notifyDropped` read 0 for entire sessions on `.61`, `.66` and `.80`, and `settimeofday()` was never reached. |
+| **EV-017** | BM1370 Nonce Space From Applied Frequency | `components/asic/bm1370.c:BM1370_init` | `REAL HARDWARE` | **PROVEN** | **MEASURED** | Log: `nonce space: requested=750.00 MHz applied=750.00 MHz`; previously derived from the requested frequency, and `ASIC_set_nonce_space()` divided by it without guarding against a failed PLL solve. |
+| **EV-018** | Compact-Target Validation Matches Core | `components/stratum/notify_validate.c`, `simulation/test_nbits_reference.c` | `HOST BENCHMARK` | **PROVEN** | **MEASURED** | 20 550 checks incl. 20 000 randomised differential words and an exhaustive exponent-byte sweep against an independent decoder written from the consensus definition. |
+| **EV-019** | Network Recovery Ladder | `components/connect/net_recovery_policy.c`, `simulation/test_net_recovery_policy.c` | `SIMULATION` | **PROVEN** | **MEASURED** | 79 checks: lease replay, resolver preference, fallback binding, and the rule that the fallback must not fight a running DHCP client. |
 
 ---
 
 ## 3. Detailed Evidence Artifacts
 
 ### EV-004: Overt ASICBoost (Version Rolling) Evidence
-- **Stratum Protocol Negotiation:** Client sends `mining.configure` with version-rolling mask `1fffe000`. Pool responds: `{"result":{"version-rolling":true,"version-rolling.mask":"1fffe000"}}`.
-- **Hardware Register Configuration:** BM1366 driver configures version rolling mask via register `0xA4` (`components/asic/bm1366.c`).
-- **Live Share Submission:** Accepted shares confirmed with versions such as `2012C202`, `200FC202`, and `2016E202`.
+- **Stratum Protocol Negotiation:** Client sends `mining.configure` with version-rolling mask `ffffffff`. Pool responds with the granted mask, e.g. `{"result":{...,"version-rolling.mask":"1fffe000"}}`.
+- **Hardware Register Configuration:** register `0xA4`, payload `90 00 <hi> <lo>`, where the roll count is `(mask & 0x1FFFE000) >> 13`. Confirmed on both families:
+  - BM1366 — `components/asic/bm1366.c:BM1366_set_version_mask`
+  - BM1370 — `components/asic/bm1370.c:BM1370_set_version_mask`
+- **Rollable window:** bits [13:28] of the version field, 16 bits wide. The register is 16 bits, so a larger mask cannot be represented. The firmware requests `ffffffff` and a pool that grants it returns `0xFFFFFFFF` = 0x1FFFF rolls, which is clamped to 0xFFFF. Host and chip agree only because both clamp through `ASIC_VERSION_ROLL_MASK`.
+- **Live Share Submission:** accepted shares confirmed with rolled versions, e.g. `00106006`, `0008C006`, `00154006` on `192.168.178.80`, each submitted with the matching BIP310 version bits.
 - **Distinction Notice:** Version rolling is overt ASICBoost. No claim of covert midstate manipulation or unverified ASIC-internal silicon optimization is made.
+
+### EV-014 / EV-015: BM1370 bring-up on `192.168.178.80`
+- **Device:** Bitaxe Supra, board 601, MAC `28:84:85:A6:1B:E0`, BM1370, 1× ASIC, 2 040 small cores, 4 hash domains.
+- **Update path:** Wi-Fi OTA via `POST /api/system/OTA`, `factory` → `ota_0`, address unchanged at `192.168.178.80`. Wi-Fi credentials, pool configuration, frequency, voltage and the static-fallback settings were not modified.
+- **Ticket mask (EV-014):** register `0x14` is the only knob controlling how many nonces per second the chip pushes over UART, and every arriving nonce costs the host a double-SHA256 in `test_nonce_value()`. Before v4.0.1 the BM1370 wrote it twice during init, both times with the static family default of 256, and `ASIC_set_ticket_mask()` had no BM1370 case at all. After v4.0.1 the register is seeded from the pool difficulty and re-programmed on every `mining.set_difficulty`.
+- **UART rate (EV-015):** the chip derives its rate from a 25 MHz reference, `25e6 / ((BT8D+1) * 8)`. Both ends now agree exactly at 1 041 666 baud.
+- **Why this matters more here than on the Ultra:** at 750 MHz the BM1370 sustains ~1 530 GH/s against ~444 GH/s for a BM1366 at 485 MHz — roughly 3.5× the result rate over the same UART, with ~2.3× the small-core count.
+- **Observability prerequisite:** `asic_result` logged one INFO line per reported nonce. At that rate the 128 KB log ring was overwritten within seconds, so the boot trace and any real warning were unreadable and the unit looked healthy in its own logs. Demoting that line to `DEBUG` is what made the above diagnosable.
 
 ### EV-009 & EV-010: Sustained Mining Telemetry & Duplicate Nonce Audit
 - **Telemetry File:** `reports/benchmark_sustained_telemetry.json`

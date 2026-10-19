@@ -64,8 +64,12 @@ void calculate_merkle_root_hash(const uint8_t coinbase_tx_hash[32], const uint8_
     memcpy(dest, both_merkles, 32);
 }
 
-// take a mining_notify struct with ascii hex strings and convert it to a bm_job struct
-void construct_bm_job(mining_notify *params, const uint8_t merkle_root[32], const uint32_t version_mask, const double difficulty, bm_job *new_job)
+/** @param rolled_midstates whether the target ASIC's job frame can carry more
+ *         than one midstate. Only the BM1397 does; see
+ *         ASIC_family_uses_rolled_midstates(). When false the three extra
+ *         midstates are neither computed nor claimed in num_midstates, because
+ *         no driver would ever transmit them. */
+void construct_bm_job(mining_notify *params, const uint8_t merkle_root[32], const uint32_t version_mask, const double difficulty, bool rolled_midstates, bm_job *new_job)
 {
     new_job->version = params->version;
     new_job->target = params->target;
@@ -91,7 +95,7 @@ void construct_bm_job(mining_notify *params, const uint8_t merkle_root[32], cons
     midstate_sha256_bin(midstate_data, 64, midstate); // make the midstate hash
     reverse_32bit_words(midstate, new_job->midstate); // reverse the midstate words for the BM job packet
 
-    if (version_mask != 0)
+    if (version_mask != 0 && rolled_midstates)
     {
         uint32_t rolled_version = increment_bitmask(new_job->version, version_mask);
         memcpy(midstate_data, &rolled_version, 4);
