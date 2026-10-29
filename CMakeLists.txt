@@ -6,7 +6,7 @@ cmake_minimum_required(VERSION 3.16)
 # This example uses an extra component for common functions such as Wi-Fi and Ethernet connection.
 # set(EXTRA_COMPONENT_DIRS $ENV{IDF_PATH}/examples/common_components/protocol_examples_common)
 
-set(ESP_MINER_BASE_VERSION "v4.0.1-stable")
+set(ESP_MINER_BASE_VERSION "v4.0.2-rc1")
 
 # PROJECT_VER is a CACHE entry, so an existing build directory keeps whatever
 # version it was first configured with. Without FORCE the source-side bump is
