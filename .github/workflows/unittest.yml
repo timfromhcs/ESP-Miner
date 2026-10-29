@@ -22,6 +22,9 @@ jobs:
           make CFLAGS="-Wall -Wextra -Werror -O2 -I."
           make run
 
+      - name: Release script argument checks
+        run: bash tools/test_build_release_args.sh
+
       - name: Re-run host tests under ASan + UBSan
         working-directory: ./simulation
         run: |

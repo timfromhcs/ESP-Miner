@@ -35,7 +35,7 @@ Current state: **RC** (`v4.0.2-rc1`). Gates per `GEMINI.md` §23. Evidence:
 
 1. GitHub Actions green for the exact release commit. Green for `746a2d7` (Build Firmware, Unit Test); re-check on the final commit.
 2. `SHA256SUMS` published with the release assets.
-2a. Per-device variants must carry the BSSID pin: the un-pinned `blackharkminer` image went offline after OTA (`HARDWARE_VALIDATION.md` §4). `tools/build_release.sh` still defaults the pin to empty for `timsminer`/`blackharkminer`.
+2a. ~~Per-device variants could be built without a BSSID pin~~ — fixed: `tools/build_release.sh` now requires the pin for `timsminer`/`blackharkminer` (`none` to opt out), checked by `tools/test_build_release_args.sh` in CI.
 3. The new OTA handler has not yet run on hardware: the RC was uploaded through
    the previous firmware's handler. The next OTA (rc2 or Stable) exercises it.
 4. Pool credentials logged at INFO by `stratum_api` (`mining.authorize` tx line),

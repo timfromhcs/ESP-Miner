@@ -2,8 +2,8 @@
 # Build one release variant of the ESP-Miner firmware.
 #
 #   ./tools/build_release.sh general
-#   ./tools/build_release.sh timsminer 192.168.178.66
-#   ./tools/build_release.sh blackharkminer 192.168.178.61
+#   ./tools/build_release.sh timsminer <ip> <gw> <mask> <dns> <bssid|none>
+#   ./tools/build_release.sh blackharkminer <ip> <gw> <mask> <dns> <bssid|none>
 #   ./tools/build_release.sh tim2
 #
 # The general variant carries no baked-in address. A per-device variant is only
@@ -49,13 +49,20 @@ case "${VARIANT}" in
         )
         ;;
     timsminer|blackharkminer)
-        if [ $# -lt 2 ]; then
-            echo "usage: $0 ${VARIANT} <static-ip> [gateway] [netmask] [dns]" >&2
+        # The BSSID pin is mandatory, not optional. On a mesh every node broadcasts
+        # the same SSID, and after a reboot the station takes the loudest one - which
+        # can be a node that associates but relays nothing (no DHCP, gateway
+        # unreachable). A unit flashed over OTA without a pin then goes offline and
+        # needs a USB cable; this happened to blackharkminer on 2026-10-29. Pass
+        # "none" to build without a pin deliberately (single access point).
+        if [ $# -lt 6 ]; then
+            echo "usage: $0 ${VARIANT} <static-ip> <gateway> <netmask> <dns> <bssid|none>" >&2
+            echo "  bssid: the access point to pin to, e.g. aa:bb:cc:dd:ee:ff, or 'none' on a single-AP network" >&2
             exit 2
         fi
         IP="$2"
-        GW="${3:-192.168.178.1}"
-        MASK="${4:-255.255.255.0}"
+        GW="$3"
+        MASK="$4"
         # Resolver for the baked fallback.
         #
         # Defaulting this to the gateway is what makes the failure look like a dead
@@ -63,9 +70,15 @@ case "${VARIANT}" in
         # depends on, and one broken relay takes out both. Pointing at public
         # resolvers removes that dependency, so a mesh that cannot relay still
         # resolves names and can reach the pool.
-        DNS="${5:-1.1.1.1 9.9.9.9}"
-        # BSSID of the access point to pin to, e.g. 2c:3a:fd:49:d3:95.
-        BSSID="${6:-}"
+        DNS="$5"
+        # BSSID of the access point to pin to, aa:bb:cc:dd:ee:ff, or "none".
+        BSSID="$6"
+        if [ "${BSSID}" = "none" ]; then
+            BSSID=""
+        elif ! [[ "${BSSID}" =~ ^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$ ]]; then
+            echo "error: bssid '${BSSID}' is not aa:bb:cc:dd:ee:ff (or 'none')" >&2
+            exit 2
+        fi
         DEFS=(
             -DESP_MINER_RELEASE_TAG="${VARIANT}"
             -DESP_MINER_FALLBACK_ENABLED=1
