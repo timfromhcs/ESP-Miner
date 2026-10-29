@@ -247,3 +247,17 @@ void net_policy_lease_wins(net_reassert_state_t *state)
     state->have_fallback = false;
     memset(&state->bound, 0, sizeof(state->bound));
 }
+
+uint32_t net_policy_wifi_retry_delay_ms(int attempt, bool auth_failure, uint32_t jitter)
+{
+    if (auth_failure && attempt >= NET_WIFI_AUTH_RETRY_AFTER) {
+        return NET_WIFI_AUTH_RETRY_MIN_MS + jitter % (NET_WIFI_AUTH_RETRY_CAP_MS - NET_WIFI_AUTH_RETRY_MIN_MS + 1u);
+    }
+    if (attempt < 0) {
+        attempt = 0;
+    }
+    /* Clamp before multiplying so a counter that has run for days cannot overflow. */
+    uint32_t steps = (uint32_t) (attempt > 10 ? 10 : attempt);
+    uint32_t delay = 1000u + steps * 800u + jitter % 700u;
+    return delay > NET_WIFI_RETRY_CAP_MS ? NET_WIFI_RETRY_CAP_MS : delay;
+}

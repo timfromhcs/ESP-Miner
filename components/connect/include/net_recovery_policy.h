@@ -127,6 +127,24 @@ net_reassert_decision_t net_policy_should_reassert(const net_reassert_state_t *s
 /* Clear the latch. Called when a genuine lease arrives. */
 void net_policy_lease_wins(net_reassert_state_t *state);
 
+/* Station reconnect cadence.
+ *
+ * There is no "give up" result. Handshake-type disconnect reasons
+ * (AUTH_FAIL, 4WAY_HANDSHAKE_TIMEOUT, HANDSHAKE_TIMEOUT, AUTH_EXPIRE) are what a
+ * wrong password produces, but also what a router produces while it is rebooting
+ * and its WPA stack is not up yet. A miner that stops reconnecting on them stays
+ * offline after the router returns until someone power-cycles it. Repeated
+ * auth-type failures therefore only slow the cadence, so a wrong password is not
+ * hammered and a returning router is still found.
+ *
+ * `attempt` counts from 1 and is reset by a lease; `jitter` is any random word. */
+#define NET_WIFI_RETRY_CAP_MS        8000u
+#define NET_WIFI_AUTH_RETRY_AFTER    3
+#define NET_WIFI_AUTH_RETRY_MIN_MS   30000u
+#define NET_WIFI_AUTH_RETRY_CAP_MS   (NET_WIFI_AUTH_RETRY_MIN_MS + 5000u)
+
+uint32_t net_policy_wifi_retry_delay_ms(int attempt, bool auth_failure, uint32_t jitter);
+
 #ifdef __cplusplus
 }
 #endif

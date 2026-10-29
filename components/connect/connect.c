@@ -447,6 +447,57 @@ static bool s_addr_is_fallback = false;
 
 /* Used by the DHCP retry ladder; defined further down. */
 static void wifi_connect_pinned(void);
+
+/* Station reconnect timer: the single owner of "when do we associate next".
+ *
+ * The delay used to be a vTaskDelay() inside the Wi-Fi event handler, which runs
+ * on the default event loop task and so held every other Wi-Fi and IP event -
+ * including IP_EVENT_STA_GOT_IP - for up to 8 s per disconnect. An esp_timer
+ * callback runs on the esp_timer task, which also has the larger stack of the
+ * two for wifi_connect_pinned()'s NVS read. Re-arming replaces any pending
+ * attempt, so a burst of disconnect events yields one reconnect, not one each. */
+static esp_timer_handle_t s_wifi_retry_timer = NULL;
+
+static void wifi_retry_timer_cb(void * arg)
+{
+    (void) arg;
+    /* Already associated through another path (the DHCP re-association rung):
+     * connecting again would fail, and wifi_connect_pinned() answers a failed
+     * connect by dropping the BSSID pin. */
+    wifi_ap_record_t ap;
+    if (esp_wifi_sta_get_ap_info(&ap) == ESP_OK) {
+        return;
+    }
+    wifi_connect_pinned();
+}
+
+static void wifi_retry_cancel(void)
+{
+    if (s_wifi_retry_timer != NULL) {
+        esp_timer_stop(s_wifi_retry_timer);
+    }
+}
+
+static void wifi_retry_schedule(uint32_t delay_ms)
+{
+    if (s_wifi_retry_timer == NULL) {
+        const esp_timer_create_args_t args = {
+            .callback = wifi_retry_timer_cb,
+            .name = "wifi_retry",
+        };
+        if (esp_timer_create(&args, &s_wifi_retry_timer) != ESP_OK) {
+            /* Never leave the station without a next attempt. */
+            ESP_LOGE(TAG, "NET,event=WIFI_RETRY_TIMER_FAILED,action=CONNECT_NOW");
+            wifi_connect_pinned();
+            return;
+        }
+    }
+    wifi_retry_cancel();
+    if (esp_timer_start_once(s_wifi_retry_timer, (uint64_t) delay_ms * 1000) != ESP_OK) {
+        ESP_LOGE(TAG, "NET,event=WIFI_RETRY_TIMER_FAILED,action=CONNECT_NOW");
+        wifi_connect_pinned();
+    }
+}
 /* Retry budget kept deliberately short. Each rung of the ladder is attempted as
  * soon as there is any chance of it succeeding, and DHCP keeps running in the
  * background throughout, so waiting longer only extends the outage. */
@@ -1463,6 +1514,9 @@ static void event_handler(void * arg, esp_event_base_t event_base, int32_t event
 
         if (event_id == WIFI_EVENT_STA_CONNECTED) {
             ESP_LOGI(TAG, "NET,event=WIFI_CONNECTED,reason=assoc_success");
+            // Associated by some other path (e.g. the DHCP re-association rung):
+            // a still-pending retry would only tear this link down again.
+            wifi_retry_cancel();
             net_state_transition(GLOBAL_STATE, NET_STATE_WIFI_CONNECTED_NO_IP);
             ESP_LOGI(TAG, "NET,event=DHCP_START");
             net_state_transition(GLOBAL_STATE, NET_STATE_DHCP_RUNNING);
@@ -1532,14 +1586,14 @@ static void event_handler(void * arg, esp_event_base_t event_base, int32_t event
                 ESP_LOGW(TAG, "NET,event=SOCKET_INVALIDATE,reason=WIFI_LOST,gen=%lu", (unsigned long)s_stratum_generation);
             }
 
-            // Differentiate permanent auth failure vs transient RF
+            // Handshake-type reasons are what a wrong password produces, but also what a
+            // rebooting router produces before its WPA stack is up. They slow the
+            // cadence (net_policy_wifi_retry_delay_ms) but never end it: stopping here
+            // left a unit offline after its router came back, until a power cycle.
             bool is_auth_failure = (event->reason == WIFI_REASON_AUTH_FAIL || event->reason == WIFI_REASON_4WAY_HANDSHAKE_TIMEOUT || event->reason == WIFI_REASON_AUTH_EXPIRE || event->reason == WIFI_REASON_HANDSHAKE_TIMEOUT);
-            if (is_auth_failure && s_retry_num >= 3) {
-                ESP_LOGE(TAG, "NET,event=WIFI_AUTH_FAILED,reason=%d,retries=%d — stop retrying permanent failure", event->reason, s_retry_num);
+            if (is_auth_failure && s_retry_num >= NET_WIFI_AUTH_RETRY_AFTER) {
+                ESP_LOGE(TAG, "NET,event=WIFI_AUTH_FAILED,reason=%d,retries=%d,action=SLOW_RETRY", event->reason, s_retry_num);
                 net_state_transition(GLOBAL_STATE, NET_STATE_WIFI_AUTH_FAILED);
-                snprintf(GLOBAL_STATE->SYSTEM_MODULE.wifi_status, sizeof(GLOBAL_STATE->SYSTEM_MODULE.wifi_status), "WiFi auth failed (%s)", get_wifi_reason_string(event->reason));
-                if (ip_acquire_timer) xTimerStop(ip_acquire_timer, 0);
-                return;
             }
             // Only bring up SoftAP if no SSID is configured (initial setup) or after persistent failures (> 10 retries)
             if (strlen(GLOBAL_STATE->SYSTEM_MODULE.ssid) == 0 || s_retry_num > 10) {
@@ -1549,17 +1603,14 @@ static void event_handler(void * arg, esp_event_base_t event_base, int32_t event
             snprintf(GLOBAL_STATE->SYSTEM_MODULE.wifi_status, sizeof(GLOBAL_STATE->SYSTEM_MODULE.wifi_status), "%s (Error %d, retry #%d)", get_wifi_reason_string(event->reason), event->reason, s_retry_num);
             ESP_LOGI(TAG, "Wi-Fi status: %s", GLOBAL_STATE->SYSTEM_MODULE.wifi_status);
 
-            s_retry_num++;
-            // Exponential backoff with jitter for WiFi reconnect
-            int backoff_ms = 1000 + (s_retry_num * 800) + (esp_random() % 700);
-            if (backoff_ms > 8000) backoff_ms = 8000;
-            ESP_LOGI(TAG, "NET,event=WIFI_RETRY,attempt=%d,backoff=%d", s_retry_num, backoff_ms);
-            vTaskDelay(pdMS_TO_TICKS(backoff_ms));
-            wifi_connect_pinned();
-
             if (ip_acquire_timer != NULL) {
                 xTimerStop(ip_acquire_timer, 0);
-            }            
+            }
+
+            s_retry_num++;
+            uint32_t backoff_ms = net_policy_wifi_retry_delay_ms(s_retry_num, is_auth_failure, esp_random());
+            ESP_LOGI(TAG, "NET,event=WIFI_RETRY,attempt=%d,backoff=%lu", s_retry_num, (unsigned long) backoff_ms);
+            wifi_retry_schedule(backoff_ms);
         }
         
         if (event_id == WIFI_EVENT_AP_START) {
