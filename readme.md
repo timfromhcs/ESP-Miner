@@ -26,13 +26,16 @@ Wrong earlier claims are corrected visibly, not deleted (see the
 | Release | State |
 |---|---|
 | [`v4.0.1-stable`](https://github.com/timfromhcs/ESP-Miner/releases/tag/v4.0.1-stable) | latest Stable |
-| `v4.0.2-rc1` (branch `release/v4.0.2`) | release candidate: Wi-Fi reconnect and OTA-safety fixes — [readiness](docs/RELEASE_READINESS.md) |
+| `v4.0.2-rc1` | release candidate, not yet published as a release: Wi-Fi reconnect, OTA-safety and BSSID-pin fixes. Open PR: [#2](https://github.com/timfromhcs/ESP-Miner/pull/2) · [readiness](docs/RELEASE_READINESS.md) |
 
 | Unit | Board | ASIC | Firmware | State |
 |---|---|---|---|---|
 | `bitaxe-tim2` — `192.168.178.80` | **601 (Gamma)** | **BM1370** | `v4.0.2-rc1-tim2` | flashed over Wi-Fi on 2026-10-29, back on the same address in ~10 s; observation: [report](reports/v4.0.2-rc1/HARDWARE_VALIDATION.md) |
-| `timsminer` — `192.168.178.61` | 201 (Ultra) | BM1366 | `v4.0.0-stable-timsminer` | `HARDWARE VALIDATED` — 353 h, 185 918 shares, 0.299 % stale |
-| `blackharkminer` — `192.168.178.66` | 201 (Ultra) | BM1366 | `v4.0.0-stable-blackharkminer` | `HARDWARE VALIDATED` — 353 h, 189 101 shares, 0.290 % stale |
+| `timsminer` — `192.168.178.61` | 201 (Ultra) | BM1366 | `v4.0.2-rc1-timsminer` | flashed 2026-10-29, BSSID-pinned, mining; `v4.0.0` was `HARDWARE VALIDATED` (353 h, 0.299 % stale) — this firmware is not yet validated on the unit. Hashrate below its earlier ~430 GH/s, under investigation |
+| `blackharkminer` — `192.168.178.66` | 201 (Ultra) | BM1366 | `v4.0.2-rc1-blackharkminer` | flashed 2026-10-29, BSSID-pinned, mining; `v4.0.0` was `HARDWARE VALIDATED` (353 h, 0.290 % stale) — this firmware is not yet validated on the unit |
+
+The two Ultras mine to a single wallet on zpool (distinct worker names). Their
+Wi-Fi is pinned to one mesh node; see *Build* for why that pin is required.
 
 The BM1366 units are deliberately left on their earlier firmware as a reference
 baseline. Changes to shared code are marked as such in the changelog.
@@ -119,7 +122,8 @@ idf.py build
 ./tools/build_release.sh tim2                 # Gamma, board 601, BM1370
 
 # Ultra variants: <ip> <gateway> <netmask> <dns> <bssid|none>
-./tools/build_release.sh timsminer 192.168.178.61 192.168.178.1 255.255.255.0 192.168.178.1 aa:bb:cc:dd:ee:ff
+./tools/build_release.sh timsminer <ip> <gateway> <netmask> <dns> <bssid>
+./tools/build_release.sh blackharkminer <ip> <gateway> <netmask> <dns> <bssid>
 ```
 
 The BSSID pin is **mandatory** for `timsminer` / `blackharkminer` (pass `none`
