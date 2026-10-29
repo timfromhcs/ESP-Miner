@@ -129,7 +129,21 @@ void sim_board_init(sim_board_t *b) {
     b->state.effective_hashrate_ghs = 434.5;
 }
 
+void sim_board_destroy(sim_board_t *b) {
+    for (size_t slot = 0; slot < SIM_MAX_ACTIVE_JOBS; slot++) {
+        if (b->active_jobs[slot] != NULL) {
+            free(b->active_jobs[slot]);
+            b->active_jobs[slot] = NULL;
+            b->valid_jobs[slot] = false;
+            b->total_frees++;
+        }
+    }
+}
+
 void sim_board_reset(sim_board_t *b) {
+    /* sim_board_init() memsets the board, so anything still allocated would be
+     * orphaned rather than freed. */
+    sim_board_destroy(b);
     sim_board_init(b);
 }
 
