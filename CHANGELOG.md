@@ -56,6 +56,15 @@ CI run for the exact release commit and the items in
   only that allocations were bounded. LeakSanitizer reported 58 KB. Fixed, and
   the test now asserts frees == allocations.
 
+- **Per-device Ultra variants could be built without a BSSID pin.**
+  `tools/build_release.sh timsminer|blackharkminer` took the pin as an optional
+  sixth argument defaulting to empty. On a mesh that let the station choose a
+  node that associates but relays nothing after the OTA reboot; blackharkminer
+  went offline that way on 2026-10-29. The pin is now required (`none` opts out
+  explicitly), the gateway/netmask/DNS defaults are gone, and the format is
+  validated. `tools/test_build_release_args.sh` covers the rejections and runs in
+  CI.
+
 ### CI / release hardening
 
 - Every third-party action pinned to a full commit SHA (tag kept as comment).

@@ -23,18 +23,19 @@ Current state: **RC** (`v4.0.2-rc1`). Gates per `GEMINI.md` §23. Evidence:
 | D | App vs factory image | ✅ documented, enforced by the OTA gate |
 | D | Partitions / size | ✅ 34 % free in 4 MiB slot |
 | D | SHA-256 manifest for all release assets | ❌ release workflow does not yet publish `SHA256SUMS` |
-| D | CI logs for the exact candidate SHA | ❌ branch not pushed |
+| D | CI logs for the exact candidate SHA | ⚠️ green for `746a2d7` (Build Firmware, Unit Test); must be re-checked on the final commit |
 | D | No secrets in Git or assets | ✅ scan clean; raw evidence under git-ignored `artifacts/private/` |
 | E | Target identity verified | ✅ Board 601 / BM1370, MAC == `tim2` pin |
 | E | Exactly one OTA | ✅ 2026-10-29 20:38, HTTP 200, returned in ~10 s |
 | E | Same IP, expected version | ✅ `192.168.178.80`, `v4.0.2-rc1-tim2`, `ota_1` |
-| E | Smoke + sustained observation | see `reports/v4.0.2-rc1/HARDWARE_VALIDATION.md` |
+| E | Smoke + sustained observation | ✅ 61.9 min on `.80`, T1–T9 pass (`HARDWARE_VALIDATION.md`); one hour, one unit |
 | E | Rollback proven if claimed | ✅ not claimed (disabled) |
 
 ## Blocking Stable
 
-1. GitHub Actions green for the exact release commit (requires pushing the branch).
+1. GitHub Actions green for the exact release commit. Green for `746a2d7` (Build Firmware, Unit Test); re-check on the final commit.
 2. `SHA256SUMS` published with the release assets.
+2a. ~~Per-device variants could be built without a BSSID pin~~ — fixed: `tools/build_release.sh` now requires the pin for `timsminer`/`blackharkminer` (`none` to opt out), checked by `tools/test_build_release_args.sh` in CI.
 3. The new OTA handler has not yet run on hardware: the RC was uploaded through
    the previous firmware's handler. The next OTA (rc2 or Stable) exercises it.
 4. Pool credentials logged at INFO by `stratum_api` (`mining.authorize` tx line),
@@ -46,3 +47,4 @@ Current state: **RC** (`v4.0.2-rc1`). Gates per `GEMINI.md` §23. Evidence:
 - Angular major upgrade for the remaining advisories.
 - Static analysis in CI.
 - Physical router-outage test, only with explicit authorization.
+- `timsminer` runs ~270 GH/s against ~430 earlier; investigate.

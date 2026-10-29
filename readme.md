@@ -117,9 +117,15 @@ idf.py build
 
 # Named per-device variants -> dist/<variant>/esp-miner-<variant>.bin
 ./tools/build_release.sh tim2                 # Gamma, board 601, BM1370
-./tools/build_release.sh timsminer 192.168.178.61
-./tools/build_release.sh blackharkminer 192.168.178.66
+
+# Ultra variants: <ip> <gateway> <netmask> <dns> <bssid|none>
+./tools/build_release.sh timsminer 192.168.178.61 192.168.178.1 255.255.255.0 192.168.178.1 aa:bb:cc:dd:ee:ff
 ```
+
+The BSSID pin is **mandatory** for `timsminer` / `blackharkminer` (pass `none`
+only on a single-access-point network). On a mesh the station otherwise picks
+the loudest node after a reboot, which can be one that associates but relays
+nothing; an OTA-flashed unit then goes offline and needs a USB cable.
 
 Per-device values are passed with `-D` on every build rather than trusted from
 the CMake cache: a stale cache entry otherwise keeps the old value silently —
