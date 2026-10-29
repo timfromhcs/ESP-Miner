@@ -35,6 +35,7 @@ void test_phase1_board_model(void) {
     assert(board.work_queue_count == 0);
     assert(sim_verify_all_invariants(&board) == true);
 
+    sim_board_destroy(&board);
     SIM_PASS();
 }
 
@@ -58,6 +59,7 @@ void test_phase6_network_pipeline(void) {
     assert(b.state.pool_state == POOL_STATE_MINING);
     assert(b.virtual_network.dhcp_lease_expiry_us > 0);
 
+    sim_board_destroy(&b);
     SIM_PASS();
 }
 
@@ -101,6 +103,7 @@ void test_phase6_fault_recovery(void) {
     sim_net_process_events(&b); // -> MINING
     assert(b.state.net_state == NET_STATE_MINING);
 
+    sim_board_destroy(&b);
     SIM_PASS();
 }
 
@@ -182,6 +185,7 @@ void test_phase4_5_job_flow_dedup(void) {
     assert(stale_accepted == false);
     assert(b.state.shares_stale == 1);
 
+    sim_board_destroy(&b);
     SIM_PASS();
 }
 
@@ -215,6 +219,7 @@ void test_phase11_bm1366_protocol(void) {
     assert(b.state.asic_state != ASIC_STATE_RUNNING);
     assert(sim_verify_all_invariants(&b) == true);
 
+    sim_board_destroy(&b);
     SIM_PASS();
 }
 
@@ -261,6 +266,7 @@ void test_phase12_master_invariants(void) {
 
     assert(sim_verify_all_invariants(&b) == true);
 
+    sim_board_destroy(&b);
     SIM_PASS();
 }
 
@@ -343,6 +349,7 @@ void test_phase13_property_fuzzing(void) {
         }
     }
 
+    sim_board_destroy(&b);
     SIM_PASS();
 }
 
@@ -378,6 +385,7 @@ void test_phase14_performance_baseline(void) {
     double cpu_time = ((double)(end - start)) / CLOCKS_PER_SEC;
     double ops_per_sec = (iterations * 3.0) / cpu_time;
 
+    sim_board_destroy(&b);
     printf("PASS (%.3f s, %.0f ops/sec)\n", cpu_time, ops_per_sec);
     tests_passed++;
 }

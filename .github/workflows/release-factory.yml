@@ -23,11 +23,11 @@ jobs:
         build_type: ["102", "201", "202", "203", "204", "205", "207", "302", "303", "400", "401", "402", "403", "601", "602", "650", "701", "702", "801", "1201", "1300"]
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           submodules: 'recursive'
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '24.14.0'
       - name: Build web dist
@@ -36,20 +36,20 @@ jobs:
           npm ci
           npm run build
       - name: esp-idf build
-        uses: espressif/esp-idf-ci-action@v1
+        uses: espressif/esp-idf-ci-action@9d38657f3d789ca759b2b37aaf5ceffbc42c4f0d # v1
         with:
           esp_idf_version: v6.0.2
           target: esp32s3
           command: GITHUB_ACTIONS="true" idf.py build
           path: '.'
       - name: "esp-idf build factory config for ${{ matrix.build_type }}"
-        uses: espressif/esp-idf-ci-action@v1
+        uses: espressif/esp-idf-ci-action@9d38657f3d789ca759b2b37aaf5ceffbc42c4f0d # v1
         with:
           esp_idf_version: v6.0.2
           target: esp32s3
           command: /opt/esp/idf/components/nvs_flash/nvs_partition_generator/nvs_partition_gen.py generate configs/config-${{ matrix.build_type }}.csv config.bin 0x6000
           path: '.'
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.10'
           cache: 'pip'
@@ -57,7 +57,7 @@ jobs:
       - name: "Create factory image for ${{ matrix.build_type }}-${{ github.ref_name }}"
         run: "./merge_bin.sh -c esp-miner-factory-${{ matrix.build_type }}-${{ github.ref_name }}.bin"
       - name: Release esp-miner.bin
-        uses: softprops/action-gh-release@v2.4.2
+        uses: softprops/action-gh-release@5be0e66d93ac7ed76da52eca8bb058f665c3a5fe # v2.4.2
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: "esp-miner-factory-${{ matrix.build_type }}-${{ github.ref_name }}.bin"
@@ -70,7 +70,15 @@ jobs:
             echo "RCLONE_CONF secret is not set, skipping rclone installation"
             exit 0
           fi
-          curl -fsSL https://rclone.org/install.sh | sudo bash
+          # Pinned version, verified against its published SHA-256 before it is
+          # installed, instead of piping a moving install script into a root shell.
+          # To update: take the new version's line for linux-amd64.deb from
+          # https://downloads.rclone.org/<version>/SHA256SUMS.
+          RCLONE_VERSION=v1.75.2
+          RCLONE_SHA256=efbfe852181f7191eb3c9043ed1ab49c9b2d0ba045c61c926a5da111c939ec5c
+          curl -fsSLo rclone.deb "https://downloads.rclone.org/${RCLONE_VERSION}/rclone-${RCLONE_VERSION}-linux-amd64.deb"
+          echo "${RCLONE_SHA256}  rclone.deb" | sha256sum -c -
+          sudo dpkg -i rclone.deb
       - name: Upload to Cloudflare R2 using rclone
         if: startsWith(github.ref, 'refs/tags/')
         env:

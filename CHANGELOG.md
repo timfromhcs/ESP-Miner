@@ -5,6 +5,89 @@ This project adheres to [Semantic Versioning](https://semver.org/) and the **Tru
 
 ---
 
+## [4.0.2-rc1] - 2026-10-29
+
+Release candidate. Flashed once over Wi-Fi to the Bitaxe Gamma (board 601,
+BM1370) at `192.168.178.80` on 2026-10-29; it returned on the same address in
+~10 s running `v4.0.2-rc1-tim2`. Not yet Stable: the sustained observation, the
+CI run for the exact release commit and the items in
+`docs/RELEASE_READINESS.md` are outstanding. Evidence: `reports/v4.0.2-rc1/`.
+
+### Fixed
+
+- **The station stopped reconnecting for good after a router reboot (P0,
+  all boards).** A disconnect with a handshake-type reason
+  (`AUTH_FAIL`, `4WAY_HANDSHAKE_TIMEOUT`, `HANDSHAKE_TIMEOUT`, `AUTH_EXPIRE`) at
+  a retry count of 3 or more was treated as a permanent credential failure and
+  ended all reconnect attempts. The retry counter is only reset by a lease, so a
+  router outage (a run of `NO_AP_FOUND`) followed by a single handshake timeout
+  while the router's WPA stack came back up left the miner offline until it
+  was power-cycled. Repeated auth-type failures now slow the cadence to ~30 s
+  instead of ending it (`net_policy_wifi_retry_delay_ms`, host-tested). Code
+  fact; a physical router-outage reproduction is `NOT MEASURED`.
+- **The Wi-Fi reconnect backoff blocked the system event loop.** The delay
+  before re-associating was a `vTaskDelay()` of up to 8 s inside the Wi-Fi event
+  handler, which holds every other Wi-Fi/IP event, including
+  `IP_EVENT_STA_GOT_IP`. Now a one-shot `esp_timer` that is cancelled when the
+  station associates by another path.
+- **A failed `esp_ota_begin()` aborted the whole device.** It was wrapped in
+  `ESP_ERROR_CHECK`. It now returns HTTP 500 and the miner keeps running.
+- **An interrupted OTA upload leaked the OTA handle and left the display stuck
+  on the firmware-update screen.** The receive-error path did not call
+  `esp_ota_abort()`, and no failure path cleared `is_firmware_update`, which
+  `screen.c` uses to pin the update screen. Every failure path now aborts and
+  clears the flag; a second upload while one is active gets HTTP 409.
+- **A stalled OTA client could hold the HTTP server forever.** Receive timeouts
+  were retried without limit on the single httpd task. Now bounded at six
+  consecutive timeouts (~30 s).
+- **A factory/merged image or a foreign application could be written to an OTA
+  slot.** Uploads are now checked before activation (`ota_guard`, host-tested
+  against hand-built vectors and the real v4.0.1 release images): ESP image
+  magic, chip id, application descriptor magic and project name, plus a size
+  limit against the target slot. Rejection happens before the boot partition is
+  touched.
+- **`POST /api/system/OTAWWW` wrote the image at the wrong offset unless it was
+  exactly partition-sized** (`partition size - remaining` instead of the upload
+  offset), aborted on an erase error via `ESP_ERROR_CHECK`, and left the UI
+  pointing at a half-erased filesystem on failure. The embedded UI is now
+  selected for the duration of the upload.
+- **Simulation harness leaked and its "zero leakage" test could not see it.**
+  `virtual_board.c` never freed its slot table; `test_dataflow_memory` checked
+  only that allocations were bounded. LeakSanitizer reported 58 KB. Fixed, and
+  the test now asserts frees == allocations.
+
+### CI / release hardening
+
+- Every third-party action pinned to a full commit SHA (tag kept as comment).
+- `build.yml` runs with `contents: read`.
+- The QEMU test gate fails closed on a missing, empty or test-less
+  `report.xml` and also counts `errors`.
+- Host tests additionally run under AddressSanitizer + UndefinedBehaviorSanitizer.
+- rclone is installed from a pinned version verified against its SHA-256,
+  replacing `curl | sudo bash`.
+
+### Security
+
+- `SECURITY.md` routes reports for this fork to this repository and documents
+  that the HTTP API/OTA is unauthenticated plain HTTP and that rollback is not
+  enabled.
+
+### Corrected documentation
+
+- Board 601 is a **Bitaxe Gamma** (BM1370), not a "Bitaxe Supra" as the
+  4.0.1 entry below and earlier READMEs say: `main/device_config.h` maps 601 to
+  `FAMILY_GAMMA`, "Supra" is the BM1368 family, and the unit reports
+  `deviceModel: Gamma`. The 4.0.1 text is left as written; measurements are unaffected.
+- The README stated an MIT license; the repository is GPL-3.0 (`LICENSE`).
+
+### Not changed (documented, see `docs/OTA_SAFETY.md`)
+
+- `CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE` remains off. The `main.c` code that
+  marks an image valid is therefore inert. Enabling rollback needs a new
+  bootloader, which an OTA does not deliver.
+
+---
+
 ## [4.0.1-stable] - 2026-10-18
 
 Platform bring-up and AsicBoost hardening for the **Bitaxe Supra (Board 601,

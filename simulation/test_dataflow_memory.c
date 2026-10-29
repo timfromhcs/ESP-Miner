@@ -49,6 +49,7 @@ void test_dataflow_redundancy(void) {
     double savings_pct = 100.0 * (1.0 - ((double)optimized_hex_bytes_parsed / (double)unoptimized_hex_bytes_parsed));
     assert(savings_pct > 97.0);
 
+    sim_board_destroy(&b);
     DF_PASS();
 }
 
@@ -89,6 +90,7 @@ void test_canonical_state_consistency(void) {
     assert(api_power == ws_power && ws_power == screen_power && screen_power == 12.50);
     assert(api_rpm == ws_rpm && ws_rpm == 3620);
 
+    sim_board_destroy(&b);
     DF_PASS();
 }
 
@@ -120,6 +122,12 @@ void test_memory_simulation(void) {
     assert(b.total_allocations <= SIM_MAX_ACTIVE_JOBS);
     assert(b.work_queue_count == 0);
     assert(b.work_queue_peak <= SIM_QUEUE_CAPACITY);
+
+    // "Zero leakage" means every allocation is released again, not only that the
+    // count stays bounded. LeakSanitizer found this test passing while the board
+    // still held 128 slot buffers that nothing ever freed.
+    sim_board_destroy(&b);
+    assert(b.total_frees == b.total_allocations);
 
     DF_PASS();
 }
@@ -154,6 +162,7 @@ void test_network_coalescing(void) {
     assert(fast_reconnects == 49);
     assert(sim_verify_all_invariants(&b) == true);
 
+    sim_board_destroy(&b);
     DF_PASS();
 }
 

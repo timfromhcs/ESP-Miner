@@ -1409,7 +1409,13 @@ paths:
   /api/system/OTA:
     post:
       summary: Update system firmware
-      description: Upload and apply new firmware via OTA update
+      description: >-
+        Upload and apply new firmware via OTA update. The body must be the OTA
+        application image (esp-miner.bin), not a factory/merged image. The image
+        header is checked (ESP image magic, chip id, application descriptor and
+        project name) before the slot can be activated; a rejected or interrupted
+        upload leaves the boot partition unchanged. The device reboots on success,
+        so the connection may close before the response body arrives.
       operationId: updateFirmware
       tags:
         - system
@@ -1428,9 +1434,13 @@ paths:
               schema:
                 type: string
         '400':
-          description: Invalid firmware file
+          description: Invalid firmware file (empty, truncated, wrong chip, factory/merged image or foreign application)
         '401':
           description: Unauthorized - Client not in allowed network range
+        '409':
+          description: Another firmware or web interface update is already in progress
+        '413':
+          description: Image larger than the OTA partition
         '500':
           description: Internal server error
 

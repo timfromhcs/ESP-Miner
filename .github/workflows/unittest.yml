@@ -13,8 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v6
-
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - name: Build and run host tests
         working-directory: ./simulation
         run: |
@@ -23,16 +22,23 @@ jobs:
           make CFLAGS="-Wall -Wextra -Werror -O2 -I."
           make run
 
+      - name: Re-run host tests under ASan + UBSan
+        working-directory: ./simulation
+        run: |
+          make clean
+          make CFLAGS="-Wall -Wextra -Werror -O1 -g -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer -I."
+          make run
+
   build-and-test:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           submodules: 'recursive'
 
       - name: esp-idf build
-        uses: espressif/esp-idf-ci-action@v1
+        uses: espressif/esp-idf-ci-action@9d38657f3d789ca759b2b37aaf5ceffbc42c4f0d # v1
         with:
           esp_idf_version: v6.0.2
           target: esp32s3
@@ -40,19 +46,19 @@ jobs:
           path: 'test-ci'
 
       - name: Run tests
-        uses: bitaxeorg/esp32-qemu-test-action@v6
+        uses: bitaxeorg/esp32-qemu-test-action@0c8de4992deb539787974e4dd0d97317c5ae6600 # v6
         with:
           path: 'test-ci'
 
       - name: Upload event file
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: event-file
           path: ${{ github.event_path }}
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: test-results
           path: report.xml
@@ -60,9 +66,21 @@ jobs:
       - name: Check for test failures
         if: always()
         run: |
-          FAILURES=$(grep -oP 'failures="\K[0-9]+' report.xml || echo 0)
-          if [ "$FAILURES" -gt 0 ]; then
-            echo "::error ::Detected $FAILURES test failures."
+          # Fail closed: a missing or unparsable report is a failure, not a pass.
+          if [ ! -s report.xml ]; then
+            echo "::error ::report.xml is missing or empty - the QEMU tests did not report."
+            exit 1
+          fi
+          TESTS=$(grep -oP '<testsuite[^>]*\btests="\K[0-9]+' report.xml | awk '{s+=$1} END {print s+0}')
+          FAILURES=$(grep -oP '<testsuite[^>]*\bfailures="\K[0-9]+' report.xml | awk '{s+=$1} END {print s+0}')
+          ERRORS=$(grep -oP '<testsuite[^>]*\berrors="\K[0-9]+' report.xml | awk '{s+=$1} END {print s+0}')
+          echo "tests=$TESTS failures=$FAILURES errors=$ERRORS"
+          if [ "$TESTS" -eq 0 ]; then
+            echo "::error ::report.xml contains no test cases."
+            exit 1
+          fi
+          if [ "$FAILURES" -gt 0 ] || [ "$ERRORS" -gt 0 ]; then
+            echo "::error ::Detected $FAILURES test failures and $ERRORS errors."
             exit 1
           fi
 
@@ -70,12 +88,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           submodules: 'recursive'
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '24.14.0'
 
@@ -87,7 +105,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: frontend-test-results
           path: main/http_server/axe-os/report.xml

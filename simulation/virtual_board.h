@@ -284,6 +284,9 @@ typedef struct {
  * ------------------------------------------------------------------------- */
 void sim_board_init(sim_board_t *b);
 void sim_board_reset(sim_board_t *b);
+/* Releases every allocation the board owns. Required before a board goes out of
+ * scope; sim_board_reset() calls it before re-initialising. */
+void sim_board_destroy(sim_board_t *b);
 void sim_advance_time(sim_board_t *b, uint64_t delta_us);
 
 // Network state machine transitions

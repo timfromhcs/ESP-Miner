@@ -73,6 +73,7 @@ simulation/test_notify_validate
 simulation/test_power_policy
 simulation/test_net_recovery_policy
 simulation/test_nbits_reference
+simulation/test_ota_guard
 
 # Full flash dumps and per-device provisioning fragments. These contain the
 # device's Wi-Fi credentials in plaintext, so they stay out of the repository.

@@ -2,16 +2,19 @@ name: Build Firmware
 on: [push, pull_request]
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+# Build-only: nothing here publishes, so the token does not need write access.
+permissions:
+  contents: read
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v6
+      uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       with:
         submodules: 'recursive'
     - name: Setup Node.js
-      uses: actions/setup-node@v6
+      uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
       with:
         node-version: '24.14.0'
     - name: Build web dist
@@ -20,13 +23,13 @@ jobs:
         npm ci
         npm run build
     - name: esp-idf build
-      uses: espressif/esp-idf-ci-action@v1
+      uses: espressif/esp-idf-ci-action@9d38657f3d789ca759b2b37aaf5ceffbc42c4f0d # v1
       with:
         esp_idf_version: v6.0.2
         target: esp32s3
         command: GITHUB_ACTIONS="true" idf.py build
         path: '.'
-    - uses: actions/setup-python@v6
+    - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
       with:
         python-version: '3.10'
         cache: 'pip'
@@ -34,12 +37,12 @@ jobs:
     - name: "Create factory/merged image"
       run: "./merge_bin.sh ./esp-miner-merged.bin"
     - name: upload esp-miner-merged.bin
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
       with:
         name: esp-miner-factory.bin
         path: ./esp-miner-merged.bin
     - name: upload esp-miner.bin
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
       with:
         name: esp-miner.bin
         path: ./build/esp-miner.bin

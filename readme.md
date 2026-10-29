@@ -1,25 +1,179 @@
 # ESP-Miner — Hardening & Physical Validation Edition
 
-ESP-Miner is the open-source firmware powering the [Bitaxe](https://bitaxe.org) family of Bitcoin ASIC miners. It runs on an ESP32-S3 and drives Bitmain BM13xx hashing engines over a single UART link.
+Firmware for the [Bitaxe](https://bitaxe.org) family of open-source Bitcoin ASIC
+miners: an ESP32-S3, one or more Bitmain BM13xx hashing chips on a UART link,
+and the AxeOS web interface.
 
-This edition is a hardening fork. Every change starts from a defect that can be pointed at in the source, and every claim is labelled by what was actually done to earn it — read in silicon, read in the code, or merely reasoned about. Where a previous diagnosis in this repository was wrong, it is retracted in place rather than quietly deleted.
+This is a hardening fork of [bitaxeorg/ESP-Miner](https://github.com/bitaxeorg/ESP-Miner).
+Every change starts from a defect that can be pointed at in the source, and every
+claim carries a label for how it was earned:
 
-**Platforms covered:** Bitaxe Ultra (Board 201, BM1366) and Bitaxe Supra (Board 601, BM1370).
+| Label | Means |
+|---|---|
+| `PROVEN` | reproduced by a test, an independent check, or directly visible in the code |
+| `TESTED` | a named test ran and passed |
+| `MEASURED` | observed on an identified physical unit |
+| `HARDWARE VALIDATED` | measured with identity, firmware hash, procedure, duration and criteria recorded |
+| `NOT PROVEN` / `NOT MEASURED` | no adequate evidence yet — said out loud rather than implied |
+
+Wrong earlier claims are corrected visibly, not deleted (see the
+[changelog](CHANGELOG.md) and the [capability matrix](docs/CAPABILITY_MATRIX.md)).
 
 ---
 
 ## Status
 
+| Release | State |
+|---|---|
+| [`v4.0.1-stable`](https://github.com/timfromhcs/ESP-Miner/releases/tag/v4.0.1-stable) | latest Stable |
+| `v4.0.2-rc1` (branch `release/v4.0.2`) | release candidate: Wi-Fi reconnect and OTA-safety fixes — [readiness](docs/RELEASE_READINESS.md) |
+
 | Unit | Board | ASIC | Firmware | State |
 |---|---|---|---|---|
-| `timsminer` — `192.168.178.61` | 201 | BM1366 | `v4.0.0-stable-timsminer` | `HARDWARE VALIDATED` — 353 h continuous, 185 918 shares, 0.299 % stale |
-| `blackharkminer` — `192.168.178.66` | 201 | BM1366 | `v4.0.0-stable-blackharkminer` | `HARDWARE VALIDATED` — 353 h continuous, 189 101 shares, 0.290 % stale |
-| `bitaxe-tim2` — `192.168.178.80` | **601** | **BM1370** | `v4.0.1-stable-tim2` | `HARDWARE VALIDATED` — updated over Wi-Fi OTA, 1 531 GH/s, 14.9 h, 7 630 shares |
+| `bitaxe-tim2` — `192.168.178.80` | **601 (Gamma)** | **BM1370** | `v4.0.2-rc1-tim2` | flashed over Wi-Fi on 2026-10-29, back on the same address in ~10 s; observation: [report](reports/v4.0.2-rc1/HARDWARE_VALIDATION.md) |
+| `timsminer` — `192.168.178.61` | 201 (Ultra) | BM1366 | `v4.0.0-stable-timsminer` | `HARDWARE VALIDATED` — 353 h, 185 918 shares, 0.299 % stale |
+| `blackharkminer` — `192.168.178.66` | 201 (Ultra) | BM1366 | `v4.0.0-stable-blackharkminer` | `HARDWARE VALIDATED` — 353 h, 189 101 shares, 0.290 % stale |
 
-The `.61` and `.66` units are deliberately **left on their previous firmware** and
-served as the reference baseline for this release. Changes that touch shared code
-are marked as such in the [changelog](CHANGELOG.md); the BM1370-specific work is
-the only part proven on new silicon so far.
+The BM1366 units are deliberately left on their earlier firmware as a reference
+baseline. Changes to shared code are marked as such in the changelog.
+
+> **Correction (v4.0.2-rc1):** earlier versions of this README and the changelog
+> called board 601 a "Bitaxe Supra". In this firmware board 601 maps to
+> `FAMILY_GAMMA` (BM1370, `main/device_config.h`); "Supra" is the BM1368 family.
+> The unit reports `deviceModel: Gamma` itself. The measurements are unaffected.
+
+---
+
+## Quick start
+
+### Which file to flash
+
+| File | Use it for |
+|---|---|
+| `esp-miner.bin` | **Over-the-air updates.** Application image only. |
+| `esp-miner-factory-<board>-<version>.bin` | **USB flashing** of a blank or bricked unit. Full flash image: bootloader, partition table, app, web UI, board config. |
+
+Since `v4.0.2-rc1` the OTA endpoint refuses a factory/merged image, a foreign
+application or an image for another chip before anything becomes bootable.
+
+### Update over Wi-Fi
+
+1. Check the unit: `GET http://<miner>/api/system/info` → `boardVersion`,
+   `ASICModel`, `version`, and `apEnabled == 0` (OTA is refused in AP mode).
+2. Note the image's SHA-256 (`Get-FileHash` / `sha256sum`).
+3. Upload **once**:
+
+   ```bash
+   curl --fail-with-body -H 'Content-Type: application/octet-stream' --data-binary @esp-miner.bin http://<miner>/api/system/OTA
+   ```
+
+4. The miner answers `Firmware update complete, rebooting now!` and restarts.
+   A dropped connection at this point is normal — **do not send it again**.
+   Wait and poll the same address; `version` and `runningPartition` change.
+
+The AxeOS *Update* page (`/update`) does the same from the browser.
+
+**Per-device builds stay per-device.** A variant from `tools/build_release.sh`
+can pin the station MAC, the BSSID and a static fallback address that are
+reserved on one router for one unit. Flashing the general image onto such a unit
+drops the pinned MAC and with it the DHCP reservation; flashing a variant onto
+another unit duplicates MAC and IP. The firmware cannot detect either mistake.
+
+**There is no automatic rollback.** `CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE` is
+off. The previous image stays in the other OTA slot and can be selected with
+`POST /api/system/boot` and `{"partition":"ota_0"}` (or `ota_1`) as long as the
+new image serves HTTP; otherwise recover over USB. Details:
+[OTA safety](docs/OTA_SAFETY.md).
+
+### Recover over USB
+
+```bash
+python -m esptool --chip esp32s3 -p COM3 -b 460800 write_flash 0x0 esp-miner-factory-<board>-<version>.bin
+```
+
+From a build directory instead:
+
+```bash
+python -m esptool --chip esp32s3 -p COM3 -b 460800 write_flash 0x0 build-tim2/bootloader/bootloader.bin 0x8000 build-tim2/partition_table/partition-table.bin 0x10000 build-tim2/esp-miner.bin 0xf10000 build-tim2/ota_data_initial.bin
+```
+
+Partition layout: `factory` at `0x10000`, `www` (3 MiB) at `0x410000`, `ota_0`
+at `0x710000` and `ota_1` at `0xB10000` (4 MiB each), `otadata` at `0xF10000`.
+A unit flashed only from a factory image has empty OTA slots; the first OTA
+fills `ota_0` and later ones alternate.
+
+---
+
+## Build
+
+Requires ESP-IDF **v6.0.2** and Node.js **v22+** (CI uses 24.14.0). The web UI is
+built and embedded automatically.
+
+```bash
+. ~/esp/esp-idf/export.sh
+
+# General image: no baked-in address, no per-device identity -> build/esp-miner.bin
+idf.py build
+
+# Named per-device variants -> dist/<variant>/esp-miner-<variant>.bin
+./tools/build_release.sh tim2                 # Gamma, board 601, BM1370
+./tools/build_release.sh timsminer 192.168.178.61
+./tools/build_release.sh blackharkminer 192.168.178.66
+```
+
+Per-device values are passed with `-D` on every build rather than trusted from
+the CMake cache: a stale cache entry otherwise keeps the old value silently —
+including `PROJECT_VER`, which is how a unit ends up reporting `v3` while the
+source says `v4`.
+
+## Test
+
+```bash
+# Host tests: pure policy/parser code, no IDF, no hardware
+cd simulation && make test
+
+# Same suites under AddressSanitizer + UndefinedBehaviorSanitizer
+make clean && make CFLAGS="-Wall -Wextra -Werror -O1 -g -fsanitize=address,undefined -fno-sanitize-recover=all -I." && make run
+
+# Firmware unit tests (Unity) in QEMU; needs qemu-system-xtensa and a checkout with symlinks (Linux/WSL)
+./tools/run_qemu_tests.sh
+
+# AxeOS frontend, headless Chrome
+cd main/http_server/axe-os && npm ci && npm run test:ci
+```
+
+Host suites: notify validator, compact-target differential test against an
+independent reference decoder, thermal/power policy, network recovery ladder and
+reconnect schedule, OTA upload gate, and a simulation model of the board. What
+each one proves — and what it does not: [test matrix](docs/TEST_MATRIX.md).
+
+---
+
+## Security and known limitations
+
+- **The web API is plain HTTP without authentication**, limited only by a
+  local-network check — including `POST /api/system/OTA`. Never expose a miner
+  to an untrusted network or forward its port to the internet.
+- **OTA images are not signed.** The upload is checked for being an ESP32-S3
+  esp-miner application image and ESP-IDF verifies its checksum; neither is
+  authentication.
+- **No automatic rollback** (see Quick start).
+- **Pool credentials appear in the device log.** The `mining.authorize` request
+  is logged at INFO level and the log is readable through the API. Fix planned
+  before the next Stable.
+- **AxeOS dependencies** have open advisories (Angular 19.2.20), assessed as low
+  exploitability for this app; upgrade tracked.
+- **Version rolling is 16 bits wide.** A pool mask of `0xffffffff` does not mean
+  "roll everything": bits above 28 are BIP9 signalling, and the firmware clamps
+  to the reachable window.
+- **Stratum V2 extended channels** have working framing and handshake; channel
+  multiplexing is still in development.
+- **Router-outage recovery** is covered by host policy tests, not yet measured on
+  hardware with a real outage.
+
+Report vulnerabilities through this repository's
+[security advisories](https://github.com/timfromhcs/ESP-Miner/security/advisories/new);
+see [SECURITY.md](SECURITY.md).
 
 ---
 
@@ -49,7 +203,7 @@ Register `0x28` selects the chip's baud rate, which it derives from a 25 MHz on-
 baud = 25 000 000 / ((BT8D + 1) * 8)
 ```
 
-- **The BM1370 wrote BT8D = 2 but returned 1 000 000 to the host** — a systematic 4.17 % mismatch, with the receiver sampling the wrong bit grid. This exact defect was found, documented and fixed on the BM1366 in v2.16.0 and never carried over. It matters considerably more on the Supra, which sustains roughly 3.5× the hashrate of an Ultra over the same link.
+- **The BM1370 wrote BT8D = 2 but returned 1 000 000 to the host** — a systematic 4.17 % mismatch, with the receiver sampling the wrong bit grid. This exact defect was found, documented and fixed on the BM1366 in v2.16.0 and never carried over. It matters considerably more on the Gamma, which sustains roughly 3.5× the hashrate of an Ultra over the same link.
 - **A zeroed PLL divider set is never written.** No valid solution for the requested frequency means register `0x08` is left alone; writing zeros leaves the PLL unlocked and the chip idle until a reboot.
 
 ### The ticket mask — where a mining firmware quietly wastes its CPU
@@ -61,13 +215,13 @@ The BM1366 driver already tracked the live pool difficulty. **The BM1370 driver 
 ### Observability that was switched off
 
 - **Notify counters and the pool clock sync only ran on the coinbase-decode-failure path.** `notify_received`, `work_received` and `SYSTEM_notify_new_ntime()` were all incremented inside that one `if` block. A miner whose notifies decode cleanly — that is, a *working* miner — therefore reported `notifyReceived: 0`, `workReceived: 0`, `notifyDropped: 0` for the entire session and never called `settimeofday()` at all. Confirmed on all three fleet members before the fix. Stratum V2 already did this correctly. The counters exist precisely to make `received + dropped == well-formed notifications` observable, and a unit reporting three zeros is indistinguishable from a pool that stopped sending jobs.
-- **A per-nonce `ESP_LOGI` was drowning the log ring.** `asic_result` logged one INFO line per reported nonce — thousands per second on a Supra. The 128 KB ring buffer, and with it the entire boot trace and any real warning, was overwritten within seconds. **A device in a bad state consequently looked clean in its own logs.** Demoted to `ESP_LOGD`. This one change is what made the ticket-mask defect diagnosable at all: the boot trace only became readable after it.
+- **A per-nonce `ESP_LOGI` was drowning the log ring.** `asic_result` logged one INFO line per reported nonce — thousands per second on a Gamma. The 128 KB ring buffer, and with it the entire boot trace and any real warning, was overwritten within seconds. **A device in a bad state consequently looked clean in its own logs.** Demoted to `ESP_LOGD`. This one change is what made the ticket-mask defect diagnosable at all: the boot trace only became readable after it.
 
 ### Networking
 
 - **Deterministic DHCP lifecycle.** The client start is bound to 802.11 station association and only issued when the client is actually stopped — no `stop`→`start` bounce, which resets the DHCP xid. A valid lease is never wiped on re-association, retries use jittered backoff, and the station re-associates after three exhausted cycles until a real lease arrives. Lease conflicts are left to the DHCP client via `CONFIG_LWIP_DHCP_DOES_ARP_CHECK`, which is deliberately *not* ACD, because ESP-IDF documents that ACD "can cause repeated DHCP DECLINEs" on access points that echo the client's MAC in ARP replies — exactly what a FRITZ!Box does.
 - **Operator-configured static fallback, off by default.** If DHCP genuinely fails there is an optional last-resort static IPv4 address: stored per-device in NVS, editable in AxeOS, applied only after the retry cycles are exhausted. There is deliberately **no site-specific default** — a default naming a specific address would make every unit built from this firmware claim an address it was never given, which is precisely how duplicate-IP conflicts start. Per-device builds bake in their own values.
-- **The recovery ladder is unit-tested, not just described.** It was lifted out of `connect.c` into `net_recovery_policy.c` so the rungs — lease replay, resolver preference, fallback binding, and the rule that the fallback must not fight a running DHCP client — can be exercised on the host. 79 checks, all green.
+- **The recovery ladder is unit-tested, not just described.** It was lifted out of `connect.c` into `net_recovery_policy.c` so the rungs — lease replay, resolver preference, fallback binding, and the rule that the fallback must not fight a running DHCP client — can be exercised on the host (92 checks in `v4.0.2-rc1`). Since `v4.0.2-rc1` the station also never stops reconnecting: a handshake timeout while a rebooting router brings WPA back used to end all retries until a power cycle - see [Network recovery design](docs/NETWORK_RECOVERY_DESIGN.md).
 
 ### Memory
 
@@ -89,7 +243,7 @@ What *is* refused before anything is allocated is a structurally impossible job:
 
 ### Host efficiency — same unit, before and after
 
-Bitaxe Supra `192.168.178.80`, 750 MHz, 1.195 V, mining Zpool SV1. Two 400 s
+Bitaxe Gamma `192.168.178.80`, 750 MHz, 1.195 V, mining Zpool SV1. Two 400 s
 captures at 5 s resolution via [`tools/collect_telemetry.ps1`](tools/collect_telemetry.ps1),
 taken on the same hardware with no setting changed. Rates are the delta between
 first and last sample, so they do not depend on the boot counters.
@@ -124,21 +278,21 @@ at a rate proportional to its own speed.
 | `blackharkminer` `.66` | BM1366 | 433 GH/s | 353 h | 189 101 | 550 | 1.558 | 0.290 % |
 | `bitaxe-tim2` `.80` | **BM1370** | **1531 GH/s** | 14.9 h | 7 630 | 24 | **1.614** | **0.314 %** |
 
-The Supra runs at 3.5× the hashrate of the two units that have been validated for
+The Gamma runs at 3.5× the hashrate of the two units that have been validated for
 two weeks, and produces stale shares at the **same absolute rate**. A
 device-specific defect would scale with the device's speed; this does not, so the
 remaining ~0.3 % is the pool-side latency race and not something the firmware
 here can remove.
 
-### Sustained run
+### Sustained run (`v4.0.1-stable-tim2`)
 
-`bitaxe-tim2` has run `v4.0.1-stable-tim2` continuously since the OTA: 14.9 h,
+`bitaxe-tim2` ran `v4.0.1-stable-tim2` continuously after its OTA: 14.9 h,
 7 630 shares accepted, 24 stale, **0 rejected for any other reason**, die
 temperature held at 59–60 °C, VR temperature 74–77 °C, internal DRAM free heap
 flat at ~78.9 kB with no drift, `notifyReceived` tracking notifies continuously
 with `notifyDropped` at 0.
 
-Energy efficiency on the Supra is **18.8 J/TH** against ~25 J/TH for the BM1366
+Energy efficiency on the Gamma is **18.8 J/TH** against ~25 J/TH for the BM1366
 Ultras, which is what the newer silicon is expected to do.
 
 ### A caveat on `errorPercentage`
@@ -160,7 +314,7 @@ Raw captures, device logs and the firmware hash are in
 
 ## Hardware
 
-| Component | Bitaxe Ultra (Board 201) | Bitaxe Supra (Board 601) |
+| Component | Bitaxe Ultra (Board 201) | Bitaxe Gamma (Board 601) |
 |---|---|---|
 | MCU | ESP32-S3 dual-core Xtensa LX7 @ 240 MHz | same |
 | ASIC | 1× BM1366, 112 cores, 894 small cores | 1× BM1370, 128 cores, 2 040 small cores |
@@ -208,82 +362,6 @@ Further reading: [Architecture](docs/ARCHITECTURE.md) · [Networking](docs/NETWO
 
 ---
 
-## Build
-
-Requires ESP-IDF **v6.0.2** and Node.js **v22+**.
-
-```bash
-. ~/esp/esp-idf/export.sh
-
-# The universal image. No baked-in address, no per-device identity.
-idf.py build
-
-# A named, reproducible per-device variant.
-./tools/build_release.sh tim2          # Bitaxe Supra, board 601, BM1370
-./tools/build_release.sh timsminer 192.168.178.61
-./tools/build_release.sh blackharkminer 192.168.178.66
-```
-
-Each variant builds into its own `build-<variant>/` directory and prints the resolved version, board and ASIC. Per-device values are passed explicitly with `-D` rather than relying on the CMake cache, because a stale cache entry in an existing build directory otherwise keeps the old value silently — including `PROJECT_VER`, which is exactly how a device ends up reporting `v3` while the source says `v4`.
-
----
-
-## Test
-
-```bash
-# Host simulation, policy and dataflow invariants — no hardware, no IDF
-cd simulation && make test
-
-# Firmware unit tests (Unity, in QEMU)
-idf.py build test
-
-# AxeOS frontend tests, headless Chrome
-cd main/http_server/axe-os && npm run test:ci
-```
-
-The host suite covers the virtual board model, the dataflow/memory invariants, the notify validator, the thermal/power policy, the network recovery ladder, and a differential test of the compact-target validator against an independent reference decoder.
-
----
-
-## Flash
-
-### Over the air — the normal path
-
-The unit must be on station mode and reachable on the LAN. This is the only path used on the units in this repository.
-
-```bash
-curl -f -X POST --data-binary @dist/tim2/esp-miner-tim2.bin \
-     http://192.168.178.80/api/system/OTA
-```
-
-The image is written to the next OTA partition, marked bootable, and the device
-reboots into it. `CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE` is off, so there is no
-rollback timer to beat, and the firmware marks the running app valid on boot.
-
-**A per-device OTA must keep the network configuration identical to what the
-unit already runs.** The image carries the static fallback and the station MAC;
-changing either moves the address out from under the router-side DHCP
-reservation. `tools/build_release.sh tim2` exists so those values are
-reproducible rather than reconstructed from a CMake cache.
-
-### USB — recovery only
-
-```bash
-python -m esptool --chip esp32s3 -p COM3 -b 460800 write_flash \
-    0x0     build-tim2/bootloader/bootloader.bin \
-    0x8000  build-tim2/partition_table/partition-table.bin \
-    0x10000 build-tim2/esp-miner.bin \
-    0xf10000 build-tim2/ota_data_initial.bin
-```
-
-### Partition layout
-
-`ota_0` at `0x710000`, `ota_1` at `0xB10000`, plus a `factory` recovery image at
-`0x10000`. A unit that has only ever been factory-flashed has both OTA slots
-empty; the first OTA populates `ota_0` and subsequent ones alternate.
-
----
-
 ## Evidence & truth classification
 
 | Claim | Evidence | Classification |
@@ -294,7 +372,10 @@ empty; the first OTA populates `ota_0` and subsequent ones alternate.
 | Host/chip UART rate agreement | Log: `BT8D=2 -> 1041666 baud (host programmed to match)` | **PROVEN** |
 | Notify counters track notifies | API: `notifyReceived` > 0 and rising; was 0 for the whole prior session | **PROVEN** |
 | Compact-target validation matches Core | 20 550 differential checks incl. 20 000 random words | **PROVEN** (host) |
-| Network recovery ladder | 79 host checks | **PROVEN** (host) |
+| Network recovery ladder and reconnect schedule | 92 host checks | **PROVEN** (host) |
+| Reconnect after a real router outage | - | **NOT MEASURED** |
+| OTA gate rejects factory/foreign images | host tests incl. the real v4.0.1 factory image | **TESTED** (host); handler not yet exercised on hardware |
+| Automatic rollback | disabled in `sdkconfig` | **not available** |
 | ASIC-side midstate reuse | Unconfirmed in silicon | **NOT PROVEN** |
 
 Retracted claims are kept in the repository with the retraction attached — see
@@ -303,28 +384,14 @@ replaced is a wrong diagnosis that gets re-applied.
 
 ---
 
-## Limitations
-
-1. **Single-ASIC architecture.** Multi-chip chaining and distributed work
-   balancing do not apply to either platform; both are single-chip designs.
-2. **Version rolling is 16 bits wide.** A mask of `0xffffffff` does not mean "roll
-   everything" — bits above 28 are BIP9 signalling. The firmware clamps to the
-   reachable window rather than pretending otherwise.
-3. **RF coexistence.** BLE advertising during the initial Wi-Fi connection can
-   collide on the single 2.4 GHz radio; BLE is deferred until station
-   association completes.
-4. **Stratum V2 extended channels** have working framing and handshake, but
-   channel multiplexing is still in development.
-
----
-
 ## Contributing
 
-- Autonomous engineering specification: [`GEMINI.md`](GEMINI.md)
 - Development guide: [`AGENTS.md`](AGENTS.md)
+- Engineering specification and release gates: [`GEMINI.md`](GEMINI.md)
 - Changelog: [`CHANGELOG.md`](CHANGELOG.md)
+- Release readiness: [`docs/RELEASE_READINESS.md`](docs/RELEASE_READINESS.md)
 - Evidence index: [`docs/EVIDENCE.md`](docs/EVIDENCE.md)
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+GPL-3.0 — see [LICENSE](LICENSE).

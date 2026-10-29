@@ -357,9 +357,55 @@ static void test_lease_clears_the_latch(void)
     net_policy_lease_wins(NULL); /* must not crash */
 }
 
+/* ------------------------------------------------- station reconnect backoff */
+
+/* A router reboot produces a run of NO_AP_FOUND / BEACON_TIMEOUT disconnects and
+ * then, while its WPA stack is still coming up, a 4-way-handshake timeout. The
+ * retry counter is only reset by a lease, so by then it is well past 3. The old
+ * inline policy treated "handshake-type reason with >= 3 retries" as a permanent
+ * credential failure and stopped reconnecting for the rest of the boot - the
+ * unit stayed offline after the router came back until it was power-cycled. */
+static void test_wifi_retry_never_gives_up(void)
+{
+    printf("== wifi reconnect never gives up ==\n");
+
+    int all_positive = 1;
+    int all_bounded = 1;
+    for (int attempt = 1; attempt <= 100000; attempt++) {
+        for (uint32_t jitter = 0; jitter < 4000; jitter += 997) {
+            uint32_t plain = net_policy_wifi_retry_delay_ms(attempt, false, jitter);
+            uint32_t auth = net_policy_wifi_retry_delay_ms(attempt, true, jitter);
+            if (plain == 0 || auth == 0) all_positive = 0;
+            if (plain > NET_WIFI_RETRY_CAP_MS || auth > NET_WIFI_AUTH_RETRY_CAP_MS) all_bounded = 0;
+        }
+    }
+    check(all_positive, "every attempt schedules another connect");
+    check(all_bounded, "every delay is capped");
+
+    /* Router-reboot trace: ten "AP gone", then the handshake timeout. */
+    uint32_t d = net_policy_wifi_retry_delay_ms(11, true, 0);
+    check(d > 0 && d <= NET_WIFI_AUTH_RETRY_CAP_MS, "handshake timeout after a long outage keeps retrying");
+
+    /* A genuinely wrong password is still not hammered: once the auth-type
+     * reason has repeated, retries slow to the auth cadence. */
+    check(net_policy_wifi_retry_delay_ms(3, true, 0) >= NET_WIFI_AUTH_RETRY_MIN_MS, "repeated auth failure slows down");
+    check(net_policy_wifi_retry_delay_ms(1, true, 0) < NET_WIFI_AUTH_RETRY_MIN_MS, "first auth-type failure retries quickly");
+    check(net_policy_wifi_retry_delay_ms(3, false, 0) < NET_WIFI_AUTH_RETRY_MIN_MS, "plain failure not slowed by auth cadence");
+
+    /* Unchanged schedule for ordinary disconnects (was inline in connect.c). */
+    check(net_policy_wifi_retry_delay_ms(1, false, 0) == 1800, "attempt 1 = 1000 + 800");
+    check(net_policy_wifi_retry_delay_ms(2, false, 699) == 1000 + 1600 + 699, "attempt 2 with max jitter");
+    check(net_policy_wifi_retry_delay_ms(2, false, 700) == 1000 + 1600, "jitter is taken modulo 700");
+    check(net_policy_wifi_retry_delay_ms(9, false, 0) == NET_WIFI_RETRY_CAP_MS, "cap reached");
+    check(net_policy_wifi_retry_delay_ms(0, false, 0) == 1000, "attempt 0 clamps to base");
+    check(net_policy_wifi_retry_delay_ms(-5, false, 0) == 1000, "negative attempt clamps to base");
+    check(net_policy_wifi_retry_delay_ms(2147483647, false, 0xFFFFFFFFu) == NET_WIFI_RETRY_CAP_MS, "INT_MAX attempt does not overflow");
+}
+
 int main(void)
 {
     printf("net_recovery_policy host tests\n");
+    test_wifi_retry_never_gives_up();
     test_ipv4_usable();
     test_ipv4_mask();
     test_resolver_must_come_from_the_lease();
