@@ -7,10 +7,11 @@ This project adheres to [Semantic Versioning](https://semver.org/) and the **Tru
 
 ## [4.0.2-rc1] - 2026-10-29
 
-Release candidate. Not yet Stable: the hardware gate (one OTA on the Bitaxe
-Supra at `192.168.178.80`, post-flash smoke and sustained observation) and the
-CI run for the exact candidate commit are still outstanding. Evidence and
-status labels: `reports/v4.0.2-rc1/`.
+Release candidate. Flashed once over Wi-Fi to the Bitaxe Gamma (board 601,
+BM1370) at `192.168.178.80` on 2026-10-29; it returned on the same address in
+~10 s running `v4.0.2-rc1-tim2`. Not yet Stable: the sustained observation, the
+CI run for the exact release commit and the items in
+`docs/RELEASE_READINESS.md` are outstanding. Evidence: `reports/v4.0.2-rc1/`.
 
 ### Fixed
 
@@ -70,6 +71,14 @@ status labels: `reports/v4.0.2-rc1/`.
 - `SECURITY.md` routes reports for this fork to this repository and documents
   that the HTTP API/OTA is unauthenticated plain HTTP and that rollback is not
   enabled.
+
+### Corrected documentation
+
+- Board 601 is a **Bitaxe Gamma** (BM1370), not a "Bitaxe Supra" as the
+  4.0.1 entry below and earlier READMEs say: `main/device_config.h` maps 601 to
+  `FAMILY_GAMMA`, "Supra" is the BM1368 family, and the unit reports
+  `deviceModel: Gamma`. The 4.0.1 text is left as written; measurements are unaffected.
+- The README stated an MIT license; the repository is GPL-3.0 (`LICENSE`).
 
 ### Not changed (documented, see `docs/OTA_SAFETY.md`)
 

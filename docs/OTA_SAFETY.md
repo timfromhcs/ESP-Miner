@@ -70,7 +70,7 @@ before it can be claimed. Tracked as follow-up.
 | `esp-miner-factory-<board>-<ver>.bin`, `esp-miner-merged.bin` | Full flash image (bootloader + partition table + app + www + NVS config) for USB flashing only. Rejected by the OTA endpoint since `v4.0.2-rc1`. |
 
 **Per-device variants must stay per-device.** `tools/build_release.sh tim2` bakes
-the station MAC, BSSID pin, static fallback and board identity of the Bitaxe Supra
+the station MAC, BSSID pin, static fallback and board identity of the Bitaxe Gamma
 at `192.168.178.80`. Flashing the general image onto that unit replaces the pinned
 MAC with the eFuse MAC, which moves it out of its DHCP reservation. Flashing the
 `tim2` image onto any other unit gives it a duplicate MAC and IP. The OTA endpoint
