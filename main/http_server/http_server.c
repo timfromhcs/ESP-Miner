@@ -19,6 +19,7 @@
 
 #include "dns_server.h"
 #include "esp_ota_ops.h"
+#include "esp_app_desc.h"
 #include "esp_wifi.h"
 #include "lwip/inet.h"
 #include <arpa/inet.h>
@@ -45,6 +46,7 @@
 #include "log_buffer.h"
 #include "cjson_utils.h"
 #include "utils.h"
+#include "ota_guard.h"
 
 static const char * TAG = "http_server";
 static const char * CORS_TAG = "CORS";
@@ -1669,9 +1671,10 @@ esp_err_t POST_WWW_update(httpd_req_t * req)
         return ESP_OK;
     }
 
-    GLOBAL_STATE->SYSTEM_MODULE.is_firmware_update = true;
-    snprintf(GLOBAL_STATE->SYSTEM_MODULE.firmware_update_filename, 20, "www.bin");
-    snprintf(GLOBAL_STATE->SYSTEM_MODULE.firmware_update_status, 20, "Starting...");
+    if (GLOBAL_STATE->SYSTEM_MODULE.is_firmware_update) {
+        HTTP_send_json_error(req, "409 Conflict", "An update is already in progress");
+        return ESP_OK;
+    }
 
     char buf[1000];
     int remaining = req->content_len;
@@ -1684,33 +1687,53 @@ esp_err_t POST_WWW_update(httpd_req_t * req)
     }
 
     // Don't attempt to write more than what can be stored in the partition
-    if (remaining > www_partition->size) {
-        HTTP_send_json_error(req, "400 Bad Request", "File provided is too large for device");
+    if (remaining <= 0 || remaining > www_partition->size) {
+        HTTP_send_json_error(req, "400 Bad Request", "File provided is empty or too large for device");
         return ESP_OK;
     }
+
+    GLOBAL_STATE->SYSTEM_MODULE.is_firmware_update = true;
+    snprintf(GLOBAL_STATE->SYSTEM_MODULE.firmware_update_filename, 20, "www.bin");
+    snprintf(GLOBAL_STATE->SYSTEM_MODULE.firmware_update_status, 20, "Starting...");
+
+    // From the first erase on, the partition no longer holds a usable UI. Serve the
+    // embedded one until this upload completes, so a failure below leaves a working
+    // interface instead of a half-written filesystem.
+    nvs_config_set_bool(NVS_CONFIG_USE_CUSTOM_WWW, false);
 
     // Erase the entire www partition before writing, in chunks to prevent WDT timeout
     size_t erase_size = 65536; // 64KB chunks
     for (size_t offset = 0; offset < www_partition->size; offset += erase_size) {
         size_t size_to_erase = MIN(erase_size, www_partition->size - offset);
-        ESP_ERROR_CHECK(esp_partition_erase_range(www_partition, offset, size_to_erase));
+        if (esp_partition_erase_range(www_partition, offset, size_to_erase) != ESP_OK) {
+            snprintf(GLOBAL_STATE->SYSTEM_MODULE.firmware_update_status, 20, "Erase Error");
+            GLOBAL_STATE->SYSTEM_MODULE.is_firmware_update = false;
+            HTTP_send_json_error(req, "500 Internal Server Error", "Erase Error");
+            return ESP_OK;
+        }
         vTaskDelay(10 / portTICK_PERIOD_MS);
     }
 
     int chunks = 0;
+    int timeouts = 0;
     while (remaining > 0) {
         int recv_len = httpd_req_recv(req, buf, MIN(remaining, sizeof(buf)));
 
-        if (recv_len == HTTPD_SOCK_ERR_TIMEOUT) {
+        if (recv_len == HTTPD_SOCK_ERR_TIMEOUT && ++timeouts < OTA_GUARD_MAX_CONSECUTIVE_TIMEOUTS) {
             continue;
         } else if (recv_len <= 0) {
             snprintf(GLOBAL_STATE->SYSTEM_MODULE.firmware_update_status, 20, "Protocol Error");
+            GLOBAL_STATE->SYSTEM_MODULE.is_firmware_update = false;
             HTTP_send_json_error(req, "500 Internal Server Error", "Protocol Error");
             return ESP_FAIL;
         }
+        timeouts = 0;
 
-        if (esp_partition_write(www_partition, www_partition->size - remaining, (const void *) buf, recv_len) != ESP_OK) {
+        // Offset into the upload, not from the end of the partition: the two only
+        // coincide when the image is exactly partition-sized.
+        if (esp_partition_write(www_partition, req->content_len - remaining, (const void *) buf, recv_len) != ESP_OK) {
             snprintf(GLOBAL_STATE->SYSTEM_MODULE.firmware_update_status, 20, "Write Error");
+            GLOBAL_STATE->SYSTEM_MODULE.is_firmware_update = false;
             HTTP_send_json_error(req, "500 Internal Server Error", "Write Error");
             return ESP_FAIL;
         }
@@ -1755,36 +1778,99 @@ esp_err_t POST_OTA_update(httpd_req_t * req)
         return ESP_OK;
     }
     
+    // httpd runs handlers on one task, so this is not a race guard; it stops a second
+    // upload from starting on top of one whose earlier request left the flag set.
+    if (GLOBAL_STATE->SYSTEM_MODULE.is_firmware_update) {
+        HTTP_send_json_error(req, "409 Conflict", "An update is already in progress");
+        return ESP_OK;
+    }
+
+    // Every rejection below happens before esp_ota_begin(), so nothing is erased and
+    // the boot partition is untouched.
+    const esp_partition_t * ota_partition = esp_ota_get_next_update_partition(NULL);
+    if (ota_partition == NULL || ota_partition == esp_ota_get_running_partition()) {
+        HTTP_send_json_error(req, "500 Internal Server Error", "No OTA partition available");
+        return ESP_OK;
+    }
+
+    ota_guard_result_t size_res = ota_guard_check_size(req->content_len, ota_partition->size);
+    if (size_res != OTA_GUARD_OK) {
+        ESP_LOGW(TAG, "OTA rejected: %s (%u bytes)", ota_guard_result_str(size_res), (unsigned) req->content_len);
+        HTTP_send_json_error(req, size_res == OTA_GUARD_TOO_LARGE ? "413 Payload Too Large" : "400 Bad Request",
+                             ota_guard_result_str(size_res));
+        return ESP_OK;
+    }
+
     GLOBAL_STATE->SYSTEM_MODULE.is_firmware_update = true;
     snprintf(GLOBAL_STATE->SYSTEM_MODULE.firmware_update_filename, 20, "esp-miner.bin");
     snprintf(GLOBAL_STATE->SYSTEM_MODULE.firmware_update_status, 20, "Starting...");
 
-    char buf[1000];
     esp_ota_handle_t ota_handle;
+    esp_err_t err = esp_ota_begin(ota_partition, OTA_SIZE_UNKNOWN, &ota_handle);
+    if (err != ESP_OK) {
+        // Previously ESP_ERROR_CHECK: a begin failure aborted the whole device.
+        ESP_LOGE(TAG, "esp_ota_begin failed: %s", esp_err_to_name(err));
+        snprintf(GLOBAL_STATE->SYSTEM_MODULE.firmware_update_status, 20, "Begin Error");
+        GLOBAL_STATE->SYSTEM_MODULE.is_firmware_update = false;
+        HTTP_send_json_error(req, "500 Internal Server Error", "Could not start OTA");
+        return ESP_OK;
+    }
+
+    const char * running_project = esp_app_get_description()->project_name;
+    uint8_t header[OTA_GUARD_HEADER_LEN];
+    size_t header_len = 0;
+    bool header_checked = false;
+
+    char buf[1000];
     int remaining = req->content_len;
-
-    const esp_partition_t * ota_partition = esp_ota_get_next_update_partition(NULL);
-    ESP_ERROR_CHECK(esp_ota_begin(ota_partition, OTA_SIZE_UNKNOWN, &ota_handle));
-
     int chunks = 0;
+    int timeouts = 0;
     while (remaining > 0) {
         int recv_len = httpd_req_recv(req, buf, MIN(remaining, sizeof(buf)));
 
-        // Timeout Error: Just retry
-        if (recv_len == HTTPD_SOCK_ERR_TIMEOUT) {
+        // Timeout: retry, but not forever - a client that vanished without closing
+        // the socket would otherwise hold the only HTTP server task indefinitely.
+        if (recv_len == HTTPD_SOCK_ERR_TIMEOUT && ++timeouts < OTA_GUARD_MAX_CONSECUTIVE_TIMEOUTS) {
             continue;
 
             // Serious Error: Abort OTA
         } else if (recv_len <= 0) {
+            esp_ota_abort(ota_handle);
             snprintf(GLOBAL_STATE->SYSTEM_MODULE.firmware_update_status, 20, "Protocol Error");
+            GLOBAL_STATE->SYSTEM_MODULE.is_firmware_update = false;
             HTTP_send_json_error(req, "500 Internal Server Error", "Protocol Error");
             return ESP_FAIL;
+        }
+        timeouts = 0;
+
+        // Identify the image from its first bytes. Chunks written before this point
+        // are discarded by esp_ota_abort(); the slot is never made bootable.
+        if (!header_checked) {
+            size_t take = MIN((size_t) recv_len, sizeof(header) - header_len);
+            memcpy(header + header_len, buf, take);
+            header_len += take;
+            ota_guard_result_t hdr_res = ota_guard_check_header(header, header_len, CONFIG_IDF_FIRMWARE_CHIP_ID, running_project);
+            if (hdr_res != OTA_GUARD_NEED_MORE) {
+                header_checked = true;
+                if (hdr_res != OTA_GUARD_OK) {
+                    ESP_LOGW(TAG, "OTA rejected: %s", ota_guard_result_str(hdr_res));
+                    esp_ota_abort(ota_handle);
+                    snprintf(GLOBAL_STATE->SYSTEM_MODULE.firmware_update_status, 20, "Wrong Image");
+                    GLOBAL_STATE->SYSTEM_MODULE.is_firmware_update = false;
+                    HTTP_send_json_error(req, "400 Bad Request", ota_guard_result_str(hdr_res));
+                    return ESP_FAIL;
+                }
+                char image_version[33];
+                ota_guard_image_version(header, header_len, image_version, sizeof(image_version));
+                ESP_LOGI(TAG, "OTA image accepted: version %s, %u bytes", image_version, (unsigned) req->content_len);
+            }
         }
 
         // Successful Upload: Flash firmware chunk
         if (esp_ota_write(ota_handle, (const void *) buf, recv_len) != ESP_OK) {
             esp_ota_abort(ota_handle);
             snprintf(GLOBAL_STATE->SYSTEM_MODULE.firmware_update_status, 20, "Write Error");
+            GLOBAL_STATE->SYSTEM_MODULE.is_firmware_update = false;
             HTTP_send_json_error(req, "500 Internal Server Error", "Write Error");
             return ESP_FAIL;
         }
@@ -1801,9 +1887,11 @@ esp_err_t POST_OTA_update(httpd_req_t * req)
         }
     }
 
-    // Validate and switch to new OTA image and reboot
+    // Validate and switch to new OTA image and reboot. esp_ota_end() releases the
+    // handle on every path, so there is nothing to abort after it.
     if (esp_ota_end(ota_handle) != ESP_OK || esp_ota_set_boot_partition(ota_partition) != ESP_OK) {
         snprintf(GLOBAL_STATE->SYSTEM_MODULE.firmware_update_status, 20, "Validation Error");
+        GLOBAL_STATE->SYSTEM_MODULE.is_firmware_update = false;
         HTTP_send_json_error(req, "500 Internal Server Error", "Validation / Activation Error");
         return ESP_OK;
     }

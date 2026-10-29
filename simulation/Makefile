@@ -4,7 +4,7 @@ STRATUM_DIR = ../components/stratum
 CONNECT_DIR = ../components/connect
 MAIN_DIR = ../main
 
-TARGETS = test_virtual_board test_dataflow_memory test_notify_validate test_power_policy test_net_recovery_policy test_nbits_reference
+TARGETS = test_virtual_board test_dataflow_memory test_notify_validate test_power_policy test_net_recovery_policy test_nbits_reference test_ota_guard
 
 all: $(TARGETS)
 
@@ -37,6 +37,12 @@ test_net_recovery_policy: $(CONNECT_DIR)/net_recovery_policy.c test_net_recovery
 test_nbits_reference: $(STRATUM_DIR)/notify_validate.c test_nbits_reference.c
 	$(CC) $(CFLAGS) -I$(STRATUM_DIR)/include -std=c11 -o $@ $^
 
+# The OTA upload gate decides what POST /api/system/OTA may write into an app
+# slot. Kept free of ESP-IDF so a factory image, a foreign app or a truncated
+# upload can be rejected in a test instead of on the only device in the field.
+test_ota_guard: $(MAIN_DIR)/http_server/ota_guard.c test_ota_guard.c
+	$(CC) $(CFLAGS) -I$(MAIN_DIR)/http_server -std=c11 -o $@ $^
+
 run: all
 	./test_virtual_board
 	./test_dataflow_memory
@@ -44,6 +50,7 @@ run: all
 	./test_power_policy
 	./test_net_recovery_policy
 	./test_nbits_reference
+	./test_ota_guard
 
 test: run
 
