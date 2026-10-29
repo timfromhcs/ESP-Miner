@@ -44,11 +44,28 @@ fi
 
 echo "Building test-ci project..."
 cd "$ROOT_DIR/test-ci"
-idf.py build
+idf.py -DIDF_TARGET=esp32s3 build
 
 echo "Merging binaries..."
 cd build
 esptool --chip esp32s3 merge-bin --pad-to-size 16MB -o flash_image.bin @flash_args
 
 echo "Running tests in QEMU emulator..."
-qemu-system-xtensa -machine esp32s3 -monitor none -nographic -no-reboot -watchdog-action shutdown -drive file=flash_image.bin,if=mtd,format=raw -m 4 -serial stdio
+# Serial output goes to a file, as in the CI action: with -serial stdio and a
+# non-tty stdout the Unity output can be lost while QEMU still exits 0, which
+# read as a pass with zero tests run.
+rm -f output.log
+timeout 5m qemu-system-xtensa -machine esp32s3 -monitor none -nographic -no-reboot -watchdog-action shutdown -drive file=flash_image.bin,if=mtd,format=raw -m 4 -serial file:output.log </dev/null || true
+cat output.log
+
+# Fail closed: no Unity summary line, or any failure, is a failed run.
+SUMMARY=$(grep -E '[0-9]+ Tests [0-9]+ Failures [0-9]+ Ignored' output.log | tail -1 || true)
+if [ -z "$SUMMARY" ]; then
+    echo "ERROR: no Unity summary in output.log - tests did not complete."
+    exit 1
+fi
+echo "$SUMMARY"
+FAILURES=$(echo "$SUMMARY" | awk '{print $3}')
+if [ "$FAILURES" != "0" ]; then
+    exit 1
+fi

@@ -55,3 +55,24 @@
 - **Thermal & Fan Control:** Microchip EMC2101 I2C Fan Controller with internal/external temperature diode & tachometer feedback
 - **Storage & Layout:** 16MB Partition Table (NVS, Factory, OTA_0, OTA_1, Axe-OS WWW data)
 - **Network Interface:** 802.11 b/g/n 2.4GHz with internal antenna, DNS resolver, dual Stratum pool failover
+
+---
+
+## 3. Corrections and additions — v4.0.2-rc1 (2026-10-29)
+
+Section 1 above is preserved as originally written for the BM1366 unit at
+`192.168.178.66`. The following rows **correct** it where the evidence does not
+support the original label, and add the Board 601 / BM1370 target. Labels per
+`GEMINI.md` §0.4. Details: `docs/OTA_SAFETY.md`, `docs/NETWORK_RECOVERY_DESIGN.md`,
+`reports/v4.0.2-rc1/`.
+
+| Subsystem | Feature/claim | Source location | Unit test | Integration/QEMU | Physical hardware | Measurement/evidence | Status/limitations |
+|---|---|---|---|---|---|---|---|
+| Recovery | ~~Factory rollback triggers on consecutive boot fails~~ | `sdkconfig` (`CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE` not set), `main/main.c` | — | — | — | config inspection | **CORRECTED: NOT PROVEN / not implemented.** Rollback is off; the `mark_app_valid` code in `main.c` is inert. Recovery = `POST /api/system/boot` if the new image serves HTTP, otherwise USB. |
+| OTA | ~~Dual-partition A/B fail-safe firmware updates~~ → A/B update with pre-activation image checks | `http_server.c:POST_OTA_update`, `ota_guard.c` | TESTED `test_ota_guard` | — | NOT MEASURED for the new handler until the RC flash | real v4.0.1 app accepted, real factory-601 image rejected | **PARTIALLY PROVEN.** Not fail-safe against an image that verifies but does not boot (no rollback). No authentication, no signature. |
+| Network recovery | Station reconnect never gives up | `connect.c`, `net_recovery_policy.c:net_policy_wifi_retry_delay_ms` | TESTED `test_net_recovery_policy` | — | NOT MEASURED | — | **PARTIALLY PROVEN.** Before v4.0.2-rc1 a handshake-type disconnect at retry ≥ 3 stopped reconnecting permanently, so the original "Network recovery: PROVEN" row did not hold for a router reboot. |
+| Network recovery | Reconnect delay does not block the event loop | `connect.c:wifi_retry_schedule` | — | — | NOT MEASURED | code | **PROVEN (code)**, NOT TESTED on target. |
+| Simulation | "Zero leakage" of the virtual board | `simulation/virtual_board.c` | TESTED under LeakSanitizer | — | — | ASan/UBSan clean | **CORRECTED.** The model leaked 58 KB until v4.0.2-rc1 while its test reported PASS; the test now asserts frees == allocations. Simulation only — says nothing about firmware heap. |
+| UI | AxeOS dependencies | `main/http_server/axe-os/package-lock.json` | — | — | — | `npm audit --omit=dev`: 4 high, 5 moderate (Angular 19.2.20, moment) | **KNOWN LIMITATION.** Angular advisories concern attacker-controlled templates / i18n / hydration (AxeOS compiles templates from source, no SSR); two are fixed in 19.2.22+, three need Angular 22. Not changed in this RC. |
+| Identity | Target `192.168.178.80` | — | — | — | MEASURED 2026-10-29 | `/api/system/info`, `/api/system/asic` | Board `601`, ASIC `BM1370`, `deviceModel: Gamma`, firmware `v4.0.1-stable-tim2` on `ota_0`. |
+| Release | Per-device image required for `.80` | `tools/build_release.sh tim2` | — | — | — | MAC on device == `tim2` pin | **PROVEN.** The general image would replace the pinned STA MAC and lose the DHCP reservation. |
