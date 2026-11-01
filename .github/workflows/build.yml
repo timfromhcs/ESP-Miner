@@ -47,3 +47,45 @@ jobs:
         name: esp-miner.bin
         path: ./build/esp-miner.bin
 
+  # The research variant is a separate artifact on purpose: it must be tellable
+  # apart from the normal image by name, by version tag and by hash, and building
+  # it here proves the CONFIG_TIMSMINER_SHA_RESEARCH path compiles on a clean
+  # runner without a menuconfig step.
+  build-research:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      with:
+        submodules: 'recursive'
+    - name: Setup Node.js
+      uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+      with:
+        node-version: '24.14.0'
+    - name: Build web dist
+      working-directory: ./main/http_server/axe-os
+      run: |
+        npm ci
+        npm run build
+    - name: Enable the research feature flag
+      run: |
+        # idf.py reads sdkconfig.defaults while sdkconfig does not exist yet; the
+        # esp-idf action does not forward SDKCONFIG_DEFAULTS reliably, so the
+        # variant file is appended instead of guessed at.
+        cat sdkconfig.research.defaults >> sdkconfig.defaults
+    - name: esp-idf build (research)
+      uses: espressif/esp-idf-ci-action@9d38657f3d789ca759b2b37aaf5ceffbc42c4f0d # v1
+      with:
+        esp_idf_version: v6.0.2
+        target: esp32s3
+        command: GITHUB_ACTIONS="true" idf.py -DESP_MINER_RELEASE_TAG=sha-research build
+        path: '.'
+    - name: Upload research image and build evidence
+      uses: actions/upload-artifact@ea165f8d65e6e75b540449e92b4886f43607fa02 # v4
+      with:
+        name: esp-miner-research
+        path: |
+          build/esp-miner.bin
+          build/esp-miner.map
+          build/project_description.json
+          sdkconfig

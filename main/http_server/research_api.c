@@ -64,7 +64,7 @@ static research_guard_conditions_t sample_conditions(void)
     /* Identity is not taken on trust from the client: this build must be the
      * esp-miner application on an ESP32-S3 with a known board and an ASIC that
      * already initialised in this boot. */
-    c.identity_verified = desc != NULL && chip.model == ESP_CHIP_MODEL_ESP32S3 && strcmp(desc->project_name, "esp-miner") == 0 &&
+    c.identity_verified = desc != NULL && chip.model == CHIP_ESP32S3 && strcmp(desc->project_name, "esp-miner") == 0 &&
                           s_state->ASIC_initalized && s_state->DEVICE_CONFIG.family.asic.name != NULL;
 
     c.pool_connected = s_state->SYSTEM_MODULE.is_connected || s_state->SYSTEM_MODULE.is_using_fallback;

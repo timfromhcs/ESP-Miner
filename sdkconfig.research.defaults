@@ -1,0 +1,19 @@
+# Research variant defaults for the HCS SHA Forge firmware.
+#
+# This file is not read by a normal build. It exists so the research variant can
+# be produced reproducibly on a clean machine or in CI without a menuconfig step:
+#
+#   SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.research.defaults" idf.py build
+#
+# or, when the build system does not forward that variable, by appending it to
+# sdkconfig.defaults before the first configure (see .github/workflows/build.yml,
+# job build-research).
+#
+# Defaults are deliberately conservative: 64 jobs, 15 minutes of active time, a
+# 65 C ceiling. The guard refuses to start at all unless the operator pairs a
+# short-lived token and mining is stopped.
+
+CONFIG_TIMSMINER_SHA_RESEARCH=y
+CONFIG_TIMSMINER_SHA_RESEARCH_MAX_JOBS=64
+CONFIG_TIMSMINER_SHA_RESEARCH_MAX_RUNTIME_S=900
+CONFIG_TIMSMINER_SHA_RESEARCH_TEMPERATURE_C=65
