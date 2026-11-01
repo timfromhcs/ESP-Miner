@@ -1947,6 +1947,11 @@ esp_err_t start_rest_server(GlobalState * global_state)
      * from 25 because the new routes would otherwise fail to register silently
      * at the tail of the list. */
     config.max_uri_handlers = 40;
+    /* The running-app backup sets six additional headers (digest, length,
+     * partition, version, project, disposition); the default of 8 leaves no room
+     * for a future header and a rejected digest header would make the download
+     * unverifiable. */
+    config.max_resp_headers = 12;
     config.close_fn = websocket_close_fn;
     config.lru_purge_enable = true;
     config.keep_alive_enable = true;

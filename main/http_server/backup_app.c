@@ -172,16 +172,38 @@ static esp_err_t GET_backup_running_app(httpd_req_t *req)
         return ESP_OK;
     }
 
-    char header[96];
-    snprintf(header, sizeof(header), "attachment; filename=\"%s.bin\"", running->label);
+    /* httpd_resp_set_hdr stores the pointers, it does not copy the strings
+     * (esp_http_server httpd_txrx.c). Every value therefore needs its own
+     * storage: reusing one buffer for two headers would send the last value
+     * twice. Both buffers stay in scope until the response is sent below. */
+    char disposition[64];
+    char length_str[16];
+    snprintf(disposition, sizeof(disposition), "attachment; filename=\"%s.bin\"", running->label);
+    snprintf(length_str, sizeof(length_str), "%u", (unsigned) running->size);
+
+    struct {
+        const char *field;
+        const char *value;
+    } headers[] = {
+        { "Content-Disposition", disposition },
+        { "X-Image-Sha256", sha },
+        { "X-Image-Length", length_str },
+        { "X-Running-Partition", running->label },
+        { "X-Image-Version", desc != NULL ? desc->version : "unknown" },
+        { "X-Image-Project", desc != NULL ? desc->project_name : "unknown" },
+    };
+
     httpd_resp_set_type(req, "application/octet-stream");
-    httpd_resp_set_hdr(req, "Content-Disposition", header);
-    httpd_resp_set_hdr(req, "X-Image-Sha256", sha);
-    snprintf(header, sizeof(header), "%u", (unsigned) running->size);
-    httpd_resp_set_hdr(req, "X-Image-Length", header);
-    httpd_resp_set_hdr(req, "X-Running-Partition", running->label);
-    httpd_resp_set_hdr(req, "X-Image-Version", desc != NULL ? desc->version : "unknown");
-    httpd_resp_set_hdr(req, "X-Image-Project", desc != NULL ? desc->project_name : "unknown");
+    for (size_t i = 0; i < sizeof(headers) / sizeof(headers[0]); i++) {
+        if (httpd_resp_set_hdr(req, headers[i].field, headers[i].value) != ESP_OK) {
+            /* A dropped digest header would make the download unverifiable, so
+             * refuse the transfer instead of streaming an unlabelled body. */
+            ESP_LOGE(TAG, "header %s rejected; not sending an unverifiable body", headers[i].field);
+            free(buf);
+            httpd_resp_send_500(req);
+            return ESP_OK;
+        }
+    }
 
     uint32_t offset = 0;
     esp_err_t result = ESP_OK;
