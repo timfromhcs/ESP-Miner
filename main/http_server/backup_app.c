@@ -18,7 +18,9 @@ static const char *TAG = "backup_api";
 #define BACKUP_CHUNK 4096
 #define BACKUP_SCHEMA "hcs.sha.backup.v1"
 
-static int s_prebuffer_len;
+/* Must start positive: cJSON_PrintBuffered() allocates the prebuffer up front and
+ * malloc(0) returns NULL on this heap, which would fail the handler silently. */
+static int s_prebuffer_len = 256;
 
 /* Both routes refuse in AP mode: the setup access point is open by design and
  * must never be able to download the firmware image. */

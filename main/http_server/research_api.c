@@ -24,8 +24,11 @@ static const char *TAG = "research_api";
 #define RESEARCH_STATUS_SCHEMA "hcs.sha.miner.v1"
 #define RESEARCH_RESULT_SCHEMA "hcs.sha.device_sha256.v1"
 
-/* Scratch for cJSON's print buffer. One HTTP task, so one buffer. */
-static int s_prebuffer_len;
+/* Scratch for cJSON's print buffer. One HTTP task, so one buffer. It must start
+ * positive: cJSON_PrintBuffered() allocates the prebuffer up front, and
+ * malloc(0) returns NULL here, which would turn every JSON response into a
+ * failed handler without a body. 256 matches the other API handlers. */
+static int s_prebuffer_len = 256;
 
 /* The HTTP task has an 8 KB stack, so the trace round buffer lives in .bss. 64
  * rounds is the whole compression function; a smaller `rounds` request simply
