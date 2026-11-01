@@ -9,9 +9,9 @@
 #include "esp_ota_ops.h"
 #include "esp_partition.h"
 #include "esp_wifi.h"
-#include "mbedtls/sha256.h"
 
 #include "http_server.h"
+#include "research_sha.h"
 
 static const char *TAG = "backup_api";
 
@@ -34,13 +34,13 @@ static bool station_mode_only(httpd_req_t *req)
 
 static esp_err_t hash_partition(const esp_partition_t *part, uint8_t *buf, size_t buf_len, char out_hex[65])
 {
-    mbedtls_sha256_context ctx;
+    research_sha256_ctx_t ctx;
     uint32_t offset = 0;
-    mbedtls_sha256_init(&ctx);
-    if (mbedtls_sha256_starts(&ctx, 0) != 0) {
-        mbedtls_sha256_free(&ctx);
-        return ESP_FAIL;
-    }
+
+    /* One implementation, already pinned by the FIPS known-answer vectors: the
+     * digest of a backup must be computed by the same code the client can
+     * re-derive, not by a second library with its own padding rules. */
+    research_sha256_init(&ctx);
     while (offset < part->size) {
         size_t take = part->size - offset;
         if (take > buf_len) {
@@ -48,27 +48,20 @@ static esp_err_t hash_partition(const esp_partition_t *part, uint8_t *buf, size_
         }
         esp_err_t err = esp_partition_read(part, offset, buf, take);
         if (err != ESP_OK) {
-            mbedtls_sha256_free(&ctx);
             return err;
         }
-        if (mbedtls_sha256_update(&ctx, buf, take) != 0) {
-            mbedtls_sha256_free(&ctx);
-            return ESP_FAIL;
-        }
+        research_sha256_update(&ctx, buf, take);
         offset += take;
     }
-    uint8_t digest[32];
-    if (mbedtls_sha256_finish(&ctx, digest) != 0) {
-        mbedtls_sha256_free(&ctx);
-        return ESP_FAIL;
-    }
-    mbedtls_sha256_free(&ctx);
+
+    uint8_t digest[RESEARCH_SHA_DIGEST_LEN];
+    research_sha256_final(&ctx, digest);
     static const char digits[] = "0123456789abcdef";
-    for (int i = 0; i < 32; i++) {
+    for (int i = 0; i < RESEARCH_SHA_DIGEST_LEN; i++) {
         out_hex[2 * i] = digits[digest[i] >> 4];
         out_hex[2 * i + 1] = digits[digest[i] & 0x0F];
     }
-    out_hex[64] = '\0';
+    out_hex[RESEARCH_SHA_DIGEST_LEN * 2] = '\0';
     return ESP_OK;
 }
 

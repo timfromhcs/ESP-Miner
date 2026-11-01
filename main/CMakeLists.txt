@@ -93,10 +93,6 @@ REQUIRES
     "dns_server"
     "stratum"
     "stratum_v2"
-    # mbedtls is used directly by the running-app backup route (SHA-256 of the
-    # running partition), so the dependency is declared instead of relied upon
-    # transitively.
-    "mbedtls"
 
 PRIV_REQUIRES
     "app_update"

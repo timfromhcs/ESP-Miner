@@ -1943,7 +1943,7 @@ esp_err_t start_rest_server(GlobalState * global_state)
     config.stack_size = 8192;
     config.max_open_sockets = 20;
     /* 23 system routes + 2 theme routes + 9 research routes (research builds
-     * only) + 2 running-app backup routes + the /api/* and /* catch-alls. Raised
+     * only) + 2 running-app backup routes + the two catch-all routes. Raised
      * from 25 because the new routes would otherwise fail to register silently
      * at the tail of the list. */
     config.max_uri_handlers = 40;
@@ -2144,7 +2144,7 @@ esp_err_t start_rest_server(GlobalState * global_state)
     httpd_register_uri_handler(server, &ws_live);
 
     /* SHA research API (compiled in only with CONFIG_TIMSMINER_SHA_RESEARCH).
-     * Registered before the /api/* catch-all below, because httpd matches in
+     * Registered before the API catch-all below, because httpd matches in
      * registration order and a wildcard registered first would swallow these. */
     if (research_api_register(server, GLOBAL_STATE) != ESP_OK) {
         ESP_LOGW(TAG, "SHA research API could not be registered");

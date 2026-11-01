@@ -6,7 +6,7 @@
 
 typedef struct GlobalState GlobalState;
 
-/* Registers the /api/research/* handlers.
+/* Registers the research handlers under the /api/research prefix.
  *
  * Built only when CONFIG_TIMSMINER_SHA_RESEARCH is set; otherwise the function
  * does nothing and the routes do not exist, so a stock mining build has no

@@ -369,6 +369,62 @@ static void test_json(void)
     check(seven == 7, "exactly 7 round objects");
 }
 
+/* ------------------------------------------------ incremental (streaming) */
+
+static void test_streaming_matches_one_shot(void)
+{
+    printf("== streaming API ==\n");
+    static uint8_t message[1000];
+    for (size_t i = 0; i < sizeof(message); i++) {
+        message[i] = (uint8_t) (i * 17u + 3u);
+    }
+
+    /* Every split point must produce the one-shot digest. This is the property
+     * the running-app backup relies on: it hashes 4 MiB in 4 KiB reads, and a
+     * buffering mistake would silently change the digest of a backup. */
+    const size_t lengths[] = {0, 1, 63, 64, 65, 127, 128, 129, 200, 512, 1000};
+    int all_match = 1;
+    for (size_t li = 0; li < sizeof(lengths) / sizeof(lengths[0]); li++) {
+        size_t len = lengths[li];
+        uint8_t want[32];
+        research_sha256(message, len, want);
+
+        for (size_t chunk = 1; chunk <= 70; chunk += 13) {
+            research_sha256_ctx_t ctx;
+            uint8_t got[32];
+            research_sha256_init(&ctx);
+            size_t offset = 0;
+            while (offset < len) {
+                size_t take = len - offset;
+                if (take > chunk) {
+                    take = chunk;
+                }
+                research_sha256_update(&ctx, message + offset, take);
+                offset += take;
+            }
+            /* A zero-length update must not disturb the state. */
+            research_sha256_update(&ctx, message, 0);
+            research_sha256_final(&ctx, got);
+            if (memcmp(got, want, 32) != 0) {
+                all_match = 0;
+                printf("    mismatch at len=%u chunk=%u\n", (unsigned) len, (unsigned) chunk);
+            }
+        }
+    }
+    check(all_match, "every chunk split reproduces the one-shot digest");
+
+    research_sha256_ctx_t ctx;
+    uint8_t digest[32];
+    research_sha256_init(&ctx);
+    research_sha256_update(&ctx, (const uint8_t *) "abc", 3);
+    research_sha256_final(&ctx, digest);
+    check_hex(digest, 32, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", "streaming SHA-256(\"abc\")");
+
+    /* The context is cleared on finalisation, so an accidental reuse cannot
+     * continue a previous hash. */
+    check(ctx.total_bytes == 0 && ctx.buffered == 0, "finalising zeroes the context");
+}
+
 static void test_hex_helpers(void)
 {
     printf("== hex helpers ==\n");
@@ -431,6 +487,7 @@ int main(int argc, char **argv)
     test_structural_invariants();
     test_reduced_rounds();
     test_json();
+    test_streaming_matches_one_shot();
     test_hex_helpers();
 
     printf("\n%d checks, %d failures\n", checks, failures);

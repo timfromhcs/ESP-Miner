@@ -142,53 +142,99 @@ void research_sha_compress(research_sha_state_t *state, const uint8_t block[RESE
     }
 }
 
-void research_sha256(const uint8_t *message, size_t len, uint8_t out[RESEARCH_SHA_DIGEST_LEN])
+void research_sha256_init(research_sha256_ctx_t *ctx)
 {
-    research_sha_state_t state;
+    if (ctx == NULL) {
+        return;
+    }
+    research_sha_state_init(&ctx->state);
+    ctx->buffered = 0;
+    ctx->total_bytes = 0;
+}
+
+void research_sha256_update(research_sha256_ctx_t *ctx, const uint8_t *data, size_t len)
+{
+    if (ctx == NULL || data == NULL) {
+        return;
+    }
+    ctx->total_bytes += (uint64_t) len;
+
+    if (ctx->buffered > 0) {
+        size_t take = RESEARCH_SHA_BLOCK_LEN - ctx->buffered;
+        if (take > len) {
+            take = len;
+        }
+        memcpy(ctx->block + ctx->buffered, data, take);
+        ctx->buffered += take;
+        data += take;
+        len -= take;
+        if (ctx->buffered == RESEARCH_SHA_BLOCK_LEN) {
+            research_sha_compress(&ctx->state, ctx->block);
+            ctx->buffered = 0;
+        }
+    }
+
+    while (len >= RESEARCH_SHA_BLOCK_LEN) {
+        research_sha_compress(&ctx->state, data);
+        data += RESEARCH_SHA_BLOCK_LEN;
+        len -= RESEARCH_SHA_BLOCK_LEN;
+    }
+
+    if (len > 0) {
+        memcpy(ctx->block, data, len);
+        ctx->buffered = len;
+    }
+}
+
+void research_sha256_final(research_sha256_ctx_t *ctx, uint8_t out[RESEARCH_SHA_DIGEST_LEN])
+{
     uint8_t tail[RESEARCH_SHA_BLOCK_LEN * 2];
-    size_t offset = 0;
-    size_t rest;
     size_t tail_len;
     uint64_t bits;
     unsigned i;
 
-    if (out == NULL) {
+    if (ctx == NULL || out == NULL) {
         return;
     }
-    if (message == NULL) {
-        len = 0;
-    }
 
-    research_sha_state_init(&state);
-    while (len - offset >= RESEARCH_SHA_BLOCK_LEN) {
-        research_sha_compress(&state, message + offset);
-        offset += RESEARCH_SHA_BLOCK_LEN;
-    }
-
-    rest = len - offset;
+    /* Same padding rule as the one-shot path: 0x80, zeros, then the 64-bit
+     * big-endian bit length; the length field forces a second block when fewer
+     * than 9 bytes remain. */
     memset(tail, 0, sizeof(tail));
-    if (rest > 0) {
-        memcpy(tail, message + offset, rest);
-    }
-    tail[rest] = 0x80;
-    /* 1 byte for 0x80 plus 8 bytes of length must fit in the final block. */
-    tail_len = (rest < RESEARCH_SHA_BLOCK_LEN - 8) ? RESEARCH_SHA_BLOCK_LEN : RESEARCH_SHA_BLOCK_LEN * 2;
+    memcpy(tail, ctx->block, ctx->buffered);
+    tail[ctx->buffered] = 0x80;
+    tail_len = (ctx->buffered < RESEARCH_SHA_BLOCK_LEN - 8) ? RESEARCH_SHA_BLOCK_LEN : RESEARCH_SHA_BLOCK_LEN * 2;
 
-    /* Callers on this device hash bounded inputs (an 80-byte header, a client
-     * block, a firmware digest), so the 64-bit length never overflows here. */
-    bits = (uint64_t) len * 8u;
+    bits = ctx->total_bytes * 8u;
     for (i = 0; i < 8; i++) {
         tail[tail_len - 1 - i] = (uint8_t) (bits >> (8u * i));
     }
 
-    research_sha_compress(&state, tail);
+    research_sha_compress(&ctx->state, tail);
     if (tail_len == RESEARCH_SHA_BLOCK_LEN * 2) {
-        research_sha_compress(&state, tail + RESEARCH_SHA_BLOCK_LEN);
+        research_sha_compress(&ctx->state, tail + RESEARCH_SHA_BLOCK_LEN);
     }
 
     for (i = 0; i < RESEARCH_SHA_STATE_WORDS; i++) {
-        write_be32(state.h[i], out + 4u * i);
+        write_be32(ctx->state.h[i], out + 4u * i);
     }
+
+    /* The context is not a secret, but leaving a half-consumed state around
+     * invites a silent reuse bug in the next caller. */
+    memset(ctx, 0, sizeof(*ctx));
+}
+
+void research_sha256(const uint8_t *message, size_t len, uint8_t out[RESEARCH_SHA_DIGEST_LEN])
+{
+    research_sha256_ctx_t ctx;
+    if (out == NULL) {
+        return;
+    }
+    research_sha256_init(&ctx);
+    if (message != NULL && len > 0) {
+        research_sha256_update(&ctx, message, len);
+    }
+    research_sha256_final(&ctx, out);
 }
 
 void research_sha256d(const uint8_t *message, size_t len, uint8_t out[RESEARCH_SHA_DIGEST_LEN])

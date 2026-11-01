@@ -42,6 +42,16 @@ typedef struct {
     uint32_t h[RESEARCH_SHA_STATE_WORDS];
 } research_sha_state_t;
 
+/* Streaming state for hashing data that does not fit in one buffer (the 4 MiB
+ * running-app download). Total bytes are tracked so padding is exact; the
+ * trailing partial block lives in the struct, so no heap is involved. */
+typedef struct {
+    research_sha_state_t state;
+    uint8_t block[RESEARCH_SHA_BLOCK_LEN];
+    size_t buffered;
+    uint64_t total_bytes;
+} research_sha256_ctx_t;
+
 /* One executed round of a single compression function call. */
 typedef struct {
     uint8_t t; /* round index, 0-based */
@@ -85,6 +95,13 @@ void research_sha_compress(research_sha_state_t *state, const uint8_t block[RESE
  * stack. `out` may alias nothing: it must be RESEARCH_SHA_DIGEST_LEN bytes. */
 void research_sha256(const uint8_t *message, size_t len, uint8_t out[RESEARCH_SHA_DIGEST_LEN]);
 void research_sha256d(const uint8_t *message, size_t len, uint8_t out[RESEARCH_SHA_DIGEST_LEN]);
+
+/* Incremental form, used where the data arrives in chunks (the running-app
+ * download hashes 4 MiB in 4 KiB reads). Same code path as research_sha256(),
+ * which is now a thin wrapper, so the known-answer vectors cover both. */
+void research_sha256_init(research_sha256_ctx_t *ctx);
+void research_sha256_update(research_sha256_ctx_t *ctx, const uint8_t *data, size_t len);
+void research_sha256_final(research_sha256_ctx_t *ctx, uint8_t out[RESEARCH_SHA_DIGEST_LEN]);
 
 /* One compression under trace. `rounds` must be 0..64; with feed_forward the
  * state is added back (as the real algorithm does), otherwise only the working
