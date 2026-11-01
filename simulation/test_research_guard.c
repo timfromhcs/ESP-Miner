@@ -386,6 +386,59 @@ static void test_strings(void)
     check(strcmp(research_guard_result_str((research_guard_result_t) 999), "unknown") == 0, "unknown result code");
 }
 
+/* ------------------------------------------------------- mining activity */
+
+static void test_mining_active(void)
+{
+    printf("== mining activity (pause keeps the socket open) ==\n");
+    check(!research_guard_mining_active(false, false, false), "idle and disconnected is not active");
+    check(research_guard_mining_active(true, false, false), "connected and running is active");
+    /* The device's pause does not close the stratum socket; the guard has to ask
+     * whether a share can still leave, not whether a socket exists. */
+    check(!research_guard_mining_active(true, true, false), "connected but paused is not active");
+    check(research_guard_mining_active(true, true, true), "a share in flight still counts as active");
+    check(research_guard_mining_active(false, false, true), "a share in flight blocks even without a socket");
+}
+
+static void test_thermal_age(void)
+{
+    printf("== thermal reading age ==\n");
+    research_guard_conditions_t c;
+    research_guard_t g;
+    research_guard_config_t cfg = research_guard_config_default();
+
+    /* A reading taken while the ASIC was running is an upper bound after the
+     * pause: the die cannot get hotter with the ASIC powered down. It is only
+     * accepted inside the configured window. */
+    g = fresh();
+    research_guard_offer_token(&g, 0x71, 0);
+    c = healthy();
+    c.thermal_age_ms = 0;
+    check_res(research_guard_arm(&g, 0x71, 0, &c), RESEARCH_GUARD_OK, "a live reading is accepted");
+
+    g = fresh();
+    research_guard_offer_token(&g, 0x72, 0);
+    c = healthy();
+    c.thermal_age_ms = g.cfg.max_thermal_age_ms;
+    check_res(research_guard_arm(&g, 0x72, 0, &c), RESEARCH_GUARD_OK, "a reading exactly at the age limit is accepted");
+
+    g = fresh();
+    research_guard_offer_token(&g, 0x73, 0);
+    c = healthy();
+    c.thermal_age_ms = g.cfg.max_thermal_age_ms + 1;
+    check_res(research_guard_arm(&g, 0x73, 0, &c), RESEARCH_GUARD_ERR_THERMAL, "a stale reading is refused");
+
+    /* The window can be tightened but not opened wide: a day-old reading must be
+     * impossible to configure. */
+    cfg = research_guard_config_default();
+    cfg.max_thermal_age_ms = 86400000ull;
+    check(research_guard_init(&g, &cfg) == RESEARCH_GUARD_ERR_ARG, "a day-long thermal age is rejected");
+
+    cfg = research_guard_config_default();
+    cfg.max_thermal_age_ms = 1000ull;
+    check(research_guard_init(&g, &cfg) == RESEARCH_GUARD_ERR_ARG, "an age limit under 30 s is rejected");
+}
+
 int main(void)
 {
     test_config();
@@ -395,6 +448,8 @@ int main(void)
     test_pause_accounting();
     test_budgets();
     test_watchdog();
+    test_mining_active();
+    test_thermal_age();
     test_strings();
 
     printf("\n%d checks, %d failures\n", checks, failures);

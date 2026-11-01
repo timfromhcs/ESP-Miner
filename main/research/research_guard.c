@@ -18,6 +18,7 @@ research_guard_config_t research_guard_config_default(void)
         .token_ttl_ms = 120u * 1000u,
         .max_temperature_c = 68.0f,
         .max_power_w = 30.0f,
+        .max_thermal_age_ms = 5ull * 60ull * 1000ull,
     };
     return cfg;
 }
@@ -42,6 +43,9 @@ static bool config_valid(const research_guard_config_t *cfg)
     if (!(cfg->max_power_w > 0.0f)) {
         return false;
     }
+    if (cfg->max_thermal_age_ms < 30000ull || cfg->max_thermal_age_ms > 3600000ull) {
+        return false;
+    }
     return true;
 }
 
@@ -59,6 +63,10 @@ static research_guard_result_t check_conditions(const research_guard_t *guard, c
         return RESEARCH_GUARD_ERR_POOL;
     }
     if (!cond->thermal_known) {
+        return RESEARCH_GUARD_ERR_THERMAL;
+    }
+    /* Stale is unsafe, even if the value itself was fine when it was taken. */
+    if (cond->thermal_age_ms > guard->cfg.max_thermal_age_ms) {
         return RESEARCH_GUARD_ERR_THERMAL;
     }
     if (!(cond->temperature_c <= guard->cfg.max_temperature_c)) {
@@ -346,6 +354,16 @@ research_guard_state_t research_guard_evaluate(research_guard_t *guard, uint64_t
         guard->last_refusal = r;
     }
     return guard->state;
+}
+
+bool research_guard_mining_active(bool pool_connected, bool mining_paused, bool share_in_flight)
+{
+    /* A share already handed to the stratum task will still be submitted when its
+     * result arrives, even if the operator paused in the meantime. */
+    if (share_in_flight) {
+        return true;
+    }
+    return pool_connected && !mining_paused;
 }
 
 const char *research_guard_state_str(research_guard_state_t state)

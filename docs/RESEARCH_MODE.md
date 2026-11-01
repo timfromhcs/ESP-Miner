@@ -70,11 +70,29 @@ A research session exists only inside these constraints:
 | Build flag | Kconfig | routes do not exist |
 | Short-lived operator token | `research_guard_arm()` | `no_valid_token` |
 | Device identity verified this boot | `sample_conditions()` | `identity_unverified` |
-| No pool connected, no share outstanding | `sample_conditions()` | `pool_active` |
-| Chip temperature known and below the ceiling | `sample_conditions()` | `thermal_unsafe` |
+| No mining work can leave the device | `research_guard_mining_active()` | `pool_active` |
+| Chip temperature known, fresh and below the ceiling | `research_guard` | `thermal_unsafe` |
 | Measured power below the ceiling (when measured) | `research_guard` | `power_unsafe` |
 | Job budget | `research_guard` | `job_budget_exhausted` |
 | Session time budget | `research_guard` | `time_budget_exhausted` |
+
+Two of these are worth spelling out, because the obvious implementation is wrong
+and the hardware proved it:
+
+- **"Pool connected" is not "a TCP socket exists".** `POST /api/system/pause`
+  stops job creation and share submission but leaves the stratum socket open, so a
+  guard that waits for a disconnect never arms. The question the guard asks is
+  `research_guard_mining_active(connected, paused, share_in_flight)`: false only
+  when the operator's pause flag is set *and* no share is still in flight (an
+  outstanding share would be submitted when its result arrives).
+- **A paused miner has no live temperature.** Pausing powers the ASIC down and the
+  temperature path is gated on `ASIC_initalized`, so both the published average and
+  a direct read return −1. The session therefore uses the last reading taken while
+  the ASIC was running, which is an upper bound (a powered-down die cannot get
+  hotter), and only inside a bounded age window (default 5 min, configurable down
+  to 30 s, never above 1 h). The status labels it
+  `temperature_source: "last_before_pause"` with `temperature_age_ms`; a stale
+  reading is refused as `thermal_unsafe` like any other.
 
 Unknown is unsafe: a missing thermal reading, a NaN or a negative sensor value
 disarms the session rather than being ignored. Unknown *power* is the single

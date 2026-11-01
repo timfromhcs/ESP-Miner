@@ -55,6 +55,11 @@ typedef struct {
     bool share_in_flight;
     bool thermal_known;
     float temperature_c;
+    /* Age of the reading. A reading taken while the ASIC was running stays usable
+     * for a short window after the pause: with the ASIC powered down the die can
+     * only get cooler, so the value is an upper bound, never a guess in the
+     * dangerous direction. Older than the configured window and it is refused. */
+    uint64_t thermal_age_ms;
     bool power_known;
     float power_w;
 } research_guard_conditions_t;
@@ -65,6 +70,7 @@ typedef struct {
     uint32_t token_ttl_ms;     /* how long an offered token stays valid */
     float max_temperature_c;   /* never above the device's own limits */
     float max_power_w;         /* only enforced when power is known */
+    uint64_t max_thermal_age_ms; /* how old a pre-pause reading may be */
 } research_guard_config_t;
 
 typedef struct {
@@ -118,6 +124,16 @@ uint32_t research_guard_remaining_jobs(const research_guard_t *guard);
 /* Stable identifiers for the JSON status document. */
 const char *research_guard_state_str(research_guard_state_t state);
 const char *research_guard_result_str(research_guard_result_t result);
+
+/* Whether mining work can still reach a pool right now.
+ *
+ * Measured on the device: ESP-Miner's `/api/system/pause` stops creating jobs and
+ * submitting shares but keeps the stratum socket open, so "connected" alone is
+ * not the question the guard needs answered. The question is "can a share leave
+ * this device", and that is false only while the operator's pause flag is set and
+ * nothing is already in flight. A single outstanding share still blocks, because
+ * its result would be submitted after the pause. */
+bool research_guard_mining_active(bool pool_connected, bool mining_paused, bool share_in_flight);
 
 #ifdef __cplusplus
 }

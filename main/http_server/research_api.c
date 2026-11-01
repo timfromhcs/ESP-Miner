@@ -43,6 +43,11 @@ static research_sha_trace_t s_trace;
 static research_guard_t s_guard;
 static GlobalState *s_state;
 static bool s_ready;
+/* Last chip temperature that was actually measured, and when. A paused miner
+ * powers the ASIC down and then reports no reading at all; see
+ * sample_conditions(). */
+static float s_last_temp_c;
+static uint64_t s_last_temp_ms;
 
 static uint64_t now_ms(void)
 {
@@ -65,22 +70,45 @@ static research_guard_conditions_t sample_conditions(void)
     esp_chip_info(&chip);
     const esp_app_desc_t *desc = esp_app_get_description();
     /* Identity is not taken on trust from the client: this build must be the
-     * esp-miner application on an ESP32-S3 with a known board and an ASIC that
-     * already initialised in this boot. */
+     * esp-miner application on an ESP32-S3 with a known board and ASIC.
+     *
+     * It deliberately does NOT require the ASIC to be powered: pausing the miner
+     * powers the ASIC down (measured), and research is only allowed while mining
+     * is paused, so requiring it would make research mode unreachable on the very
+     * device it exists for. Which build and which board are running is the
+     * question here; whether the ASIC is currently clocked is not. */
     c.identity_verified = desc != NULL && chip.model == CHIP_ESP32S3 && strcmp(desc->project_name, "esp-miner") == 0 &&
-                          s_state->ASIC_initalized && s_state->DEVICE_CONFIG.family.asic.name != NULL;
+                          s_state->DEVICE_CONFIG.family.asic.name != NULL && s_state->DEVICE_CONFIG.board_version != NULL;
 
-    c.pool_connected = s_state->SYSTEM_MODULE.is_connected || s_state->SYSTEM_MODULE.is_using_fallback;
+    /* "Connected" is not the same as "mining": the pause route keeps the stratum
+     * socket open while it stops creating jobs and submitting shares. */
+    c.pool_connected = research_guard_mining_active(s_state->SYSTEM_MODULE.is_connected || s_state->SYSTEM_MODULE.is_using_fallback,
+                                                    s_state->SYSTEM_MODULE.mining_paused,
+                                                    s_state->SYSTEM_MODULE.shares_pending > 0);
     c.share_in_flight = s_state->SYSTEM_MODULE.shares_pending > 0;
 
-    /* Read the values the power-monitoring task already publishes instead of
-     * touching I2C/PMBus from the HTTP task: the sensor bus is owned by that
-     * task, and a research request must never be able to stall it. A value the
-     * monitoring task has not filled in yet is <= 0, which is "unknown" and
-     * therefore unsafe. */
+    /* Read the values the power-monitoring task publishes instead of touching
+     * I2C/PMBus from the HTTP task: the sensor bus is owned by that task.
+     *
+     * Measured on the device: pausing the miner powers the ASIC down, and both
+     * the published average and Thermal_get_chip_temp() then report "no reading"
+     * (-1), because the temperature path is gated on ASIC_initalized. A research
+     * session runs only while mining is paused, so it needs the last reading taken
+     * while the ASIC was running. That value is an upper bound - a powered-down
+     * die cannot get hotter - and it is only usable inside the guard's age window,
+     * which the caller reports in `thermal_age_ms` so the guard can refuse it. */
     float temp = s_state->POWER_MANAGEMENT_MODULE.chip_temp_avg;
+    uint64_t now = now_ms();
+    if (temp > 0.0f && temp < 200.0f) {
+        s_last_temp_c = temp;
+        s_last_temp_ms = now;
+    } else if (s_last_temp_c > 0.0f) {
+        temp = s_last_temp_c; /* reported with its age below, never as "live" */
+    }
+
     c.thermal_known = temp > 0.0f && temp < 200.0f;
     c.temperature_c = c.thermal_known ? temp : 0.0f;
+    c.thermal_age_ms = c.thermal_known ? (now > s_last_temp_ms ? now - s_last_temp_ms : 0) : 0;
 
     float power_w = s_state->POWER_MANAGEMENT_MODULE.power;
     c.power_known = power_w > 0.0f && power_w < 1000.0f;
@@ -254,6 +282,16 @@ static esp_err_t GET_research_status(httpd_req_t *req)
     cJSON_AddNumberToObject(root, "session_active_ms", (double) research_guard_active_ms(&s_guard, now_ms()));
 
     add_nullable_number(root, "temperature_c", cond.thermal_known, cond.temperature_c);
+    /* Say where the reading came from. A value taken before the pause is an upper
+     * bound and is labelled as such instead of being presented as live. */
+    if (!cond.thermal_known) {
+        cJSON_AddNullToObject(root, "temperature_source");
+    } else if (cond.thermal_age_ms < 1000) {
+        cJSON_AddStringToObject(root, "temperature_source", "live");
+    } else {
+        cJSON_AddStringToObject(root, "temperature_source", "last_before_pause");
+    }
+    add_nullable_number(root, "temperature_age_ms", cond.thermal_known, (double) cond.thermal_age_ms);
     add_nullable_number(root, "temperature_ceiling_c", true, s_guard.cfg.max_temperature_c);
     add_nullable_number(root, "power_w", cond.power_known, cond.power_w);
     add_nullable_number(root, "frequency_mhz", s_state->POWER_MANAGEMENT_MODULE.actual_frequency > 0.0f,
