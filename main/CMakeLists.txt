@@ -38,6 +38,13 @@ SRCS
     "./http_server/system_api_json.c"
     "./http_server/theme_api.c"
     "./http_server/ota_guard.c"
+    # SHA research oracle and its authorisation guard. Always compiled: the API
+    # file degrades to an empty registration when CONFIG_TIMSMINER_SHA_RESEARCH
+    # is off, and the linker drops the unused objects.
+    "./research/research_sha.c"
+    "./research/research_guard.c"
+    "./http_server/research_api.c"
+    "./http_server/backup_app.c"
     "./http_server/axe-os/api/system/asic_settings.c"
     "./self_test/self_test.c"
     "./tasks/stratum_v1_task.c"
@@ -77,6 +84,7 @@ INCLUDE_DIRS
     "bap"
     "thermal"
     "power"
+    "research"
     "${CMAKE_CURRENT_BINARY_DIR}"
 
 REQUIRES
@@ -85,6 +93,10 @@ REQUIRES
     "dns_server"
     "stratum"
     "stratum_v2"
+    # mbedtls is used directly by the running-app backup route (SHA-256 of the
+    # running partition), so the dependency is declared instead of relied upon
+    # transitively.
+    "mbedtls"
 
 PRIV_REQUIRES
     "app_update"

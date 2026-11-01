@@ -4,7 +4,7 @@ STRATUM_DIR = ../components/stratum
 CONNECT_DIR = ../components/connect
 MAIN_DIR = ../main
 
-TARGETS = test_virtual_board test_dataflow_memory test_notify_validate test_power_policy test_net_recovery_policy test_nbits_reference test_ota_guard
+TARGETS = test_virtual_board test_dataflow_memory test_notify_validate test_power_policy test_net_recovery_policy test_nbits_reference test_ota_guard test_research_sha test_research_guard
 
 all: $(TARGETS)
 
@@ -43,6 +43,19 @@ test_nbits_reference: $(STRATUM_DIR)/notify_validate.c test_nbits_reference.c
 test_ota_guard: $(MAIN_DIR)/http_server/ota_guard.c test_ota_guard.c
 	$(CC) $(CFLAGS) -I$(MAIN_DIR)/http_server -std=c11 -o $@ $^
 
+# The research oracle is the independent implementation a client uses to check
+# the miner (and the miner uses to check a client). It must be the same code on
+# both sides, so the host build compiles the exact firmware source file.
+RESEARCH_DIR = $(MAIN_DIR)/research
+
+test_research_sha: $(RESEARCH_DIR)/research_sha.c test_research_sha.c
+	$(CC) $(CFLAGS) -I$(RESEARCH_DIR) -std=c11 -o $@ $^
+
+# The authorisation guard decides whether research work may start at all. Every
+# refusal path (pool, thermal, identity, token, budget) is cheap to prove here.
+test_research_guard: $(RESEARCH_DIR)/research_guard.c test_research_guard.c
+	$(CC) $(CFLAGS) -I$(RESEARCH_DIR) -std=c11 -o $@ $^
+
 run: all
 	./test_virtual_board
 	./test_dataflow_memory
@@ -51,6 +64,8 @@ run: all
 	./test_net_recovery_policy
 	./test_nbits_reference
 	./test_ota_guard
+	./test_research_sha
+	./test_research_guard
 
 test: run
 

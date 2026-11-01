@@ -214,3 +214,55 @@ menu "Stratum Configuration"
             Enable task monitor. NOTE: This is intended for debugging use only as the use of uxTaskGetSystemState results in the scheduler remaining suspended for an extended period.
 
 endmenu
+
+menu "HCS SHA Forge research"
+
+    config TIMSMINER_SHA_RESEARCH
+        bool "SHA research API (experimental)"
+        default n
+        help
+            Compiles the on-device SHA-256 research oracle and the bounded
+            research session API (/api/research/*).
+
+            This does not change mining behaviour on its own. The API starts
+            disarmed, refuses work while a pool is connected, while a share is
+            outstanding, without a short-lived operator token, and outside its
+            job/time budget. It computes SHA-256 and SHA-256d in software on the
+            ESP32-S3 and returns the per-round values of that software
+            computation. It gives no access to BM1366 internals: the ASIC only
+            accepts mining-style SHA-256d work and returns nonces, so no
+            "ASIC round" data exists to expose.
+
+            Leave this off for a normal mining build.
+
+    config TIMSMINER_SHA_RESEARCH_MAX_JOBS
+        int "Research session job budget"
+        depends on TIMSMINER_SHA_RESEARCH
+        range 1 4096
+        default 64
+        help
+            Hard upper bound on research jobs per armed session. The session
+            disarms itself when the budget is spent; a new session needs a new
+            operator token.
+
+    config TIMSMINER_SHA_RESEARCH_MAX_RUNTIME_S
+        int "Research session time budget (seconds)"
+        depends on TIMSMINER_SHA_RESEARCH
+        range 10 14400
+        default 900
+        help
+            Active session time, excluding paused intervals. Research mode
+            disarms when the budget is spent.
+
+    config TIMSMINER_SHA_RESEARCH_TEMPERATURE_C
+        int "Research thermal ceiling (degrees Celsius)"
+        depends on TIMSMINER_SHA_RESEARCH
+        range 35 70
+        default 65
+        help
+            Research jobs are refused at or above this chip temperature. It can
+            only tighten the device's own thermal protection, never raise it:
+            the guard refuses a value above 70 C, and the existing thermal
+            policy still owns overheat handling.
+
+endmenu

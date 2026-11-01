@@ -47,6 +47,8 @@
 #include "cjson_utils.h"
 #include "utils.h"
 #include "ota_guard.h"
+#include "research_api.h"
+#include "backup_app.h"
 
 static const char * TAG = "http_server";
 static const char * CORS_TAG = "CORS";
@@ -1940,7 +1942,11 @@ esp_err_t start_rest_server(GlobalState * global_state)
     config.uri_match_fn = httpd_uri_match_wildcard;
     config.stack_size = 8192;
     config.max_open_sockets = 20;
-    config.max_uri_handlers = 25;
+    /* 23 system routes + 2 theme routes + 9 research routes (research builds
+     * only) + 2 running-app backup routes + the /api/* and /* catch-alls. Raised
+     * from 25 because the new routes would otherwise fail to register silently
+     * at the tail of the list. */
+    config.max_uri_handlers = 40;
     config.close_fn = websocket_close_fn;
     config.lru_purge_enable = true;
     config.keep_alive_enable = true;
@@ -2131,6 +2137,19 @@ esp_err_t start_rest_server(GlobalState * global_state)
         .ws_post_handshake_cb = websocket_post_handshake
     };
     httpd_register_uri_handler(server, &ws_live);
+
+    /* SHA research API (compiled in only with CONFIG_TIMSMINER_SHA_RESEARCH).
+     * Registered before the /api/* catch-all below, because httpd matches in
+     * registration order and a wildcard registered first would swallow these. */
+    if (research_api_register(server, GLOBAL_STATE) != ESP_OK) {
+        ESP_LOGW(TAG, "SHA research API could not be registered");
+    }
+
+    /* Read-only WLAN backup of the running application partition. Two GET routes,
+     * no client-supplied offsets and no access to any other partition. */
+    if (backup_api_register(server, GLOBAL_STATE) != ESP_OK) {
+        ESP_LOGW(TAG, "running-app backup routes could not be registered");
+    }
 
     httpd_uri_t api_common_uri = {
         .uri = "/api/*",
