@@ -43,6 +43,7 @@ SRCS
     # is off, and the linker drops the unused objects.
     "./research/research_sha.c"
     "./research/research_guard.c"
+    "./research/research_console_parse.c"
     "./http_server/research_api.c"
     "./http_server/backup_app.c"
     "./http_server/axe-os/api/system/asic_settings.c"

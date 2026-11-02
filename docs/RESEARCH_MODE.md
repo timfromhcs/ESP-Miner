@@ -175,7 +175,54 @@ outstanding, when identity is unverified, or when the chip is at/above the
 research ceiling. It does not require an armed session — it is a bounded,
 read-only computation — but it never competes with an active share.
 
-## 5. Operator flow (mining stops first)
+## 5. The USB console (no network needed)
+
+The same session can be driven from the USB-Serial/JTAG console. This is not a
+second authority model — same guard, same token, same budgets — it only removes
+the network from the path:
+
+```
+research status
+research mining off | on            -> the same pause flag the HTTP route sets
+research challenge                  -> token printed here, not returned
+research arm 482913
+research block 0 <32 hex>           -> upload the 64-byte block in four chunks
+research block 1 <32 hex>
+research block 2 <32 hex>
+research block 3 <32 hex>
+research trace [rounds]             -> the same hcs.sha.trace.v1 document, on stdout
+research digest <hex> [sha256d]
+research pause | resume | cancel | disarm
+research help
+```
+
+Two hardware facts shaped these commands:
+
+- **A console line longer than ~64 bytes loses characters.** Measured on this unit:
+  a 57-character line arrives intact, a 97-character line does not, so a
+  128-hex-character block cannot be typed in one go. The block is therefore
+  uploaded as four chunks of 32 hex characters, and `research block` refuses a
+  chunk that would leave a gap.
+- **The log shares the console.** An 11 KB trace document interleaved with
+  frequency and thermal lines from other tasks is not parseable. The trace dump
+  silences the log for its duration (about a second) and restores the level
+  immediately afterwards; every other command leaves logging alone.
+
+The trace is the same JSON as `POST /api/research/sha256`, with
+`"transport":"serial_console"` in the envelope, so
+`cqhecs.sha.round_trace.replay()` validates either one.
+
+Because the console is the primary console in this variant
+(`CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG`), stdin actually reads what is typed; with
+the stock configuration USB-Serial/JTAG is only the secondary console, which is
+output-only, so `fgets(stdin)` never saw a command.
+
+Every accepted and every refused shape is a host test
+(`simulation/test_research_console.c`, 83 assertions), including a signed token,
+a 65-round request, an odd-length hex message, an out-of-order block chunk and an
+over-long message.
+
+## 6. Operator flow over HTTP (mining stops first)
 
 Research work is refused while a pool is connected, so a session looks like this:
 
@@ -194,7 +241,7 @@ curl -s -X POST "http://$HOST/api/system/resume"           # mining returns
 feature does not add or change them. The research routes never resume mining
 themselves — that is always an explicit operator action.
 
-## 6. Honest measurement semantics
+## 7. Honest measurement semantics
 
 If you benchmark this, label it as a **software** measurement:
 
@@ -205,7 +252,7 @@ If you benchmark this, label it as a **software** measurement:
   documented in the ESP-Miner deep dive is not a hash counter and is not exposed
   here as one.
 
-## 7. Failure modes
+## 8. Failure modes
 
 | Symptom | Cause | Response |
 |---|---|---|

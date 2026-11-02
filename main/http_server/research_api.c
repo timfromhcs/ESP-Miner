@@ -14,6 +14,7 @@
 
 #include "global_state.h"
 #include "http_server.h"
+#include "research_console_parse.h"
 #include "research_guard.h"
 #include "research_sha.h"
 
@@ -674,6 +675,233 @@ static esp_err_t POST_research_sha256(httpd_req_t *req)
     return ESP_OK;
 }
 
+/* --- serial console -------------------------------------------------------
+ *
+ * The same session, driven from the USB-Serial/JTAG console instead of the
+ * network. The operator asked for "research over USB": the pairing token is
+ * already printed there, and with these commands a complete session needs no
+ * WLAN at all. The authority model does not change - same guard, same token,
+ * same budgets - the network is only removed from the path.
+ */
+
+static void console_print_status(void)
+{
+    research_guard_conditions_t cond = sample_conditions();
+    research_guard_evaluate(&s_guard, now_ms(), &cond);
+
+    printf("research state=%s enabled=yes job=%u/%u remaining=%u active_ms=%llu\n", research_guard_state_str(s_guard.state),
+           (unsigned) s_guard.jobs_started, (unsigned) s_guard.cfg.max_jobs, (unsigned) research_guard_remaining_jobs(&s_guard),
+           (unsigned long long) research_guard_active_ms(&s_guard, now_ms()));
+    if (cond.thermal_known) {
+        printf("thermal=%.1fC ceiling=%.0fC age_ms=%llu source=%s\n", cond.temperature_c, s_guard.cfg.max_temperature_c,
+               (unsigned long long) cond.thermal_age_ms, cond.thermal_age_ms < 1000 ? "live" : "last_before_pause");
+    } else {
+        printf("thermal=unknown ceiling=%.0fC\n", s_guard.cfg.max_temperature_c);
+    }
+    printf("identity=%s mining_active=%s share_in_flight=%s power=%s last_refusal=%s\n", cond.identity_verified ? "verified" : "unverified",
+           cond.pool_connected ? "yes" : "no", cond.share_in_flight ? "yes" : "no", cond.power_known ? "measured" : "unknown",
+           research_guard_result_str(s_guard.last_refusal));
+}
+
+static int console_write(void *ctx, const char *data, size_t len)
+{
+    (void) ctx;
+    /* The USB-Serial/JTAG console writes through a small, non-blocking ring
+     * buffer: a single 11 KB burst loses characters. Pacing the trace in 64-byte
+     * pieces with a one-tick gap keeps every byte, at the cost of about a second
+     * for a full 64-round trace. HTTP remains the fast path for machine use. */
+    const size_t chunk = 64;
+    for (size_t offset = 0; offset < len; offset += chunk) {
+        size_t take = len - offset;
+        if (take > chunk) {
+            take = chunk;
+        }
+        fwrite(data + offset, 1, take, stdout);
+        fflush(stdout);
+        vTaskDelay(1);
+    }
+    return 0;
+}
+
+/* The console must not be a second, weaker door: the oracle checks the same
+ * conditions the HTTP route checks, and refuses with the same vocabulary. */
+static bool console_oracle_allowed(const char *what)
+{
+    research_guard_conditions_t cond = sample_conditions();
+    if (!cond.identity_verified) {
+        printf("research %s refused: identity_unverified\n", what);
+        return false;
+    }
+    if (cond.pool_connected || cond.share_in_flight) {
+        printf("research %s refused: pool_active (stop mining first: research mining off)\n", what);
+        return false;
+    }
+    if (!cond.thermal_known) {
+        printf("research %s refused: thermal_unsafe (no reading)\n", what);
+        return false;
+    }
+    if (cond.temperature_c > s_guard.cfg.max_temperature_c || cond.thermal_age_ms > s_guard.cfg.max_thermal_age_ms) {
+        printf("research %s refused: thermal_unsafe (%.1f C, age %llu ms)\n", what, cond.temperature_c,
+               (unsigned long long) cond.thermal_age_ms);
+        return false;
+    }
+    return true;
+}
+
+static void console_trace(const research_console_request_t *req)
+{
+    if (!console_oracle_allowed("trace")) {
+        return;
+    }
+    research_sha_state_t state;
+    research_sha_state_init(&state);
+    s_trace.rounds = s_rounds;
+    s_trace.rounds_capacity = RESEARCH_SHA_ROUNDS;
+    if (research_sha_trace_run(&s_trace, &state, req->block, req->rounds, req->feed_forward) != 0) {
+        printf("research: trace failed\n");
+        return;
+    }
+    /* The log shares this console: without silencing it, an 11 KB JSON document is
+     * interleaved with frequency/thermal lines from other tasks and stops being
+     * parseable (measured). The level is restored immediately afterwards. */
+    esp_log_level_t previous = esp_log_level_get("*");
+    esp_log_level_set("*", ESP_LOG_NONE);
+    printf("{\"schema\":\"hcs.sha.device_sha256.v1\",\"kind\":\"block_trace\",\"compute\":\"software_cpu\","
+           "\"asic_access\":\"none\",\"transport\":\"serial_console\",\"trace\":");
+    int rc = research_sha_trace_write_json(&s_trace, console_write, NULL);
+    if (rc == 0) {
+        printf("}\n");
+    } else {
+        printf("\nresearch: trace aborted\n");
+    }
+    esp_log_level_set("*", previous);
+}
+
+static void console_digest(const research_console_request_t *req)
+{
+    if (!console_oracle_allowed("digest")) {
+        return;
+    }
+    uint8_t digest[RESEARCH_SHA_DIGEST_LEN];
+    char hex[RESEARCH_SHA_DIGEST_LEN * 2 + 1];
+    if (req->sha256d) {
+        research_sha256d(req->message, req->message_len, digest);
+    } else {
+        research_sha256(req->message, req->message_len, digest);
+    }
+    research_sha_bytes_to_hex(digest, sizeof(digest), hex, sizeof(hex));
+    printf("research algorithm=%s bytes=%u digest=%s\n", req->sha256d ? "sha256d" : "sha256", (unsigned) req->message_len, hex);
+}
+
+static void research_console_task(void *arg)
+{
+    (void) arg;
+    char line[336];
+    research_console_request_t req;
+    char err[128];
+    uint8_t block[RESEARCH_SHA_BLOCK_LEN];
+    size_t block_have = 0;
+
+    printf("\nresearch console ready (%u jobs, %us, ceiling %.0fC). Type 'research help'.\n", (unsigned) s_guard.cfg.max_jobs,
+           (unsigned) (s_guard.cfg.max_runtime_ms / 1000ull), s_guard.cfg.max_temperature_c);
+
+    for (;;) {
+        if (fgets(line, sizeof(line), stdin) == NULL) {
+            /* No console reader (or an empty burst): do not spin. */
+            vTaskDelay(pdMS_TO_TICKS(200));
+            continue;
+        }
+        size_t len = strlen(line);
+        if (research_console_parse(line, len, &req, err, sizeof(err)) != 0) {
+            printf("research: %s\n", err);
+            continue;
+        }
+
+        research_guard_conditions_t cond;
+        switch (req.command) {
+        case RESEARCH_CONSOLE_STATUS:
+            console_print_status();
+            break;
+        case RESEARCH_CONSOLE_CHALLENGE: {
+            uint32_t token = esp_random() % 1000000u;
+            if (token == 0) {
+                token = 1;
+            }
+            research_guard_offer_token(&s_guard, token, now_ms());
+            printf("research challenge issued: token %06u, valid %u s\n", (unsigned) token,
+                   (unsigned) (s_guard.cfg.token_ttl_ms / 1000u));
+            break;
+        }
+        case RESEARCH_CONSOLE_ARM: {
+            cond = sample_conditions();
+            research_guard_result_t r = research_guard_arm(&s_guard, req.token, now_ms(), &cond);
+            printf("research arm %s state=%s\n", research_guard_result_str(r), research_guard_state_str(s_guard.state));
+            break;
+        }
+        case RESEARCH_CONSOLE_PAUSE: {
+            research_guard_result_t r = research_guard_pause(&s_guard, now_ms());
+            printf("research pause %s state=%s\n", research_guard_result_str(r), research_guard_state_str(s_guard.state));
+            break;
+        }
+        case RESEARCH_CONSOLE_RESUME: {
+            cond = sample_conditions();
+            research_guard_result_t r = research_guard_resume(&s_guard, now_ms(), &cond);
+            printf("research resume %s state=%s\n", research_guard_result_str(r), research_guard_state_str(s_guard.state));
+            break;
+        }
+        case RESEARCH_CONSOLE_CANCEL: {
+            research_guard_result_t r = research_guard_cancel(&s_guard, now_ms());
+            printf("research cancel %s state=%s\n", research_guard_result_str(r), research_guard_state_str(s_guard.state));
+            break;
+        }
+        case RESEARCH_CONSOLE_DISARM: {
+            research_guard_result_t r = research_guard_disarm(&s_guard, now_ms());
+            printf("research disarm %s state=%s\n", research_guard_result_str(r), research_guard_state_str(s_guard.state));
+            break;
+        }
+        case RESEARCH_CONSOLE_MINING_OFF:
+            s_state->SYSTEM_MODULE.mining_paused = true;
+            printf("research mining off (mining_paused=1)\n");
+            break;
+        case RESEARCH_CONSOLE_MINING_ON:
+            s_state->SYSTEM_MODULE.mining_paused = false;
+            printf("research mining on (mining_paused=0)\n");
+            break;
+        case RESEARCH_CONSOLE_BLOCK: {
+            if (research_console_block_put(block, &block_have, req.block_index, req.block, req.block_len) != 0) {
+                printf("research block rejected: chunks must arrive in order 0..3 with no gaps\n");
+                break;
+            }
+            printf("research block %u accepted (%u/64 bytes)\n", req.block_index, (unsigned) block_have);
+            break;
+        }
+        case RESEARCH_CONSOLE_TRACE: {
+            if (req.block_len == 0) {
+                /* The chunked form: use the uploaded block. */
+                if (block_have != RESEARCH_SHA_BLOCK_LEN) {
+                    printf("research trace needs a complete block: %u/64 bytes uploaded (research block 0..3 <32 hex>)\n",
+                           (unsigned) block_have);
+                    break;
+                }
+                memcpy(req.block, block, RESEARCH_SHA_BLOCK_LEN);
+            }
+            console_trace(&req);
+            break;
+        }
+        case RESEARCH_CONSOLE_DIGEST:
+            console_digest(&req);
+            break;
+        case RESEARCH_CONSOLE_HELP:
+            printf("%s", research_console_help());
+            break;
+        case RESEARCH_CONSOLE_EMPTY:
+        case RESEARCH_CONSOLE_INVALID:
+        default:
+            break;
+        }
+    }
+}
+
 /* --- registration -------------------------------------------------------- */
 
 esp_err_t research_api_register(httpd_handle_t server, GlobalState *state)
@@ -708,6 +936,14 @@ esp_err_t research_api_register(httpd_handle_t server, GlobalState *state)
             return err;
         }
     }
+
+    /* The USB console drives the same session. 6 KB of stack because printf and
+     * the trace writer both run in this task. */
+    BaseType_t created = xTaskCreate(research_console_task, "research_console", 6144, NULL, 3, NULL);
+    if (created != pdPASS) {
+        ESP_LOGW(TAG, "research console task could not be created; the HTTP routes still work");
+    }
+
     ESP_LOGW(TAG, "SHA research API enabled: %u jobs, %u s, ceiling %d C",
              (unsigned) s_guard.cfg.max_jobs, (unsigned) (s_guard.cfg.max_runtime_ms / 1000ull),
              CONFIG_TIMSMINER_SHA_RESEARCH_TEMPERATURE_C);

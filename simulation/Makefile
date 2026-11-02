@@ -4,7 +4,7 @@ STRATUM_DIR = ../components/stratum
 CONNECT_DIR = ../components/connect
 MAIN_DIR = ../main
 
-TARGETS = test_virtual_board test_dataflow_memory test_notify_validate test_power_policy test_net_recovery_policy test_nbits_reference test_ota_guard test_research_sha test_research_guard
+TARGETS = test_virtual_board test_dataflow_memory test_notify_validate test_power_policy test_net_recovery_policy test_nbits_reference test_ota_guard test_research_sha test_research_guard test_research_console
 
 all: $(TARGETS)
 
@@ -56,6 +56,12 @@ test_research_sha: $(RESEARCH_DIR)/research_sha.c test_research_sha.c
 test_research_guard: $(RESEARCH_DIR)/research_guard.c test_research_guard.c
 	$(CC) $(CFLAGS) -I$(RESEARCH_DIR) -std=c11 -o $@ $^
 
+# The USB console parses the same commands the HTTP routes accept. A typo has to
+# be refused with a reason instead of being guessed into a command, so every
+# accepted and every refused shape is a case in this test.
+test_research_console: $(RESEARCH_DIR)/research_console_parse.c $(RESEARCH_DIR)/research_sha.c test_research_console.c
+	$(CC) $(CFLAGS) -I$(RESEARCH_DIR) -std=c11 -o $@ $^
+
 run: all
 	./test_virtual_board
 	./test_dataflow_memory
@@ -66,6 +72,7 @@ run: all
 	./test_ota_guard
 	./test_research_sha
 	./test_research_guard
+	./test_research_console
 
 test: run
 

@@ -17,3 +17,13 @@ CONFIG_TIMSMINER_SHA_RESEARCH=y
 CONFIG_TIMSMINER_SHA_RESEARCH_MAX_JOBS=64
 CONFIG_TIMSMINER_SHA_RESEARCH_MAX_RUNTIME_S=900
 CONFIG_TIMSMINER_SHA_RESEARCH_TEMPERATURE_C=65
+
+# The research console needs a console it can *read*. In the stock configuration
+# UART0 is the primary console and USB-Serial/JTAG is only the secondary one, and
+# a secondary console is output-only: the logs arrive over USB, but stdin is bound
+# to the UART pins. Measured the hard way - `fgets(stdin)` never saw a command
+# typed at COM3. For the research variant the USB-Serial/JTAG console is therefore
+# primary. esptool is unaffected (it uses the ROM downloader, not the console), and
+# the UART0 pins carry no other role on this board.
+CONFIG_ESP_CONSOLE_UART_DEFAULT=n
+CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
