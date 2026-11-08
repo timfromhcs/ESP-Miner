@@ -7,6 +7,10 @@ default** and does nothing unless the firmware is built with
 
 Read this before enabling it on a miner that is actually hashing.
 
+The planned HSCL1 receiver/schema boundary and its unimplemented transport gates
+are documented in [HSCL1 research bridge](HSCL1_BRIDGE.md). The existing research
+token is not a persistent receiver authentication key.
+
 ## 1. What it is, and what it is not
 
 It is:

@@ -1,5 +1,6 @@
 #include "research_guard.h"
 
+#include <math.h>
 #include <string.h>
 
 /* Absolute bounds on what a caller may configure. These are ceilings on the
@@ -40,7 +41,7 @@ static bool config_valid(const research_guard_config_t *cfg)
     if (!(cfg->max_temperature_c > 0.0f) || cfg->max_temperature_c > RESEARCH_GUARD_MAX_CEILING_C) {
         return false;
     }
-    if (!(cfg->max_power_w > 0.0f)) {
+    if (!isfinite(cfg->max_power_w) || !(cfg->max_power_w > 0.0f)) {
         return false;
     }
     if (cfg->max_thermal_age_ms < 30000ull || cfg->max_thermal_age_ms > 3600000ull) {
@@ -69,10 +70,10 @@ static research_guard_result_t check_conditions(const research_guard_t *guard, c
     if (cond->thermal_age_ms > guard->cfg.max_thermal_age_ms) {
         return RESEARCH_GUARD_ERR_THERMAL;
     }
-    if (!(cond->temperature_c <= guard->cfg.max_temperature_c)) {
+    if (!(cond->temperature_c >= 0.0f && cond->temperature_c <= guard->cfg.max_temperature_c)) {
         return RESEARCH_GUARD_ERR_THERMAL;
     }
-    if (cond->power_known && !(cond->power_w <= guard->cfg.max_power_w)) {
+    if (cond->power_known && !(cond->power_w >= 0.0f && cond->power_w <= guard->cfg.max_power_w)) {
         return RESEARCH_GUARD_ERR_POWER;
     }
     return RESEARCH_GUARD_OK;

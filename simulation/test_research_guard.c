@@ -439,8 +439,45 @@ static void test_thermal_age(void)
     check(research_guard_init(&g, &cfg) == RESEARCH_GUARD_ERR_ARG, "an age limit under 30 s is rejected");
 }
 
+static void test_invalid_sensor_numbers(void)
+{
+    printf("== invalid sensor numbers fail closed ==\n");
+    const float invalid[] = {-1.0f, -INFINITY, INFINITY, NAN};
+    for (unsigned i = 0; i < sizeof(invalid) / sizeof(invalid[0]); i++) {
+        research_guard_t g = fresh();
+        research_guard_conditions_t c = healthy();
+        c.temperature_c = invalid[i];
+        research_guard_offer_token(&g, 123456u, 0);
+        check_res(research_guard_arm(&g, 123456u, 0, &c), RESEARCH_GUARD_ERR_THERMAL,
+                  "invalid temperature cannot arm");
+
+        g = armed_at_zero();
+        check_res(research_guard_begin_job(&g, 1, &c), RESEARCH_GUARD_ERR_THERMAL,
+                  "invalid temperature cannot start a job");
+        check(g.state == RESEARCH_GUARD_DISARMED, "invalid temperature disarms");
+
+        g = fresh();
+        c = healthy();
+        c.power_w = invalid[i];
+        research_guard_offer_token(&g, 123456u, 0);
+        check_res(research_guard_arm(&g, 123456u, 0, &c), RESEARCH_GUARD_ERR_POWER,
+                  "invalid measured power cannot arm");
+
+        g = armed_at_zero();
+        check(research_guard_evaluate(&g, 1, &c) == RESEARCH_GUARD_DISARMED,
+              "watchdog disarms on invalid measured power");
+        check(g.last_refusal == RESEARCH_GUARD_ERR_POWER, "watchdog records invalid power");
+
+        research_guard_config_t cfg = research_guard_config_default();
+        cfg.max_power_w = invalid[i];
+        check_res(research_guard_init(&g, &cfg), RESEARCH_GUARD_ERR_ARG,
+                  "power ceiling must be finite and positive");
+    }
+}
+
 int main(void)
 {
+    test_invalid_sensor_numbers();
     test_config();
     test_token();
     test_conditions();
