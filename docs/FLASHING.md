@@ -14,8 +14,12 @@ Requirements: a data-capable USB cable, `esptool` (`python -m esptool` or the br
 
 | Image | Offset | When |
 |---|---|---|
-| factory image (`esp-miner-factory-<board>-<version>.bin`) | `0x0` | first flash or full recovery; replaces bootloader, partition table and app |
-| app image (`esp-miner.bin`) | `0x10000` | normal firmware update when bootloader and partitions are already correct |
+| factory image (`esp-miner-factory-<board>-<version>.bin`) | `0x0` | first flash or full recovery; replaces bootloader, partition table and app **and erases NVS** — Wi-Fi credentials and pool settings are lost |
+| app image (`esp-miner.bin`) | `0x10000` | normal firmware update when bootloader and partitions are already correct; keeps NVS |
+
+> Measured 2026-11-09 on board 201: after writing the merged factory image at `0x0`, NVS contained the
+> defaults again (`sta.ssid = "myssid"`, placeholder pool) and the device could not rejoin the network.
+> A factory flash is a **factory reset**, not an update. For updates keep the app-only path.
 
 ```console
 # app image on an already-provisioned device
